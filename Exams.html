@@ -130,12 +130,15 @@ body{transition:background-color 0.5s,color 0.5s}
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
     <div class="flex items-center justify-between h-16">
       <!-- Logo -->
-      <a href="#" @click.prevent="currentSection='home'" class="flex items-center gap-2 group">
-        <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-primary-500 to-accent-500 flex items-center justify-center transform group-hover:rotate-12 transition-transform">
-          <i class="fas fa-bolt text-white text-sm"></i>
-        </div>
-        <span class="text-xl font-extrabold bg-gradient-to-r from-primary-400 to-accent-400 bg-clip-text text-transparent">ExamForge</span>
-      </a>
+      <div class="flex flex-col">
+        <a href="#" @click.prevent="currentSection='home'" class="flex items-center gap-2 group">
+          <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-primary-500 to-accent-500 flex items-center justify-center transform group-hover:rotate-12 transition-transform">
+            <i class="fas fa-bolt text-white text-sm"></i>
+          </div>
+          <span class="text-xl font-extrabold bg-gradient-to-r from-primary-400 to-accent-400 bg-clip-text text-transparent">ExamForge</span>
+        </a>
+        <span class="text-[10px] sm:text-xs font-medium ml-11 -mt-0.5" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">Made by Joshua From 9 holding to help in exams</span>
+      </div>
 
       <!-- Desktop nav links -->
       <div class="hidden md:flex items-center gap-1">
@@ -2209,8 +2212,6 @@ function initAtomViewer(atom) {
   function animate() {
     _atomAnimationId = requestAnimationFrame(animate);
 
-
-
     electrons.forEach(e => {
       e.angle += e.speed;
       e.mesh.position.x = Math.cos(e.angle) * e.radius;
@@ -2221,10 +2222,6 @@ function initAtomViewer(atom) {
 
     scene.rotation.x = rotX;
     scene.rotation.y = rotY;
-      e.mesh.position.z = sx * tempY + cx * e.mesh.position.z;
-
-      e.trail.position.copy(e.mesh.position);
-    });
 
     if (!isDragging) rotY += 0.003;
     renderer.render(scene, camera);
