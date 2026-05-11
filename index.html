@@ -94,9 +94,11 @@ body{transition:background-color 0.5s,color 0.5s}
 .timeline-line{position:absolute;left:50%;top:0;bottom:0;width:3px;background:linear-gradient(180deg,#6366f1,#a855f7,#ec4899);transform:translateX(-50%)}
 @media(max-width:768px){.timeline-line{left:20px}}
 
-/* Neon border */
-.neon-border{position:relative;overflow:hidden}
-.neon-border::before{content:'';position:absolute;top:-2px;left:-2px;right:-2px;bottom:-2px;background:linear-gradient(45deg,#6366f1,#a855f7,#ec4899,#6366f1);background-size:400% 400%;animation:gradientShift 4s ease infinite;border-radius:inherit;z-index:-1}
+/* Custom Scroll Margin */
+[id] { scroll-margin-top: 5rem; }
+
+/* Atoms Canvas Container */
+#atom-canvas-container canvas { width: 100% !important; height: 100% !important; display: block; }
 
 /* Confetti */
 .confetti-piece{position:fixed;width:10px;height:10px;top:-10px;z-index:99999;animation:confettiFall 3s ease-in forwards}
@@ -299,9 +301,6 @@ body{transition:background-color 0.5s,color 0.5s}
             <div class="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-green-500 to-emerald-400 flex items-center justify-center text-white text-2xl"><i class="fas fa-check-double"></i></div>
             <h3 class="text-lg font-bold mb-2" :class="darkMode?'text-white':'text-gray-900'">Practice Quizzes</h3>
             <p class="text-sm" :class="darkMode?'text-gray-400':'text-gray-600'">Multiple choice, drag-and-drop, and fill-in-the-blank quizzes with instant feedback and confetti rewards.</p>
-          </div>
-              </div>
-            </div>
           </div>
         </div>
       </div>
@@ -549,9 +548,6 @@ body{transition:background-color 0.5s,color 0.5s}
               <button @click="checkQuiz()" class="px-8 py-3 rounded-xl bg-gradient-to-r from-primary-500 to-accent-500 text-white font-bold hover:shadow-xl transition-all">Check Answers</button>
               <div x-show="score!==null" class="mt-4 text-2xl font-bold" :class="score>=80?'text-green-400':score>=50?'text-yellow-400':'text-red-400'">
                 Score: <span x-text="score+'%'"></span>
-              </div>
-            </div>
-          </div>
               </div>
             </div>
           </div>
@@ -856,9 +852,6 @@ body{transition:background-color 0.5s,color 0.5s}
             <div x-show="allAnswered()" class="text-center">
               <button @click="checkQuiz()" class="px-8 py-3 rounded-xl bg-gradient-to-r from-blue-500 to-red-500 text-white font-bold hover:shadow-xl transition-all">Check Answers</button>
               <div x-show="score!==null" class="mt-4 text-2xl font-bold" :class="score>=80?'text-green-400':score>=50?'text-yellow-400':'text-red-400'">Score: <span x-text="score+'%'"></span></div>
-            </div>
-          </div>
-              </div>
             </div>
           </div>
         </div>
@@ -1185,9 +1178,6 @@ body{transition:background-color 0.5s,color 0.5s}
               <div x-show="score!==null" class="mt-4 text-2xl font-bold" :class="score>=80?'text-green-400':score>=50?'text-yellow-400':'text-red-400'">Score: <span x-text="score+'%'"></span></div>
             </div>
           </div>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
     </section>
@@ -1418,9 +1408,6 @@ body{transition:background-color 0.5s,color 0.5s}
             <div x-show="allAnswered()" class="text-center">
               <button @click="checkQuiz()" class="px-8 py-3 rounded-xl bg-gradient-to-r from-green-500 to-emerald-500 text-white font-bold hover:shadow-xl transition-all">Check Answers</button>
               <div x-show="score!==null" class="mt-4 text-2xl font-bold" :class="score>=80?'text-green-400':score>=50?'text-yellow-400':'text-red-400'">Score: <span x-text="score+'%'"></span></div>
-            </div>
-          </div>
-              </div>
             </div>
           </div>
         </div>
