@@ -246,7 +246,7 @@ body{transition:background-color 0.5s,color 0.5s}
               <span :class="darkMode?'text-white':'text-gray-900'">Crush Every Exam.</span>
             </h1>
             <p class="text-lg sm:text-xl max-w-2xl mx-auto mb-10" :class="darkMode?'text-gray-400':'text-gray-600'">
-              Interactive 3D models, smart flashcards, practice quizzes, and everything you need for Religious Education, French, Chemistry, Biology, Physical Education, and Business Basics.
+              Interactive 3D models, smart flashcards, practice quizzes, and everything you need for Religious Education, French, Chemistry, Biology, Physical Education, Business Basics, and History.
             </p>
             <div class="flex flex-wrap justify-center gap-4">
               <button @click="currentSection='religion'" class="px-8 py-3.5 rounded-xl bg-gradient-to-r from-primary-500 to-accent-500 text-white font-bold text-lg hover:shadow-xl hover:shadow-primary-500/25 hover:-translate-y-1 transition-all duration-300">
@@ -262,7 +262,7 @@ body{transition:background-color 0.5s,color 0.5s}
 
       <!-- Subject Cards -->
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 -mt-20 relative z-20">
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           <template x-for="(card,idx) in subjectCards" :key="card.id">
             <div @click="currentSection=card.id" class="tilt-card group cursor-pointer rounded-2xl p-6 transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl" :class="darkMode?'bg-dark-700/80 border border-white/10 hover:border-primary-500/30 hover:shadow-primary-500/10':'bg-white border border-gray-200 hover:border-primary-300 hover:shadow-primary-500/10'" :style="'animation-delay:'+(idx*100)+'ms'" @mouseenter="handleTilt($event,$el)" @mousemove="handleTilt($event,$el)" @mouseleave="resetTilt($el)">
               <div class="w-14 h-14 rounded-xl mb-4 flex items-center justify-center text-2xl text-white" :class="card.gradient">
@@ -913,7 +913,6 @@ body{transition:background-color 0.5s,color 0.5s}
               </div>
             </div>
 
-            </div>
             <!-- Atom Info Panel -->
             <div class="p-6 border-t" :class="darkMode?'border-white/10':'border-gray-200'">
               <!-- Name & Badge Row -->
@@ -1439,13 +1438,14 @@ body{transition:background-color 0.5s,color 0.5s}
                 <div class="text-center"><i class="fas fa-spinner fa-spin text-3xl mb-2"></i><p class="text-sm">Loading 3D Skeleton...</p></div>
               </div>
             </div>
-            <div x-data="{selectedBone:null}" class="space-y-3" id="bone-info-panel">
-              <div class="p-4 rounded-xl text-center" :class="darkMode?'bg-dark-700/60 border border-white/10':'bg-white border border-gray-200 shadow'">
-                <p class="text-sm font-medium" :class="darkMode?'text-gray-400':'text-gray-500'">Select a bone from the list below</p>
+            <div id="skel-tooltip" class="hidden fixed z-50 px-3 py-1.5 rounded-lg text-xs font-bold pointer-events-none bg-gray-900 text-white shadow-lg border border-white/20"></div>
+            <div x-data="boneExplorer()" @bone-clicked.window="selected=bones.find(b=>b.name===$event.detail)||null" class="space-y-3" id="bone-info-panel">
+              <div x-show="!selected" class="p-4 rounded-xl text-center" :class="darkMode?'bg-dark-700/60 border border-white/10':'bg-white border border-gray-200 shadow'">
+                <p class="text-sm font-medium" :class="darkMode?'text-gray-400':'text-gray-500'">Click a bone in the 3D model or select from the list below</p>
               </div>
-              <div class="grid grid-cols-3 sm:grid-cols-5 gap-2" x-data="boneExplorer()">
+              <div class="grid grid-cols-3 sm:grid-cols-5 gap-2">
                 <template x-for="bone in bones" :key="bone.name">
-                  <button @click="selected=bone" class="p-2 rounded-lg text-xs font-medium text-center transition-all duration-200 hover:-translate-y-0.5" :class="selected&&selected.name===bone.name ? 'bg-red-500/20 border-red-500 text-red-400 border' : (darkMode?'bg-dark-700/60 border border-white/10 text-gray-300 hover:border-red-500/30':'bg-white border border-gray-200 text-gray-700 hover:border-red-400 shadow-sm')" x-text="bone.name"></button>
+                  <button @click="selected=bone;window.dispatchEvent(new CustomEvent('highlight-bone',{detail:bone.name}))" class="p-2 rounded-lg text-xs font-medium text-center transition-all duration-200 hover:-translate-y-0.5" :class="selected&&selected.name===bone.name ? 'bg-red-500/20 border-red-500 text-red-400 border' : (darkMode?'bg-dark-700/60 border border-white/10 text-gray-300 hover:border-red-500/30':'bg-white border border-gray-200 text-gray-700 hover:border-red-400 shadow-sm')" x-text="bone.name"></button>
                 </template>
                 <div x-show="selected" x-transition class="col-span-3 sm:col-span-5 p-5 rounded-xl mt-2" :class="darkMode?'bg-dark-700/80 border border-red-500/20':'bg-white border border-red-200 shadow-lg'">
                   <div class="flex items-start gap-4">
@@ -2009,12 +2009,278 @@ body{transition:background-color 0.5s,color 0.5s}
       </div>
     </section>
 
+    <!-- ======================= HISTORY ======================= -->
+    <section x-show="currentSection==='history'" x-transition:enter="transition ease-out duration-400" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-1">
+      <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <h1 class="text-3xl sm:text-4xl font-black mb-2" :class="darkMode?'text-white':'text-gray-900'">History</h1>
+        <p class="text-lg mb-10" :class="darkMode?'text-gray-400':'text-gray-600'">The Haitian Revolution &mdash; the only successful slave revolt in history</p>
+
+        <!-- Introduction -->
+        <div id="hist-intro" class="mb-16">
+          <h2 class="text-2xl font-bold mb-6 flex items-center gap-3" :class="darkMode?'text-white':'text-gray-900'">
+            <i class="fas fa-book-open text-purple-400"></i> Introduction to St. Domingue
+          </h2>
+          <div class="p-6 rounded-2xl" :class="darkMode?'bg-dark-700/60 border border-white/10':'bg-white border border-gray-200 shadow-lg'">
+            <p class="mb-4" :class="darkMode?'text-gray-300':'text-gray-700'">The Haitian Revolution was a complex and transformative event that reshaped the Caribbean and had global implications. It was the <strong class="text-purple-400">only successful slave revolt in history</strong>, leading to the establishment of an independent nation.</p>
+            <p class="mb-4" :class="darkMode?'text-gray-300':'text-gray-700'">A significant event that marked its beginning was the slave rebellion in the northern part of the colony in <strong class="text-purple-400">August 1791</strong>.</p>
+            <div class="p-4 rounded-xl mt-4" :class="darkMode?'bg-purple-500/10 border border-purple-500/20':'bg-purple-50 border border-purple-200'">
+              <h3 class="font-bold text-sm mb-2" :class="darkMode?'text-purple-300':'text-purple-700'"><i class="fas fa-scroll mr-2"></i>The Treaty of Ryswick (1697)</h3>
+              <p class="text-sm" :class="darkMode?'text-gray-300':'text-gray-700'">This treaty officially recognized French sovereignty over the western part of Hispaniola (which would become St. Domingue). It formalized French colonial rule, setting the stage for the development of the plantation economy and the subsequent slave system that would lead to the revolution.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Causes -->
+        <div id="hist-causes" class="mb-16">
+          <h2 class="text-2xl font-bold mb-6 flex items-center gap-3" :class="darkMode?'text-white':'text-gray-900'">
+            <i class="fas fa-fire text-purple-400"></i> Causes of the Revolution
+          </h2>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="p-6 rounded-2xl transition-all hover:-translate-y-1" :class="darkMode?'bg-dark-700/60 border border-white/10 hover:border-red-500/30':'bg-white border border-gray-200 shadow-lg hover:border-red-300'">
+              <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-red-500 to-rose-500 flex items-center justify-center text-white text-xl mb-4"><i class="fas fa-link-slash"></i></div>
+              <h3 class="font-bold mb-2" :class="darkMode?'text-white':'text-gray-900'">Brutal Slavery System</h3>
+              <p class="text-sm" :class="darkMode?'text-gray-400':'text-gray-600'">St. Domingue was a highly profitable French colony built on the backs of enslaved Africans. Conditions were exceptionally harsh &mdash; overwork, severe punishments, and a high mortality rate created deep resentment and a desire for freedom.</p>
+            </div>
+            <div class="p-6 rounded-2xl transition-all hover:-translate-y-1" :class="darkMode?'bg-dark-700/60 border border-white/10 hover:border-orange-500/30':'bg-white border border-gray-200 shadow-lg hover:border-orange-300'">
+              <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-orange-500 to-amber-500 flex items-center justify-center text-white text-xl mb-4"><i class="fas fa-layer-group"></i></div>
+              <h3 class="font-bold mb-2" :class="darkMode?'text-white':'text-gray-900'">Social Hierarchy &amp; Racial Tensions</h3>
+              <p class="text-sm" :class="darkMode?'text-gray-400':'text-gray-600'">Society was rigidly stratified by race and social status. Tensions between the grands blancs, petits blancs, gens de couleur libres, and enslaved Africans bred significant conflict, particularly as free people of color sought equal rights.</p>
+            </div>
+            <div class="p-6 rounded-2xl transition-all hover:-translate-y-1" :class="darkMode?'bg-dark-700/60 border border-white/10 hover:border-blue-500/30':'bg-white border border-gray-200 shadow-lg hover:border-blue-300'">
+              <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-500 flex items-center justify-center text-white text-xl mb-4"><i class="fas fa-lightbulb"></i></div>
+              <h3 class="font-bold mb-2" :class="darkMode?'text-white':'text-gray-900'">Enlightenment &amp; French Revolution</h3>
+              <p class="text-sm" :class="darkMode?'text-gray-400':'text-gray-600'">The ideals of liberty, equality, and fraternity inspired enslaved people and free people of color to challenge the oppressive order. The turmoil in France created an opportunity for revolt in the colony.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Life of a Slave -->
+        <div id="hist-slavery" class="mb-16">
+          <h2 class="text-2xl font-bold mb-6 flex items-center gap-3" :class="darkMode?'text-white':'text-gray-900'">
+            <i class="fas fa-chain text-purple-400"></i> Life of a Slave in St. Domingue
+          </h2>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="p-5 rounded-xl" :class="darkMode?'bg-dark-700/60 border border-white/10':'bg-white border border-gray-200 shadow'">
+              <div class="flex items-center gap-3 mb-3">
+                <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-red-500 to-rose-600 flex items-center justify-center text-white"><i class="fas fa-hammer"></i></div>
+                <h3 class="font-bold" :class="darkMode?'text-white':'text-gray-900'">Labour</h3>
+              </div>
+              <p class="text-sm" :class="darkMode?'text-gray-400':'text-gray-600'">Enslaved people were forced to work long hours in harsh conditions, primarily on sugar plantations, but also on coffee, indigo, and tobacco farms. The work was physically demanding and dangerous.</p>
+            </div>
+            <div class="p-5 rounded-xl" :class="darkMode?'bg-dark-700/60 border border-white/10':'bg-white border border-gray-200 shadow'">
+              <div class="flex items-center gap-3 mb-3">
+                <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center text-white"><i class="fas fa-gavel"></i></div>
+                <h3 class="font-bold" :class="darkMode?'text-white':'text-gray-900'">Treatment</h3>
+              </div>
+              <p class="text-sm" :class="darkMode?'text-gray-400':'text-gray-600'">Slaves were considered property and subject to the arbitrary and often cruel will of their owners. Physical punishment was common and severe. The French <strong>Code Noir</strong> legalized the harsh treatment of slaves.</p>
+            </div>
+            <div class="p-5 rounded-xl" :class="darkMode?'bg-dark-700/60 border border-white/10':'bg-white border border-gray-200 shadow'">
+              <div class="flex items-center gap-3 mb-3">
+                <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-gray-500 to-gray-700 flex items-center justify-center text-white"><i class="fas fa-skull-crossbones"></i></div>
+                <h3 class="font-bold" :class="darkMode?'text-white':'text-gray-900'">Mortality</h3>
+              </div>
+              <p class="text-sm" :class="darkMode?'text-gray-400':'text-gray-600'">The combination of arduous labour, poor living conditions, inadequate food, and brutal punishments resulted in a very high mortality rate. This necessitated a constant influx of new slaves through the transatlantic slave trade.</p>
+            </div>
+            <div class="p-5 rounded-xl" :class="darkMode?'bg-dark-700/60 border border-white/10':'bg-white border border-gray-200 shadow'">
+              <div class="flex items-center gap-3 mb-3">
+                <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center text-white"><i class="fas fa-fist-raised"></i></div>
+                <h3 class="font-bold" :class="darkMode?'text-white':'text-gray-900'">Resistance</h3>
+              </div>
+              <p class="text-sm" :class="darkMode?'text-gray-400':'text-gray-600'">Despite the oppressive conditions, enslaved people found ways to resist &mdash; including running away to form <strong>Maroon communities</strong>, slowing down work, and ultimately organizing large-scale revolts.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Social Structure -->
+        <div id="hist-social" class="mb-16">
+          <h2 class="text-2xl font-bold mb-6 flex items-center gap-3" :class="darkMode?'text-white':'text-gray-900'">
+            <i class="fas fa-sitemap text-purple-400"></i> Social Structure of St. Domingue
+          </h2>
+          <div class="relative">
+            <!-- Pyramid visualization -->
+            <div class="space-y-3 max-w-2xl mx-auto">
+              <div class="p-5 rounded-xl text-center mx-auto" style="max-width:55%" :class="darkMode?'bg-gradient-to-r from-yellow-500/20 to-amber-500/20 border border-yellow-500/30':'bg-gradient-to-r from-yellow-50 to-amber-50 border border-yellow-300'">
+                <div class="w-10 h-10 rounded-full bg-gradient-to-br from-yellow-400 to-amber-500 flex items-center justify-center text-white mx-auto mb-2"><i class="fas fa-crown"></i></div>
+                <h3 class="font-bold text-sm" :class="darkMode?'text-yellow-300':'text-yellow-700'">Grands Blancs</h3>
+                <p class="text-xs mt-1" :class="darkMode?'text-gray-400':'text-gray-600'">Wealthy white plantation owners and colonial administrators. Held significant economic and political power.</p>
+              </div>
+              <div class="p-5 rounded-xl text-center mx-auto" style="max-width:70%" :class="darkMode?'bg-gradient-to-r from-blue-500/20 to-indigo-500/20 border border-blue-500/30':'bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-300'">
+                <div class="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center text-white mx-auto mb-2"><i class="fas fa-store"></i></div>
+                <h3 class="font-bold text-sm" :class="darkMode?'text-blue-300':'text-blue-700'">Petits Blancs</h3>
+                <p class="text-xs mt-1" :class="darkMode?'text-gray-400':'text-gray-600'">Poorer whites, artisans, shopkeepers, and overseers. Looked down on free people of color but often resented the grands blancs.</p>
+              </div>
+              <div class="p-5 rounded-xl text-center mx-auto" style="max-width:85%" :class="darkMode?'bg-gradient-to-r from-orange-500/20 to-red-500/20 border border-orange-500/30':'bg-gradient-to-r from-orange-50 to-red-50 border border-orange-300'">
+                <div class="w-10 h-10 rounded-full bg-gradient-to-br from-orange-400 to-red-500 flex items-center justify-center text-white mx-auto mb-2"><i class="fas fa-users"></i></div>
+                <h3 class="font-bold text-sm" :class="darkMode?'text-orange-300':'text-orange-700'">Gens de Couleur Libres</h3>
+                <p class="text-xs mt-1" :class="darkMode?'text-gray-400':'text-gray-600'">Free people of color, often mixed-race. Many were wealthy landowners and slaveholders themselves. Faced discrimination and sought equal rights with whites.</p>
+              </div>
+              <div class="p-5 rounded-xl text-center" :class="darkMode?'bg-gradient-to-r from-rose-500/20 to-red-500/20 border border-rose-500/30':'bg-gradient-to-r from-rose-50 to-red-50 border border-rose-300'">
+                <div class="w-10 h-10 rounded-full bg-gradient-to-br from-rose-500 to-red-600 flex items-center justify-center text-white mx-auto mb-2"><i class="fas fa-chain"></i></div>
+                <h3 class="font-bold text-sm" :class="darkMode?'text-rose-300':'text-rose-700'">Enslaved Africans</h3>
+                <p class="text-xs mt-1" :class="darkMode?'text-gray-400':'text-gray-600'">The vast majority of the population. Forcibly brought from Africa and subjected to brutal enslavement. They formed the labour force and were the primary drivers of the revolution.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Key Leaders -->
+        <div id="hist-leaders" class="mb-16">
+          <h2 class="text-2xl font-bold mb-6 flex items-center gap-3" :class="darkMode?'text-white':'text-gray-900'">
+            <i class="fas fa-user-shield text-purple-400"></i> Key Personalities
+          </h2>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- Toussaint -->
+            <div class="p-6 rounded-2xl" :class="darkMode?'bg-dark-700/60 border border-white/10':'bg-white border border-gray-200 shadow-lg'">
+              <div class="flex items-start gap-4">
+                <div class="w-14 h-14 rounded-xl bg-gradient-to-br from-purple-500 to-violet-600 flex items-center justify-center text-white text-2xl flex-shrink-0"><i class="fas fa-chess-king"></i></div>
+                <div>
+                  <h3 class="text-lg font-bold" :class="darkMode?'text-white':'text-gray-900'">Toussaint L'Ouverture</h3>
+                  <span class="text-xs font-medium text-purple-400">The "Black Napoleon"</span>
+                </div>
+              </div>
+              <div class="mt-4 space-y-2 text-sm" :class="darkMode?'text-gray-300':'text-gray-700'">
+                <p><strong class="text-purple-400">Background:</strong> Born into slavery around 1743 on the Breda plantation. Taught to read and write by his godfather. Learned about medicinal herbs and gained experience as a coachman and overseer.</p>
+                <p><strong class="text-purple-400">Leadership:</strong> Rose from slavery to become a brilliant military and political leader. A tactical genius who organized and led slave rebellions, transforming them into a disciplined fighting force.</p>
+                <p><strong class="text-purple-400">Legacy:</strong> Key figure in the fight for abolition and independence. Noted for being very organized. Died in a French prison.</p>
+              </div>
+            </div>
+            <!-- Boukman -->
+            <div class="p-6 rounded-2xl" :class="darkMode?'bg-dark-700/60 border border-white/10':'bg-white border border-gray-200 shadow-lg'">
+              <div class="flex items-start gap-4">
+                <div class="w-14 h-14 rounded-xl bg-gradient-to-br from-red-500 to-rose-600 flex items-center justify-center text-white text-2xl flex-shrink-0"><i class="fas fa-fire"></i></div>
+                <div>
+                  <h3 class="text-lg font-bold" :class="darkMode?'text-white':'text-gray-900'">Boukman</h3>
+                  <span class="text-xs font-medium text-red-400">Voodoo Priest &amp; Maroon</span>
+                </div>
+              </div>
+              <div class="mt-4 space-y-2 text-sm" :class="darkMode?'text-gray-300':'text-gray-700'">
+                <p><strong class="text-red-400">Background:</strong> A Jamaican Voodoo priest and a maroon (an escaped slave who formed independent communities). A significant figure in the early stages of the revolution.</p>
+                <p><strong class="text-red-400">Role:</strong> Credited with initiating the large-scale slave revolt that began in August 1791. Performed Vodou ceremonies, including religious sacrifices, to rally the enslaved people to fight against their masters. Galvanized thousands of slaves to rise up.</p>
+              </div>
+            </div>
+            <!-- Dessalines -->
+            <div class="p-6 rounded-2xl" :class="darkMode?'bg-dark-700/60 border border-white/10':'bg-white border border-gray-200 shadow-lg'">
+              <div class="flex items-start gap-4">
+                <div class="w-14 h-14 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center text-white text-2xl flex-shrink-0"><i class="fas fa-flag"></i></div>
+                <div>
+                  <h3 class="text-lg font-bold" :class="darkMode?'text-white':'text-gray-900'">Jean-Jacques Dessalines</h3>
+                  <span class="text-xs font-medium text-amber-400">Founder of Haiti</span>
+                </div>
+              </div>
+              <div class="mt-4 space-y-2 text-sm" :class="darkMode?'text-gray-300':'text-gray-700'">
+                <p><strong class="text-amber-400">Background:</strong> A general in the French army and a key lieutenant to Toussaint L'Ouverture.</p>
+                <p><strong class="text-amber-400">Contributions:</strong> After Toussaint's capture and deportation, Dessalines took over leadership. A formidable military leader who declared <strong>Haiti's independence from France in 1804</strong>. Abolished slavery and established the new nation, becoming its first ruler.</p>
+              </div>
+            </div>
+            <!-- Christophe -->
+            <div class="p-6 rounded-2xl" :class="darkMode?'bg-dark-700/60 border border-white/10':'bg-white border border-gray-200 shadow-lg'">
+              <div class="flex items-start gap-4">
+                <div class="w-14 h-14 rounded-xl bg-gradient-to-br from-emerald-500 to-green-600 flex items-center justify-center text-white text-2xl flex-shrink-0"><i class="fas fa-landmark"></i></div>
+                <div>
+                  <h3 class="text-lg font-bold" :class="darkMode?'text-white':'text-gray-900'">Henri Christophe</h3>
+                  <span class="text-xs font-medium text-emerald-400">King of Northern Haiti</span>
+                </div>
+              </div>
+              <div class="mt-4 space-y-2 text-sm" :class="darkMode?'text-gray-300':'text-gray-700'">
+                <p><strong class="text-emerald-400">Background:</strong> An important general who served during the revolution and later became a ruler of Haiti.</p>
+                <p><strong class="text-emerald-400">Contributions:</strong> A skilled commander who played a significant role in the fight for independence. Became ruler of northern Haiti after the country split. Known for modernizing agriculture, implementing a healthcare system, and building the Citadelle Laferriere.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Timeline -->
+        <div id="hist-timeline" class="mb-16">
+          <h2 class="text-2xl font-bold mb-6 flex items-center gap-3" :class="darkMode?'text-white':'text-gray-900'">
+            <i class="fas fa-timeline text-purple-400"></i> Key Timeline
+          </h2>
+          <div class="relative">
+            <div class="absolute left-6 top-0 bottom-0 w-0.5" :class="darkMode?'bg-purple-500/30':'bg-purple-200'"></div>
+            <div class="space-y-6">
+              <div class="relative pl-16">
+                <div class="absolute left-3 w-7 h-7 rounded-full bg-gradient-to-br from-purple-500 to-violet-600 flex items-center justify-center text-white text-xs font-bold">1</div>
+                <div class="p-4 rounded-xl" :class="darkMode?'bg-dark-700/60 border border-white/10':'bg-white border border-gray-200 shadow'">
+                  <span class="text-xs font-bold text-purple-400">1697</span>
+                  <h3 class="font-bold text-sm" :class="darkMode?'text-white':'text-gray-900'">Treaty of Ryswick</h3>
+                  <p class="text-xs mt-1" :class="darkMode?'text-gray-400':'text-gray-600'">France officially gains control of the western part of Hispaniola (St. Domingue) from Spain.</p>
+                </div>
+              </div>
+              <div class="relative pl-16">
+                <div class="absolute left-3 w-7 h-7 rounded-full bg-gradient-to-br from-purple-500 to-violet-600 flex items-center justify-center text-white text-xs font-bold">2</div>
+                <div class="p-4 rounded-xl" :class="darkMode?'bg-dark-700/60 border border-white/10':'bg-white border border-gray-200 shadow'">
+                  <span class="text-xs font-bold text-purple-400">1789</span>
+                  <h3 class="font-bold text-sm" :class="darkMode?'text-white':'text-gray-900'">French Revolution Begins</h3>
+                  <p class="text-xs mt-1" :class="darkMode?'text-gray-400':'text-gray-600'">Ideas of liberty, equality, and fraternity inspire colonists and enslaved people in St. Domingue.</p>
+                </div>
+              </div>
+              <div class="relative pl-16">
+                <div class="absolute left-3 w-7 h-7 rounded-full bg-gradient-to-br from-red-500 to-rose-600 flex items-center justify-center text-white text-xs font-bold">3</div>
+                <div class="p-4 rounded-xl" :class="darkMode?'bg-dark-700/60 border border-white/10':'bg-white border border-gray-200 shadow'">
+                  <span class="text-xs font-bold text-red-400">August 1791</span>
+                  <h3 class="font-bold text-sm" :class="darkMode?'text-white':'text-gray-900'">Slave Revolt Begins</h3>
+                  <p class="text-xs mt-1" :class="darkMode?'text-gray-400':'text-gray-600'">Boukman leads a Vodou ceremony and launches a massive slave rebellion in the northern part of the colony. Thousands rise up.</p>
+                </div>
+              </div>
+              <div class="relative pl-16">
+                <div class="absolute left-3 w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-xs font-bold">4</div>
+                <div class="p-4 rounded-xl" :class="darkMode?'bg-dark-700/60 border border-white/10':'bg-white border border-gray-200 shadow'">
+                  <span class="text-xs font-bold text-blue-400">1791&ndash;1802</span>
+                  <h3 class="font-bold text-sm" :class="darkMode?'text-white':'text-gray-900'">Toussaint L'Ouverture's Leadership</h3>
+                  <p class="text-xs mt-1" :class="darkMode?'text-gray-400':'text-gray-600'">Toussaint organizes the rebellion into a disciplined military force, gains control of the colony, and becomes its de facto leader.</p>
+                </div>
+              </div>
+              <div class="relative pl-16">
+                <div class="absolute left-3 w-7 h-7 rounded-full bg-gradient-to-br from-gray-500 to-gray-700 flex items-center justify-center text-white text-xs font-bold">5</div>
+                <div class="p-4 rounded-xl" :class="darkMode?'bg-dark-700/60 border border-white/10':'bg-white border border-gray-200 shadow'">
+                  <span class="text-xs font-bold text-gray-400">1802</span>
+                  <h3 class="font-bold text-sm" :class="darkMode?'text-white':'text-gray-900'">Toussaint Captured</h3>
+                  <p class="text-xs mt-1" :class="darkMode?'text-gray-400':'text-gray-600'">Napoleon sends troops to re-establish control. Toussaint is tricked, captured, and deported to France, where he dies in prison.</p>
+                </div>
+              </div>
+              <div class="relative pl-16">
+                <div class="absolute left-3 w-7 h-7 rounded-full bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center text-white text-xs font-bold">6</div>
+                <div class="p-4 rounded-xl" :class="darkMode?'bg-dark-700/60 border border-white/10':'bg-white border border-gray-200 shadow'">
+                  <span class="text-xs font-bold text-amber-400">1 January 1804</span>
+                  <h3 class="font-bold text-sm" :class="darkMode?'text-white':'text-gray-900'">Haiti Declares Independence</h3>
+                  <p class="text-xs mt-1" :class="darkMode?'text-gray-400':'text-gray-600'">Jean-Jacques Dessalines declares independence. Haiti becomes the first free Black republic and the second independent nation in the Western Hemisphere.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- History Quiz -->
+        <div id="hist-quiz" class="mb-16" x-data="quizComponent('history')">
+          <h2 class="text-2xl font-bold mb-6 flex items-center gap-3" :class="darkMode?'text-white':'text-gray-900'">
+            <i class="fas fa-clipboard-check text-purple-400"></i> History Quiz
+          </h2>
+          <div class="space-y-6">
+            <template x-for="(q,qi) in questions" :key="qi">
+              <div class="p-5 rounded-xl" :class="darkMode?'bg-dark-700/60 border border-white/10':'bg-white border border-gray-200 shadow'">
+                <p class="font-semibold text-sm mb-3" :class="darkMode?'text-white':'text-gray-900'" x-text="(qi+1)+'. '+q.question"></p>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <template x-for="(opt,oi) in q.options" :key="oi">
+                    <button @click="selectAnswer(qi,oi)" class="text-left px-4 py-2.5 rounded-lg border text-sm transition-all" :class="getOptionClass(qi,oi)" x-text="opt"></button>
+                  </template>
+                </div>
+              </div>
+            </template>
+            <div class="text-center">
+              <button @click="checkQuiz()" :disabled="!allAnswered()" class="px-8 py-3 rounded-xl bg-gradient-to-r from-purple-500 to-violet-500 text-white font-bold disabled:opacity-40 hover:shadow-lg hover:shadow-purple-500/25 transition-all" x-text="checked?'Quiz Complete!':'Check Answers'"></button>
+              <div x-show="score!==null" class="mt-4 text-2xl font-bold" :class="score>=80?'text-green-400':score>=50?'text-yellow-400':'text-red-400'">Score: <span x-text="score+'%'"></span></div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
     <!-- ======================= QUIZ HUB ======================= -->
     <section x-show="currentSection==='quiz'" x-transition:enter="transition ease-out duration-400" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-1">
       <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12 text-center">
         <h1 class="text-3xl sm:text-4xl font-black mb-4" :class="darkMode?'text-white':'text-gray-900'">Test Yourself</h1>
         <p class="mb-10" :class="darkMode?'text-gray-400':'text-gray-600'">Choose a subject to start quizzing!</p>
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 max-w-3xl mx-auto">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 max-w-4xl mx-auto">
           <button @click="currentSection='religion'" class="p-8 rounded-2xl transition-all hover:-translate-y-2 hover:shadow-xl text-left" :class="darkMode?'bg-dark-700/80 border border-white/10 hover:border-amber-500/30':'bg-white border border-gray-200 shadow-lg hover:border-amber-400'">
             <i class="fas fa-hands-praying text-3xl text-amber-400 mb-4"></i>
             <h3 class="text-lg font-bold" :class="darkMode?'text-white':'text-gray-900'">Religious Education</h3>
@@ -2045,6 +2311,11 @@ body{transition:background-color 0.5s,color 0.5s}
             <h3 class="text-lg font-bold" :class="darkMode?'text-white':'text-gray-900'">Business Basics</h3>
             <p class="text-sm mt-1" :class="darkMode?'text-gray-400':'text-gray-600'">Documents & org structures</p>
           </button>
+          <button @click="currentSection='history'" class="p-8 rounded-2xl transition-all hover:-translate-y-2 hover:shadow-xl text-left" :class="darkMode?'bg-dark-700/80 border border-white/10 hover:border-purple-500/30':'bg-white border border-gray-200 shadow-lg hover:border-purple-400'">
+            <i class="fas fa-landmark text-3xl text-purple-400 mb-4"></i>
+            <h3 class="text-lg font-bold" :class="darkMode?'text-white':'text-gray-900'">History</h3>
+            <p class="text-sm mt-1" :class="darkMode?'text-gray-400':'text-gray-600'">Haitian Revolution</p>
+          </button>
         </div>
       </div>
     </section>
@@ -2055,11 +2326,11 @@ body{transition:background-color 0.5s,color 0.5s}
 <!-- ======================= PROGRESS ORB ======================= -->
 <div x-data="{open:false}" class="progress-orb no-print" @click="open=!open">
   <div class="w-16 h-16 rounded-full bg-gradient-to-br from-primary-500 to-accent-500 flex items-center justify-center text-white font-bold shadow-lg shadow-primary-500/30 hover:shadow-xl hover:shadow-primary-500/40 hover:scale-110 transition-all cursor-pointer">
-    <span x-text="Math.round((progress.religion+progress.french+progress.chemistry+progress.biology+progress.pe+progress.business)/6)+'%'" class="text-xs"></span>
+    <span x-text="Math.round((progress.religion+progress.french+progress.chemistry+progress.biology+progress.pe+progress.business+progress.history)/7)+'%'" class="text-xs"></span>
   </div>
   <div x-show="open" x-transition class="absolute bottom-20 right-0 w-64 rounded-xl p-4 shadow-2xl" :class="darkMode?'bg-dark-700 border border-white/10':'bg-white border border-gray-200'" @click.stop>
     <h3 class="font-bold text-sm mb-3" :class="darkMode?'text-white':'text-gray-900'">Progress Tracker</h3>
-    <template x-for="subj in [{id:'religion',label:'Religion',color:'from-amber-500 to-orange-500'},{id:'french',label:'French',color:'from-blue-500 to-red-500'},{id:'chemistry',label:'Chemistry',color:'from-cyan-500 to-blue-500'},{id:'biology',label:'Biology',color:'from-green-500 to-emerald-500'},{id:'pe',label:'Physical Ed',color:'from-red-500 to-rose-500'},{id:'business',label:'Business',color:'from-yellow-500 to-amber-500'}]" :key="subj.id">
+    <template x-for="subj in [{id:'religion',label:'Religion',color:'from-amber-500 to-orange-500'},{id:'french',label:'French',color:'from-blue-500 to-red-500'},{id:'chemistry',label:'Chemistry',color:'from-cyan-500 to-blue-500'},{id:'biology',label:'Biology',color:'from-green-500 to-emerald-500'},{id:'pe',label:'Physical Ed',color:'from-red-500 to-rose-500'},{id:'business',label:'Business',color:'from-yellow-500 to-amber-500'},{id:'history',label:'History',color:'from-purple-500 to-violet-500'}]" :key="subj.id">
       <div class="mb-3">
         <div class="flex justify-between text-xs mb-1"><span :class="darkMode?'text-gray-400':'text-gray-600'" x-text="subj.label"></span><span class="font-medium" :class="darkMode?'text-white':'text-gray-900'" x-text="progress[subj.id]+'%'"></span></div>
         <div class="h-2 rounded-full overflow-hidden" :class="darkMode?'bg-white/10':'bg-gray-100'">
@@ -2085,6 +2356,7 @@ body{transition:background-color 0.5s,color 0.5s}
         <button @click="currentSection='biology'" class="hover:text-primary-400 transition-colors">Biology</button>
         <button @click="currentSection='pe'" class="hover:text-primary-400 transition-colors">PE</button>
         <button @click="currentSection='business'" class="hover:text-primary-400 transition-colors">Business</button>
+        <button @click="currentSection='history'" class="hover:text-primary-400 transition-colors">History</button>
       </div>
       <p class="text-xs" :class="darkMode?'text-gray-600':'text-gray-400'">Made with &#10084;&#65039; for exam crushing</p>
     </div>
@@ -2108,7 +2380,7 @@ function app() {
     searchQuery: '',
     searchResults: [],
 
-    progress: Object.assign({religion:12,french:8,chemistry:15,biology:5,pe:0,business:0}, JSON.parse(localStorage.getItem('ef-progress') || '{}')),
+    progress: Object.assign({religion:12,french:8,chemistry:15,biology:5,pe:0,business:0,history:0}, JSON.parse(localStorage.getItem('ef-progress') || '{}')),
 
     selectedAtomZ: 6,
     atomViewerBuilt: false,
@@ -2138,7 +2410,8 @@ function app() {
     navLinks: [
       {id:'home',label:'Home'},{id:'religion',label:'Religious Ed'},{id:'french',label:'French'},
       {id:'chemistry',label:'Chemistry'},{id:'biology',label:'Biology'},
-      {id:'pe',label:'Physical Ed'},{id:'business',label:'Business'}
+      {id:'pe',label:'Physical Ed'},{id:'business',label:'Business'},
+      {id:'history',label:'History'}
     ],
 
     subjectCards: [
@@ -2147,7 +2420,8 @@ function app() {
       {id:'chemistry',title:'Chemistry',desc:'Atomic structure, ionic bonding, periodic table',icon:'fas fa-atom',gradient:'bg-gradient-to-br from-cyan-500 to-blue-500'},
       {id:'biology',title:'Biology',desc:'Reproduction, cell division, menstrual cycle',icon:'fas fa-dna',gradient:'bg-gradient-to-br from-green-500 to-emerald-500'},
       {id:'pe',title:'Physical Education',desc:'Skeletal system, muscular system, drugs in sport',icon:'fas fa-running',gradient:'bg-gradient-to-br from-red-500 to-rose-500'},
-      {id:'business',title:'Business Basics',desc:'Business documents, organization structures',icon:'fas fa-briefcase',gradient:'bg-gradient-to-br from-yellow-500 to-amber-500'}
+      {id:'business',title:'Business Basics',desc:'Business documents, organization structures',icon:'fas fa-briefcase',gradient:'bg-gradient-to-br from-yellow-500 to-amber-500'},
+      {id:'history',title:'History',desc:'Haitian Revolution, causes, key figures, social structure',icon:'fas fa-landmark',gradient:'bg-gradient-to-br from-purple-500 to-violet-500'}
     ],
 
     sidebarData: [
@@ -2168,6 +2442,9 @@ function app() {
       ]},
       {id:'business',title:'Business Basics',topics:[
         {id:'biz-order-form',label:'Order Form'},{id:'biz-invoice',label:'Invoice'},{id:'biz-receipt',label:'Receipt'},{id:'biz-cashbook',label:'Cash Book'},{id:'biz-org-structure',label:'Org Structure'},{id:'biz-quiz',label:'Business Quiz'}
+      ]},
+      {id:'history',title:'History',topics:[
+        {id:'hist-intro',label:'Introduction'},{id:'hist-causes',label:'Causes'},{id:'hist-slavery',label:'Life of a Slave'},{id:'hist-social',label:'Social Structure'},{id:'hist-leaders',label:'Key Leaders'},{id:'hist-timeline',label:'Timeline'},{id:'hist-quiz',label:'History Quiz'}
       ]}
     ],
 
@@ -2358,6 +2635,7 @@ function app() {
       });
       this.$nextTick(() => { initHeroCanvas(); });
       this.$watch('currentSection', (val) => {
+        window.scrollTo({ top: 0, behavior: 'instant' });
         if (val === 'chemistry') {
           this.$nextTick(() => {
             const atom = this.atomsData.find(a => a.z === this.selectedAtomZ) || this.atomsData[5];
@@ -2454,6 +2732,14 @@ function app() {
         {subject:'Business',text:'Hierarchical structure: clear chain of command, top-down authority',section:'business'},
         {subject:'Business',text:'Flat structure: fewer management levels, decentralized decisions',section:'business'},
         {subject:'Business',text:'Matrix structure: dual reporting, employees report to multiple managers',section:'business'},
+        {subject:'History',text:'Haitian Revolution: only successful slave revolt in history, began August 1791',section:'history'},
+        {subject:'History',text:'Treaty of Ryswick 1697: France gains control of western Hispaniola (St. Domingue)',section:'history'},
+        {subject:'History',text:'Toussaint L\'Ouverture: "Black Napoleon," brilliant military and political leader',section:'history'},
+        {subject:'History',text:'Boukman: Voodoo priest who initiated the 1791 slave revolt',section:'history'},
+        {subject:'History',text:'Jean-Jacques Dessalines: declared Haiti independent in 1804',section:'history'},
+        {subject:'History',text:'Grands Blancs: wealthy white plantation owners at top of social hierarchy',section:'history'},
+        {subject:'History',text:'Gens de Couleur Libres: free people of color who sought equal rights',section:'history'},
+        {subject:'History',text:'Code Noir: French law that legalized harsh treatment of slaves',section:'history'},
       ];
       for (const item of searchData) {
         if (item.text.toLowerCase().includes(q) || item.subject.toLowerCase().includes(q)) {
@@ -2537,6 +2823,16 @@ function quizComponent(subject) {
       {question:'In a flat structure, there are:',options:['Many management levels','Fewer management levels','No employees','Dual reporting lines'],correct:1},
       {question:'A matrix structure involves:',options:['One manager per employee','No managers','Employees reporting to multiple managers','Only top-level management'],correct:2},
       {question:'What is included on an invoice but NOT an order form?',options:['Item descriptions','Invoice number','Buyer information','Quantity'],correct:1},
+    ],
+    history: [
+      {question:'The Haitian Revolution began with a slave rebellion in:',options:['July 1789','August 1791','January 1804','March 1697'],correct:1},
+      {question:'The Treaty of Ryswick (1697) gave France control of:',options:['All of Hispaniola','Eastern Hispaniola','Western Hispaniola (St. Domingue)','Cuba'],correct:2},
+      {question:'Who was known as the "Black Napoleon"?',options:['Boukman','Jean-Jacques Dessalines','Toussaint L\'Ouverture','Henri Christophe'],correct:2},
+      {question:'Boukman was a:',options:['French general','Voodoo priest and maroon','Grand blanc plantation owner','Spanish governor'],correct:1},
+      {question:'Who declared Haiti\'s independence in 1804?',options:['Toussaint L\'Ouverture','Henri Christophe','Boukman','Jean-Jacques Dessalines'],correct:3},
+      {question:'The wealthy white plantation owners were called:',options:['Petits Blancs','Gens de Couleur Libres','Grands Blancs','Maroons'],correct:2},
+      {question:'Which law legalized the harsh treatment of slaves in St. Domingue?',options:['Treaty of Ryswick','French Code Noir','Declaration of Rights','Napoleonic Code'],correct:1},
+      {question:'The Haitian Revolution was inspired partly by:',options:['The American Civil War','The Industrial Revolution','Enlightenment ideas and the French Revolution','The Spanish Inquisition'],correct:2},
     ]
   };
 
@@ -2588,6 +2884,7 @@ function boneExplorer() {
       {name:'Humerus',location:'Upper arm',type:'Long Bone',count:'2 (left and right)',desc:'The humerus is the largest bone in the upper limb. It connects the shoulder to the elbow and is involved in many arm movements.',funFact:'Hitting your "funny bone" is actually hitting the ulnar nerve that runs along the humerus — there is nothing funny about it!',open:false},
       {name:'Radius',location:'Forearm (thumb side)',type:'Long Bone',count:'2 (left and right)',desc:'The radius is the shorter of the two forearm bones. It allows the forearm and hand to rotate (pronation and supination).',funFact:'The radius gets its name from the Latin word for "ray" — it rotates around the ulna like a ray of light.',open:false},
       {name:'Ulna',location:'Forearm (pinky side)',type:'Long Bone',count:'2 (left and right)',desc:'The ulna is the longer of the two forearm bones. It forms the point of the elbow and provides stability to the forearm.',funFact:'The ulna is the bone you lean on when you rest your elbow on a table.',open:false},
+      {name:'Carpals',location:'Wrist',type:'Short Bone',count:'16 (8 per wrist)',desc:'The carpals are eight small bones in each wrist arranged in two rows (proximal and distal). They connect the forearm to the hand and allow the wrist to flex, extend, and rotate smoothly.',funFact:'The scaphoid is the most commonly fractured carpal bone — often from falling onto an outstretched hand!',open:false},
       {name:'Ribs',location:'Chest (thorax)',type:'Flat Bone',count:'24 (12 pairs)',desc:'Ribs form a protective cage around the heart and lungs. The first 7 pairs are "true ribs" attached to the sternum, pairs 8-10 are "false ribs," and pairs 11-12 are "floating ribs."',funFact:'About 1 in 200 people are born with an extra (cervical) rib — it can sometimes cause nerve problems!',open:false},
       {name:'Sternum',location:'Center of chest (breastbone)',type:'Flat Bone',count:'1',desc:'The sternum is a flat bone at the front of the chest. It connects to the ribs via cartilage and protects the heart, lungs, and major blood vessels.',funFact:'CPR compressions are performed on the sternum — pressing it down 5-6cm to manually pump the heart.',open:false},
       {name:'Vertebral Column',location:'Spine (backbone)',type:'Irregular Bone',count:'33 vertebrae (26 in adults)',desc:'The spine consists of 33 vertebrae: 7 cervical, 12 thoracic, 5 lumbar, 5 sacral (fused), and 4 coccygeal (fused). It protects the spinal cord and supports the body upright.',funFact:'You are about 1cm taller in the morning than at night because spinal discs compress during the day!',open:false},
@@ -2604,6 +2901,7 @@ function boneExplorer() {
 // ======================= 3D SKELETON VIEWER (Three.js) =======================
 let _skelAnimationId = null;
 let _skelResizeHandler = null;
+let _skelHighlightListener = null;
 
 function initSkeleton3D() {
   const container = document.getElementById('skeleton-canvas-container');
@@ -2611,14 +2909,15 @@ function initSkeleton3D() {
 
   if (_skelAnimationId) cancelAnimationFrame(_skelAnimationId);
   if (_skelResizeHandler) window.removeEventListener('resize', _skelResizeHandler);
+  if (_skelHighlightListener) window.removeEventListener('highlight-bone', _skelHighlightListener);
   container.innerHTML = '';
 
   const W = container.offsetWidth || 500;
-  const H = container.offsetHeight || 500;
+  const H = container.offsetHeight || 540;
 
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(50, W / H, 0.1, 1000);
-  camera.position.set(0, 0, 18);
+  camera.position.set(0, 0, 22);
 
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
   renderer.setSize(W, H);
@@ -2628,199 +2927,420 @@ function initSkeleton3D() {
   const skeletonGroup = new THREE.Group();
   scene.add(skeletonGroup);
 
-  const boneMat = new THREE.MeshPhongMaterial({ color: 0xf5e6d3, emissive: 0x332211, shininess: 30 });
-  const jointMat = new THREE.MeshPhongMaterial({ color: 0xddccbb, emissive: 0x221100, shininess: 20 });
-  const highlightMat = new THREE.MeshPhongMaterial({ color: 0xff4444, emissive: 0x441111, shininess: 50 });
+  const IVORY = 0xF5E6D3;
+  const BONE_EMISSIVE = 0x1A0E08;
 
-  function makeBone(sx, sy, sz, px, py, pz) {
-    const g = new THREE.BoxGeometry(sx, sy, sz);
-    const m = new THREE.Mesh(g, boneMat.clone());
-    m.position.set(px, py, pz);
-    skeletonGroup.add(m);
-    return m;
+  function boneMat() {
+    return new THREE.MeshPhongMaterial({ color: IVORY, emissive: BONE_EMISSIVE, shininess: 60, specular: 0x444433 });
   }
+  const jointMat = new THREE.MeshPhongMaterial({ color: 0xE8D4C0, emissive: 0x150C06, shininess: 40, specular: 0x333322 });
+  const socketMat = new THREE.MeshPhongMaterial({ color: 0x2a1f1a, emissive: 0x0a0705 });
+
+  function makeLongBone(radius, length, px, py, pz, rz) {
+    const g = new THREE.Group();
+    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius * 0.85, length, 12), boneMat());
+    g.add(shaft);
+    const topCap = new THREE.Mesh(new THREE.SphereGeometry(radius * 1.25, 12, 12), boneMat());
+    topCap.position.y = length / 2; topCap.scale.set(1, 0.55, 0.85); g.add(topCap);
+    const botCap = new THREE.Mesh(new THREE.SphereGeometry(radius * 1.15, 12, 12), boneMat());
+    botCap.position.y = -length / 2; botCap.scale.set(1, 0.55, 0.85); g.add(botCap);
+    g.position.set(px, py, pz);
+    if (rz) g.rotation.z = rz;
+    skeletonGroup.add(g);
+    return g;
+  }
+
+  function tagBone(group, name) { group.traverse(c => { if (c.isMesh) c.userData = { boneName: name }; }); }
+
   function makeJoint(r, px, py, pz) {
-    const g = new THREE.SphereGeometry(r, 12, 12);
-    const m = new THREE.Mesh(g, jointMat);
-    m.position.set(px, py, pz);
-    skeletonGroup.add(m);
-    return m;
+    const m = new THREE.Mesh(new THREE.SphereGeometry(r, 12, 12), jointMat.clone());
+    m.position.set(px, py, pz); skeletonGroup.add(m); return m;
   }
 
-  // Cranium
-  const craniumG = new THREE.SphereGeometry(1.2, 16, 16);
-  const cranium = new THREE.Mesh(craniumG, boneMat.clone());
-  cranium.position.set(0, 7.5, 0);
-  cranium.scale.set(1, 1.15, 0.95);
-  cranium.userData = { boneName: 'Cranium' };
-  skeletonGroup.add(cranium);
+  // ── CRANIUM ──
+  const skull = new THREE.Group();
+  const cranium = new THREE.Mesh(new THREE.SphereGeometry(1.3, 24, 24), boneMat());
+  cranium.scale.set(0.88, 1.12, 0.95); skull.add(cranium);
+  const browRidge = new THREE.Mesh(new THREE.CylinderGeometry(0.95, 0.95, 0.12, 16, 1, false, 0, Math.PI), boneMat());
+  browRidge.position.set(0, 0.25, 0.7); browRidge.rotation.set(0, 0, 0); browRidge.scale.set(1, 1, 0.5); skull.add(browRidge);
+  const jaw = new THREE.Group();
+  const jawBase = new THREE.Mesh(new THREE.SphereGeometry(0.7, 16, 16, 0, Math.PI * 2, 0, Math.PI * 0.55), boneMat());
+  jawBase.scale.set(0.82, 0.65, 0.75); jaw.add(jawBase);
+  const chin = new THREE.Mesh(new THREE.SphereGeometry(0.2, 10, 10), boneMat());
+  chin.position.set(0, -0.35, 0.45); chin.scale.set(1.2, 0.8, 0.7); jaw.add(chin);
+  jaw.position.y = -0.75; skull.add(jaw); tagBone(jaw, 'Cranium');
+  const cheekL = new THREE.Mesh(new THREE.SphereGeometry(0.22, 8, 8), boneMat());
+  cheekL.position.set(-0.6, -0.2, 0.7); cheekL.scale.set(0.8, 0.6, 0.5); skull.add(cheekL);
+  const cheekR = cheekL.clone(); cheekR.position.x = 0.6; skull.add(cheekR);
+  [-0.33, 0.33].forEach(x => {
+    const orbit = new THREE.Mesh(new THREE.SphereGeometry(0.22, 10, 10), socketMat);
+    orbit.position.set(x, 0.12, 0.95); skull.add(orbit);
+  });
+  const noseHole = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.1, 0.12, 6), socketMat);
+  noseHole.position.set(0, -0.2, 1.0); skull.add(noseHole);
+  const nasalBone = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.22, 0.08), boneMat());
+  nasalBone.position.set(0, -0.05, 1.05); skull.add(nasalBone);
+  const teethRow = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.3, 0.06, 12, 1, false, 0, Math.PI), boneMat());
+  teethRow.position.set(0, -0.6, 0.55); teethRow.rotation.x = -Math.PI * 0.5; skull.add(teethRow);
+  skull.position.set(0, 7.8, 0);
+  tagBone(skull, 'Cranium'); skeletonGroup.add(skull);
 
-  // Spine
-  const spineSegs = [];
-  for (let i = 0; i < 12; i++) {
-    const seg = makeBone(0.5, 0.4, 0.4, 0, 5.8 - i * 0.5, 0);
-    seg.userData = { boneName: 'Vertebral Column' };
-    spineSegs.push(seg);
-  }
-
-  // Sternum
-  const sternum = makeBone(0.6, 2.2, 0.2, 0, 4.2, 0.5);
-  sternum.userData = { boneName: 'Sternum' };
-
-  // Ribs
-  for (let side = -1; side <= 1; side += 2) {
-    for (let i = 0; i < 6; i++) {
-      const rib = makeBone(1.8, 0.15, 0.15, side * 1.2, 5.2 - i * 0.4, 0.3);
-      rib.rotation.z = side * 0.2;
-      rib.userData = { boneName: 'Ribs' };
+  // ── VERTEBRAL COLUMN ──
+  for (let i = 0; i < 24; i++) {
+    const t = i / 23;
+    const y = 6.5 - t * 7.2;
+    const z = Math.sin(t * Math.PI * 2.2) * 0.18;
+    const r = i < 7 ? 0.12 + i * 0.003 : (i < 19 ? 0.14 + (i - 7) * 0.005 : 0.18 + (i - 19) * 0.01);
+    const seg = new THREE.Mesh(new THREE.CylinderGeometry(r, r * 1.05, 0.22, 10), boneMat());
+    seg.position.set(0, y, z); seg.userData = { boneName: 'Vertebral Column' }; skeletonGroup.add(seg);
+    if (i > 1 && i < 21) {
+      const sp = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.055, 0.3, 6), boneMat());
+      sp.position.set(0, y, z - 0.22); sp.rotation.x = Math.PI * 0.35;
+      sp.userData = { boneName: 'Vertebral Column' }; skeletonGroup.add(sp);
+      for (const side of [-1, 1]) {
+        const tp = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.04, 0.2, 5), boneMat());
+        tp.position.set(side * 0.15, y, z - 0.12); tp.rotation.z = side * 0.5; tp.rotation.x = 0.3;
+        tp.userData = { boneName: 'Vertebral Column' }; skeletonGroup.add(tp);
+      }
     }
   }
 
-  // Clavicles
-  const clavL = makeBone(1.8, 0.2, 0.2, -1.2, 5.8, 0.3);
-  clavL.rotation.z = 0.15;
-  clavL.userData = { boneName: 'Clavicle' };
-  const clavR = makeBone(1.8, 0.2, 0.2, 1.2, 5.8, 0.3);
-  clavR.rotation.z = -0.15;
-  clavR.userData = { boneName: 'Clavicle' };
+  // ── STERNUM ──
+  const manubrium = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.75, 0.16), boneMat());
+  manubrium.position.set(0, 5.35, 0.55); manubrium.userData = { boneName: 'Sternum' }; skeletonGroup.add(manubrium);
+  const sternumBody = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1.9, 0.14), boneMat());
+  sternumBody.position.set(0, 3.95, 0.55); sternumBody.userData = { boneName: 'Sternum' }; skeletonGroup.add(sternumBody);
+  const xiphoid = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.45, 6), boneMat());
+  xiphoid.position.set(0, 2.85, 0.55); xiphoid.rotation.x = Math.PI;
+  xiphoid.userData = { boneName: 'Sternum' }; skeletonGroup.add(xiphoid);
 
-  // Scapulae
-  const scapL = makeBone(1.0, 1.2, 0.15, -1.8, 4.8, -0.3);
-  scapL.userData = { boneName: 'Scapula' };
-  const scapR = makeBone(1.0, 1.2, 0.15, 1.8, 4.8, -0.3);
-  scapR.userData = { boneName: 'Scapula' };
+  // ── RIBS (curved tubes) ──
+  for (const side of [-1, 1]) {
+    for (let i = 0; i < 12; i++) {
+      const y = 5.5 - i * 0.34;
+      const maxR = 0.95 + Math.min(i, 7) * 0.12 - Math.max(0, i - 8) * 0.15;
+      const sweep = i < 7 ? 0.68 : (i < 10 ? 0.55 - (i - 7) * 0.05 : 0.35);
+      const pts = [];
+      for (let s = 0; s <= 14; s++) {
+        const a = (s / 14) * Math.PI * sweep;
+        const r = maxR * (1 - Math.pow(s / 14, 2) * 0.15);
+        pts.push(new THREE.Vector3(side * Math.sin(a) * r, Math.sin(a * 0.5) * -0.08, Math.cos(a) * r * 0.5));
+      }
+      const tubeGeo = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 16, i < 2 ? 0.05 : 0.055, 6, false);
+      const rib = new THREE.Mesh(tubeGeo, boneMat());
+      rib.position.set(0, y, 0.15); rib.userData = { boneName: 'Ribs' }; skeletonGroup.add(rib);
+    }
+  }
 
-  // Humerus
-  const humL = makeBone(0.3, 2.4, 0.3, -2.5, 3.8, 0);
-  humL.userData = { boneName: 'Humerus' };
-  const humR = makeBone(0.3, 2.4, 0.3, 2.5, 3.8, 0);
-  humR.userData = { boneName: 'Humerus' };
+  // ── CLAVICLES (S-curved) ──
+  for (const side of [-1, 1]) {
+    const clPts = [];
+    for (let s = 0; s <= 8; s++) {
+      const t = s / 8;
+      clPts.push(new THREE.Vector3(side * t * 1.9, Math.sin(t * Math.PI) * 0.12, Math.sin(t * Math.PI * 2) * 0.1 + 0.4));
+    }
+    const clGeo = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(clPts), 10, 0.07, 8, false);
+    const cl = new THREE.Mesh(clGeo, boneMat());
+    cl.position.set(0, 5.75, 0); cl.userData = { boneName: 'Clavicle' }; skeletonGroup.add(cl);
+  }
 
-  // Radius
-  const radL = makeBone(0.2, 2.0, 0.2, -2.3, 1.5, 0.1);
-  radL.userData = { boneName: 'Radius' };
-  const radR = makeBone(0.2, 2.0, 0.2, 2.3, 1.5, 0.1);
-  radR.userData = { boneName: 'Radius' };
+  // ── SCAPULAE (triangular) ──
+  for (const side of [-1, 1]) {
+    const scGrp = new THREE.Group();
+    const scBody = new THREE.Mesh(new THREE.BoxGeometry(0.9, 1.4, 0.1), boneMat());
+    scBody.scale.set(1, 1, 1); scGrp.add(scBody);
+    const spine = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.1, 0.22), boneMat());
+    spine.position.set(side * 0.05, 0.4, -0.05); scGrp.add(spine);
+    const acromion = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.1, 0.15), boneMat());
+    acromion.position.set(side * 0.5, 0.5, 0.05); scGrp.add(acromion);
+    scGrp.position.set(side * 1.75, 4.75, -0.35);
+    scGrp.rotation.z = side * 0.08;
+    tagBone(scGrp, 'Scapula'); skeletonGroup.add(scGrp);
+  }
 
-  // Ulna
-  const ulnL = makeBone(0.2, 2.2, 0.2, -2.7, 1.4, -0.1);
-  ulnL.userData = { boneName: 'Ulna' };
-  const ulnR = makeBone(0.2, 2.2, 0.2, 2.7, 1.4, -0.1);
-  ulnR.userData = { boneName: 'Ulna' };
+  // ── HUMERUS ──
+  for (const side of [-1, 1]) {
+    const h = makeLongBone(0.15, 2.5, side * 2.45, 3.75, 0, side * 0.06);
+    tagBone(h, 'Humerus');
+  }
 
-  // Pelvis
-  const pelvisG = new THREE.TorusGeometry(1.2, 0.35, 8, 16, Math.PI);
-  const pelvis = new THREE.Mesh(pelvisG, boneMat.clone());
-  pelvis.position.set(0, -0.3, 0);
-  pelvis.rotation.x = Math.PI;
-  pelvis.userData = { boneName: 'Pelvis' };
-  skeletonGroup.add(pelvis);
+  // ── RADIUS ──
+  for (const side of [-1, 1]) {
+    const r = makeLongBone(0.09, 2.1, side * 2.25, 1.35, 0.12, side * 0.07);
+    tagBone(r, 'Radius');
+  }
 
-  // Femur
-  const femL = makeBone(0.35, 3.2, 0.35, -1.0, -2.5, 0);
-  femL.userData = { boneName: 'Femur' };
-  const femR = makeBone(0.35, 3.2, 0.35, 1.0, -2.5, 0);
-  femR.userData = { boneName: 'Femur' };
+  // ── ULNA ──
+  for (const side of [-1, 1]) {
+    const u = makeLongBone(0.09, 2.3, side * 2.65, 1.3, -0.08, -side * 0.04);
+    tagBone(u, 'Ulna');
+  }
 
-  // Patella
-  const patG = new THREE.SphereGeometry(0.25, 8, 8);
-  const patL = new THREE.Mesh(patG, boneMat.clone());
-  patL.position.set(-1.0, -4.1, 0.3);
-  patL.userData = { boneName: 'Patella' };
-  skeletonGroup.add(patL);
-  const patR = new THREE.Mesh(patG, boneMat.clone());
-  patR.position.set(1.0, -4.1, 0.3);
-  patR.userData = { boneName: 'Patella' };
-  skeletonGroup.add(patR);
+  // ── CARPALS (wrist) + HAND ──
+  for (const side of [-1, 1]) {
+    const handGrp = new THREE.Group();
+    for (let row = 0; row < 2; row++) {
+      for (let col = 0; col < 4; col++) {
+        const c = new THREE.Mesh(new THREE.SphereGeometry(0.07, 8, 8), boneMat());
+        c.position.set((col - 1.5) * 0.12, -row * 0.12, 0); c.scale.set(1.1, 0.8, 0.9);
+        c.userData = { boneName: 'Carpals' }; handGrp.add(c);
+      }
+    }
+    const fingerAngles = [-0.22, -0.1, 0, 0.1, 0.25];
+    const fingerLens = [0.3, 0.42, 0.48, 0.44, 0.32];
+    const phalanxLens = [0.22, 0.3, 0.32, 0.3, 0.2];
+    for (let f = 0; f < 5; f++) {
+      const metacarpal = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.03, fingerLens[f], 6), boneMat());
+      const mx = (f - 2) * 0.13;
+      metacarpal.position.set(mx, -0.3 - fingerLens[f] / 2, 0);
+      metacarpal.rotation.z = fingerAngles[f] * 0.3;
+      metacarpal.userData = { boneName: 'Carpals' }; handGrp.add(metacarpal);
+      const knuckle = new THREE.Mesh(new THREE.SphereGeometry(0.04, 6, 6), boneMat());
+      const kx = mx + Math.sin(fingerAngles[f] * 0.3) * fingerLens[f];
+      const ky = -0.3 - fingerLens[f];
+      knuckle.position.set(kx, ky, 0); knuckle.userData = { boneName: 'Carpals' }; handGrp.add(knuckle);
+      const phalanx = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.025, phalanxLens[f], 6), boneMat());
+      phalanx.position.set(kx + Math.sin(fingerAngles[f] * 0.5) * phalanxLens[f] * 0.5, ky - phalanxLens[f] / 2, 0);
+      phalanx.rotation.z = fingerAngles[f] * 0.5;
+      phalanx.userData = { boneName: 'Carpals' }; handGrp.add(phalanx);
+      const tip = new THREE.Mesh(new THREE.SphereGeometry(0.025, 6, 6), boneMat());
+      tip.position.set(kx + Math.sin(fingerAngles[f] * 0.5) * phalanxLens[f], ky - phalanxLens[f], 0);
+      tip.userData = { boneName: 'Carpals' }; handGrp.add(tip);
+    }
+    handGrp.position.set(side * 2.45, 0.1, 0.02); skeletonGroup.add(handGrp);
+  }
 
-  // Tibia
-  const tibL = makeBone(0.3, 2.8, 0.3, -0.9, -5.8, 0);
-  tibL.userData = { boneName: 'Tibia' };
-  const tibR = makeBone(0.3, 2.8, 0.3, 0.9, -5.8, 0);
-  tibR.userData = { boneName: 'Tibia' };
+  // ── PELVIS ──
+  const pelvisGrp = new THREE.Group();
+  for (const side of [-1, 1]) {
+    const iliumGrp = new THREE.Group();
+    const ilWing = new THREE.Mesh(new THREE.SphereGeometry(1.0, 14, 14, 0, Math.PI * 2, 0, Math.PI * 0.5), boneMat());
+    ilWing.scale.set(0.75, 0.95, 0.45);
+    ilWing.rotation.set(0, side > 0 ? 0 : Math.PI, side * 0.25);
+    ilWing.userData = { boneName: 'Pelvis' }; iliumGrp.add(ilWing);
+    const acetabulum = new THREE.Mesh(new THREE.SphereGeometry(0.25, 10, 10), socketMat);
+    acetabulum.position.set(side * 0.35, -0.55, 0.15); iliumGrp.add(acetabulum);
+    iliumGrp.position.set(side * 0.55, 0, 0);
+    pelvisGrp.add(iliumGrp);
+  }
+  const pubis = new THREE.Mesh(new THREE.TorusGeometry(0.55, 0.12, 8, 16, Math.PI), boneMat());
+  pubis.rotation.x = Math.PI; pubis.position.y = -0.55;
+  pubis.userData = { boneName: 'Pelvis' }; pelvisGrp.add(pubis);
+  const sacrum = new THREE.Mesh(new THREE.ConeGeometry(0.35, 0.9, 8), boneMat());
+  sacrum.position.set(0, -0.15, -0.18); sacrum.userData = { boneName: 'Vertebral Column' }; pelvisGrp.add(sacrum);
+  const coccyx = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.35, 6), boneMat());
+  coccyx.position.set(0, -0.65, -0.2); coccyx.userData = { boneName: 'Vertebral Column' }; pelvisGrp.add(coccyx);
+  pelvisGrp.position.set(0, -0.3, 0); skeletonGroup.add(pelvisGrp);
 
-  // Fibula
-  const fibL = makeBone(0.15, 2.6, 0.15, -1.3, -5.7, 0);
-  fibL.userData = { boneName: 'Fibula' };
-  const fibR = makeBone(0.15, 2.6, 0.15, 1.3, -5.7, 0);
-  fibR.userData = { boneName: 'Fibula' };
+  // ── FEMUR ──
+  for (const side of [-1, 1]) {
+    const fGrp = new THREE.Group();
+    const fHead = new THREE.Mesh(new THREE.SphereGeometry(0.22, 10, 10), boneMat());
+    fHead.position.set(side * 0.3, 1.6, 0); fGrp.add(fHead);
+    const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.13, 0.5, 8), boneMat());
+    neck.position.set(side * 0.15, 1.35, 0); neck.rotation.z = side * 0.6; fGrp.add(neck);
+    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.19, 0.17, 2.8, 12), boneMat());
+    fGrp.add(shaft);
+    const condyleL = new THREE.Mesh(new THREE.SphereGeometry(0.2, 10, 10), boneMat());
+    condyleL.position.set(-0.1, -1.4, 0); condyleL.scale.set(1, 0.6, 0.9); fGrp.add(condyleL);
+    const condyleR = condyleL.clone(); condyleR.position.x = 0.1; fGrp.add(condyleR);
+    fGrp.position.set(side * 1.0, -2.6, 0); fGrp.rotation.z = side * 0.03;
+    tagBone(fGrp, 'Femur'); skeletonGroup.add(fGrp);
+  }
 
-  // Tarsals (feet)
-  const footL = makeBone(0.8, 0.25, 1.0, -0.9, -7.3, 0.3);
-  footL.userData = { boneName: 'Tarsals' };
-  const footR = makeBone(0.8, 0.25, 1.0, 0.9, -7.3, 0.3);
-  footR.userData = { boneName: 'Tarsals' };
+  // ── PATELLA ──
+  for (const side of [-1, 1]) {
+    const p = new THREE.Mesh(new THREE.SphereGeometry(0.2, 10, 10), boneMat());
+    p.position.set(side * 1.0, -4.15, 0.35); p.scale.set(0.85, 1.05, 0.5);
+    p.userData = { boneName: 'Patella' }; skeletonGroup.add(p);
+  }
 
-  // Joints
-  makeJoint(0.2, 0, 6.3, 0);
-  makeJoint(0.25, -2.5, 5.0, 0);
-  makeJoint(0.25, 2.5, 5.0, 0);
-  makeJoint(0.2, -2.5, 2.6, 0);
-  makeJoint(0.2, 2.5, 2.6, 0);
-  makeJoint(0.25, -1.0, -0.8, 0);
-  makeJoint(0.25, 1.0, -0.8, 0);
-  makeJoint(0.2, -1.0, -4.1, 0);
-  makeJoint(0.2, 1.0, -4.1, 0);
+  // ── TIBIA ──
+  for (const side of [-1, 1]) {
+    const t = makeLongBone(0.15, 2.9, side * 0.9, -5.9, 0, 0);
+    tagBone(t, 'Tibia');
+  }
 
-  // Lighting
-  const ambLight = new THREE.AmbientLight(0x666677, 0.6);
-  scene.add(ambLight);
-  const dirLight = new THREE.DirectionalLight(0xffeedd, 0.8);
-  dirLight.position.set(5, 10, 7);
-  scene.add(dirLight);
-  const backLight = new THREE.DirectionalLight(0x8888ff, 0.3);
-  backLight.position.set(-3, -5, -5);
-  scene.add(backLight);
+  // ── FIBULA ──
+  for (const side of [-1, 1]) {
+    const f = makeLongBone(0.07, 2.7, side * 1.25, -5.85, -0.05, 0);
+    tagBone(f, 'Fibula');
+  }
 
-  // Rotation controls
-  let isDragging = false;
-  let prevX = 0, prevY = 0;
-  let rotX = 0, rotY = 0;
+  // ── TARSALS + FEET ──
+  for (const side of [-1, 1]) {
+    const footGrp = new THREE.Group();
+    const calcaneus = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.28, 0.55), boneMat());
+    calcaneus.position.set(0, 0, -0.2); calcaneus.userData = { boneName: 'Tarsals' }; footGrp.add(calcaneus);
+    const talus = new THREE.Mesh(new THREE.SphereGeometry(0.18, 8, 8), boneMat());
+    talus.position.set(0, 0.1, 0.05); talus.scale.set(1.2, 0.7, 1); talus.userData = { boneName: 'Tarsals' }; footGrp.add(talus);
+    const midfoot = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.16, 0.5), boneMat());
+    midfoot.position.set(0, -0.04, 0.35); midfoot.userData = { boneName: 'Tarsals' }; footGrp.add(midfoot);
+    const foreFoot = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.12, 0.35), boneMat());
+    foreFoot.position.set(0, -0.06, 0.7); foreFoot.userData = { boneName: 'Tarsals' }; footGrp.add(foreFoot);
+    for (let t = 0; t < 5; t++) {
+      const toeLen = t === 0 ? 0.35 : 0.25 - t * 0.02;
+      const toe = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.025, toeLen, 6), boneMat());
+      toe.position.set(-0.22 + t * 0.11, -0.06, 0.95 + toeLen / 2);
+      toe.rotation.x = Math.PI * 0.5;
+      toe.userData = { boneName: 'Tarsals' }; footGrp.add(toe);
+      const toeTip = new THREE.Mesh(new THREE.SphereGeometry(0.025, 6, 6), boneMat());
+      toeTip.position.set(-0.22 + t * 0.11, -0.06, 0.95 + toeLen);
+      toeTip.userData = { boneName: 'Tarsals' }; footGrp.add(toeTip);
+    }
+    footGrp.position.set(side * 0.9, -7.45, 0.2); skeletonGroup.add(footGrp);
+  }
 
-  renderer.domElement.addEventListener('pointerdown', (e) => { isDragging = true; prevX = e.clientX; prevY = e.clientY; });
-  renderer.domElement.addEventListener('pointermove', (e) => {
-    if (!isDragging) return;
-    rotY += (e.clientX - prevX) * 0.01;
-    rotX += (e.clientY - prevY) * 0.01;
-    rotX = Math.max(-1.2, Math.min(1.2, rotX));
-    prevX = e.clientX; prevY = e.clientY;
-  });
-  renderer.domElement.addEventListener('pointerup', () => isDragging = false);
-  renderer.domElement.addEventListener('pointerleave', () => isDragging = false);
+  // ── JOINTS ──
+  [[0, 6.55, 0, 0.14], [-2.2, 5.75, 0, 0.18], [2.2, 5.75, 0, 0.18],
+   [-2.45, 2.5, 0, 0.16], [2.45, 2.5, 0, 0.16],
+   [-1.0, -0.85, 0.15, 0.2], [1.0, -0.85, 0.15, 0.2],
+   [-1.0, -4.15, 0, 0.17], [1.0, -4.15, 0, 0.17],
+   [-0.9, -7.3, 0, 0.13], [0.9, -7.3, 0, 0.13]
+  ].forEach(j => makeJoint(j[3], j[0], j[1], j[2]));
 
-  // Click detection
+  // ── GROUND SHADOW ──
+  const shadow = new THREE.Mesh(
+    new THREE.CircleGeometry(3, 32),
+    new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.08 })
+  );
+  shadow.rotation.x = -Math.PI / 2; shadow.position.y = -8; skeletonGroup.add(shadow);
+
+  // ── AMBIENT DUST PARTICLES ──
+  const dustArr = [];
+  for (let i = 0; i < 30; i++) {
+    const d = new THREE.Mesh(
+      new THREE.SphereGeometry(0.03, 4, 4),
+      new THREE.MeshBasicMaterial({ color: 0xffeedd, transparent: true, opacity: 0.2 + Math.random() * 0.25 })
+    );
+    d.position.set((Math.random() - 0.5) * 10, (Math.random() - 0.5) * 18, (Math.random() - 0.5) * 6);
+    d.userData = { boneName: null, spd: 0.002 + Math.random() * 0.005, off: Math.random() * Math.PI * 2 };
+    scene.add(d); dustArr.push(d);
+  }
+
+  // ── CINEMATIC LIGHTING ──
+  scene.add(new THREE.AmbientLight(0x555566, 0.5));
+  const keyLight = new THREE.DirectionalLight(0xFFF0E0, 0.9);
+  keyLight.position.set(5, 8, 7); scene.add(keyLight);
+  const fillLight = new THREE.DirectionalLight(0xB0C4DE, 0.4);
+  fillLight.position.set(-4, 3, 5); scene.add(fillLight);
+  const rimLight = new THREE.DirectionalLight(0xFF8866, 0.5);
+  rimLight.position.set(-2, -3, -6); scene.add(rimLight);
+  const topSpot = new THREE.SpotLight(0xFFFFFF, 0.3);
+  topSpot.position.set(0, 15, 0); topSpot.angle = 0.5; scene.add(topSpot);
+
+  // ── CACHE CLICKABLES ──
+  const clickables = [];
+  skeletonGroup.traverse(c => { if (c.isMesh && c.userData.boneName) clickables.push(c); });
+
+  // ── HIGHLIGHT LOGIC ──
+  let selectedBone = null;
+
+  function highlightBone(name) {
+    skeletonGroup.traverse(c => {
+      if (c.isMesh && c.userData.boneName && c.material && c.material.emissive) {
+        c.material.color.set(IVORY); c.material.emissive.set(BONE_EMISSIVE); c.material.shininess = 60;
+      }
+    });
+    selectedBone = name || null;
+    if (!name) return;
+    skeletonGroup.traverse(c => {
+      if (c.isMesh && c.userData.boneName === name && c.material && c.material.emissive) {
+        c.material.color.set(0xFF5555); c.material.emissive.set(0x661111); c.material.shininess = 90;
+      }
+    });
+    window.dispatchEvent(new CustomEvent('bone-clicked', { detail: name }));
+  }
+
+  // ── INTERACTION ──
+  let isDragging = false, prevMouse = { x: 0, y: 0 }, dragDist = 0;
+  let rotX = 0, rotY = 0, autoRotate = true, idleTimer = 0;
   const raycaster = new THREE.Raycaster();
   const mouse = new THREE.Vector2();
-  let lastHighlighted = null;
+  let hoveredBone = null;
+  const tooltip = document.getElementById('skel-tooltip');
 
-  renderer.domElement.addEventListener('click', (e) => {
+  renderer.domElement.style.cursor = 'grab';
+
+  renderer.domElement.addEventListener('pointerdown', e => {
+    isDragging = true; dragDist = 0; prevMouse = { x: e.clientX, y: e.clientY }; autoRotate = false; idleTimer = 0;
+    renderer.domElement.style.cursor = 'grabbing';
+  });
+  renderer.domElement.addEventListener('pointermove', e => {
     const rect = renderer.domElement.getBoundingClientRect();
     mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
     mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    if (isDragging) {
+      const dx = e.clientX - prevMouse.x, dy = e.clientY - prevMouse.y;
+      dragDist += Math.abs(dx) + Math.abs(dy);
+      rotY += dx * 0.008;
+      rotX += dy * 0.008;
+      rotX = Math.max(-1.5, Math.min(1.5, rotX));
+      prevMouse = { x: e.clientX, y: e.clientY };
+    }
     raycaster.setFromCamera(mouse, camera);
-    const intersects = raycaster.intersectObjects(skeletonGroup.children);
-    if (intersects.length > 0) {
-      const hit = intersects[0].object;
-      if (hit.userData.boneName) {
-        if (lastHighlighted) {
-          skeletonGroup.children.forEach(c => { if (c.material && c.material !== jointMat) c.material.color.set(0xf5e6d3); c.material && (c.material.emissive && c.material.emissive.set(0x332211)); });
-        }
-        skeletonGroup.children.forEach(c => {
-          if (c.userData.boneName === hit.userData.boneName && c.material && c.material !== jointMat) {
-            c.material.color.set(0xff4444);
-            c.material.emissive.set(0x441111);
-          }
-        });
-        lastHighlighted = hit.userData.boneName;
+    const hits = raycaster.intersectObjects(clickables);
+    if (hits.length > 0 && hits[0].object.userData.boneName) {
+      const name = hits[0].object.userData.boneName;
+      if (hoveredBone !== name) {
+        hoveredBone = name; renderer.domElement.style.cursor = 'pointer';
+        if (tooltip) { tooltip.textContent = name; tooltip.classList.remove('hidden'); }
       }
+      if (tooltip) { tooltip.style.left = (e.clientX + 14) + 'px'; tooltip.style.top = (e.clientY - 10) + 'px'; }
+    } else if (hoveredBone) {
+      hoveredBone = null;
+      renderer.domElement.style.cursor = isDragging ? 'grabbing' : 'grab';
+      if (tooltip) tooltip.classList.add('hidden');
     }
   });
+  renderer.domElement.addEventListener('pointerup', e => {
+    const wasDrag = dragDist > 5;
+    isDragging = false;
+    renderer.domElement.style.cursor = hoveredBone ? 'pointer' : 'grab';
+    if (!wasDrag) {
+      const rect = renderer.domElement.getBoundingClientRect();
+      mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+      raycaster.setFromCamera(mouse, camera);
+      const hits = raycaster.intersectObjects(clickables);
+      if (hits.length > 0 && hits[0].object.userData.boneName) highlightBone(hits[0].object.userData.boneName);
+    }
+  });
+  renderer.domElement.addEventListener('pointerleave', () => { isDragging = false; hoveredBone = null; if (tooltip) tooltip.classList.add('hidden'); });
 
+  renderer.domElement.addEventListener('wheel', e => {
+    e.preventDefault();
+    camera.position.z = Math.max(10, Math.min(35, camera.position.z + e.deltaY * 0.02));
+  }, { passive: false });
+
+  renderer.domElement.addEventListener('touchstart', e => { if (e.touches.length === 1) { isDragging = true; dragDist = 0; prevMouse = { x: e.touches[0].clientX, y: e.touches[0].clientY }; autoRotate = false; idleTimer = 0; } });
+  renderer.domElement.addEventListener('touchend', () => isDragging = false);
+  renderer.domElement.addEventListener('touchmove', e => {
+    if (!isDragging || e.touches.length !== 1) return; e.preventDefault();
+    const dx = e.touches[0].clientX - prevMouse.x, dy = e.touches[0].clientY - prevMouse.y;
+    dragDist += Math.abs(dx) + Math.abs(dy);
+    rotY += dx * 0.008;
+    rotX += dy * 0.008;
+    rotX = Math.max(-1.5, Math.min(1.5, rotX));
+    prevMouse = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  }, { passive: false });
+
+  _skelHighlightListener = e => highlightBone(e.detail);
+  window.addEventListener('highlight-bone', _skelHighlightListener);
+
+  // ── ANIMATION ──
+  let time = 0;
   function animate() {
     _skelAnimationId = requestAnimationFrame(animate);
-    if (!isDragging) rotY += 0.003;
+    time += 0.016;
+    if (!isDragging) { idleTimer += 0.016; if (idleTimer > 3) autoRotate = true; }
+    if (autoRotate) rotY += 0.004;
     skeletonGroup.rotation.x = rotX;
     skeletonGroup.rotation.y = rotY;
+    dustArr.forEach(d => {
+      d.position.y += Math.sin(time * d.userData.spd * 100 + d.userData.off) * 0.003;
+      d.position.x += Math.cos(time * d.userData.spd * 50 + d.userData.off) * 0.001;
+    });
     renderer.render(scene, camera);
   }
   animate();
@@ -2828,9 +3348,7 @@ function initSkeleton3D() {
   _skelResizeHandler = () => {
     const nw = container.offsetWidth;
     const nh = container.offsetHeight;
-    camera.aspect = nw / nh;
-    camera.updateProjectionMatrix();
-    renderer.setSize(nw, nh);
+    if (nw && nh) { camera.aspect = nw / nh; camera.updateProjectionMatrix(); renderer.setSize(nw, nh); }
   };
   window.addEventListener('resize', _skelResizeHandler);
 }
