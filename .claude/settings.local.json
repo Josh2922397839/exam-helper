@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(\\(Get-Content \"c:\\\\Users\\\\06jos\\\\Documents\\\\EXAMS\\\\index.html\"\\).Count)",
+      "PowerShell(npx -y serve \"c:\\\\Users\\\\06jos\\\\Documents\\\\EXAMS\" -l 3000 --no-clipboard)",
+      "PowerShell(\\(Get-Item \"c:\\\\Users\\\\06jos\\\\Documents\\\\EXAMS\\\\index.html\"\\).Length / 1KB)",
+      "PowerShell(Start-Process \"c:\\\\Users\\\\06jos\\\\Documents\\\\EXAMS\\\\index.html\")",
+      "Bash(git checkout *)",
+      "Bash(python -c ' *)",
+      "Bash(git rm *)",
+      "Bash(powershell -Command \"\\(Get-Content 'c:\\\\Users\\\\06jos\\\\Documents\\\\EXAMS\\\\index.html' | Select-String '<section'\\).Count; \\(Get-Content 'c:\\\\Users\\\\06jos\\\\Documents\\\\EXAMS\\\\index.html' | Select-String '</section>'\\).Count\")",
+      "Bash(powershell -Command \"\\(Get-Content 'c:\\\\Users\\\\06jos\\\\Documents\\\\EXAMS\\\\index.html' | Select-String '<main'\\).Count; \\(Get-Content 'c:\\\\Users\\\\06jos\\\\Documents\\\\EXAMS\\\\index.html' | Select-String '</main>'\\).Count\")",
+      "Bash(powershell -Command \"\\(Get-Content 'c:\\\\Users\\\\06jos\\\\Documents\\\\EXAMS\\\\index.html'\\).Count\")"
+    ]
+  }
+}
