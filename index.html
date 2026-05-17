@@ -50,6 +50,8 @@ tailwind.config = {
 .number-cell{transition:all 0.2s;cursor:pointer}
 .number-cell:hover{transform:scale(1.15);z-index:10}
 .number-cell:active{transform:scale(0.95)}
+.number-cell.speaking{animation:speakPulse 0.6s ease-in-out;box-shadow:0 0 20px rgba(0,210,255,0.5);border-color:rgba(0,210,255,0.7)!important;background:rgba(0,210,255,0.15)!important}
+@keyframes speakPulse{0%{transform:scale(1)}25%{transform:scale(1.12)}50%{transform:scale(1.05)}75%{transform:scale(1.1)}100%{transform:scale(1)}}
 .sidebar-link{transition:all 0.2s}
 .sidebar-link:hover,.sidebar-link.active{background:rgba(99,102,241,0.15);color:#818cf8;padding-left:1.5rem}
 .timeline-line{position:absolute;left:50%;top:0;bottom:0;width:3px;background:linear-gradient(180deg,#6366f1,#a855f7,#ec4899);transform:translateX(-50%)}
@@ -623,9 +625,10 @@ tailwind.config = {
           <p class="mb-4 text-sm" :class="darkMode?'text-gray-400':'text-gray-600'">Click any number to hear it in French!</p>
           <div class="grid grid-cols-5 sm:grid-cols-8 md:grid-cols-10 gap-2">
             <template x-for="n in frenchNumbers" :key="n.num">
-              <button @click="speak(n.fr,'fr')" class="number-cell p-2 rounded-lg text-center transition-all" :class="darkMode?'bg-dark-700/60 border border-white/10 hover:border-cyan-500/40 hover:bg-cyan-500/10':'bg-white border border-gray-200 hover:border-cyan-400 hover:bg-cyan-50 shadow-sm'">
+              <button @click="speakFrenchNumber($event, n.fr)" class="number-cell p-2 rounded-lg text-center transition-all" :class="darkMode?'bg-dark-700/60 border border-white/10 hover:border-cyan-500/40 hover:bg-cyan-500/10':'bg-white border border-gray-200 hover:border-cyan-400 hover:bg-cyan-50 shadow-sm'">
                 <div class="text-lg font-bold" :class="darkMode?'text-white':'text-gray-900'" x-text="n.num"></div>
                 <div class="text-[10px] truncate" :class="darkMode?'text-cyan-400':'text-cyan-600'" x-text="n.fr"></div>
+                <i class="fas fa-volume-up text-[8px] mt-0.5 opacity-40"></i>
               </button>
             </template>
           </div>
@@ -2567,6 +2570,11 @@ function app() {
         if (e.key === 'Escape') { this.showSearch = false; }
       });
       this.$nextTick(() => { initHeroCanvas(); });
+      // Pre-load speech synthesis voices for French TTS
+      if ('speechSynthesis' in window) {
+        speechSynthesis.getVoices(); // Trigger initial load
+        speechSynthesis.onvoiceschanged = () => { this.getBestFrenchVoice(); };
+      }
       this.$watch('currentSection', (val) => {
         window.scrollTo({ top: 0, behavior: 'instant' });
         if (val === 'chemistry') {
@@ -2605,12 +2613,71 @@ function app() {
       });
     },
 
+    // Cache for voices
+    _frenchVoice: null,
+    _voicesLoaded: false,
+
+    getBestFrenchVoice() {
+      if (this._frenchVoice && this._voicesLoaded) return this._frenchVoice;
+      const voices = speechSynthesis.getVoices();
+      if (!voices.length) return null;
+      this._voicesLoaded = true;
+      // Priority list: prefer high-quality native French voices
+      const preferredNames = [
+        'Google français',
+        'Microsoft Paul Online (Natural)',
+        'Microsoft Denise Online (Natural)',
+        'Microsoft Paul',
+        'Microsoft Denise',
+        'Thomas',
+        'Amélie',
+        'Marie',
+        'Audrey',
+      ];
+      // First try preferred voices by name
+      for (const name of preferredNames) {
+        const v = voices.find(voice => voice.name.includes(name) && voice.lang.startsWith('fr'));
+        if (v) { this._frenchVoice = v; return v; }
+      }
+      // Then any native fr-FR voice (not fr-CA to avoid Canadian accent)
+      const frFR = voices.find(v => v.lang === 'fr-FR');
+      if (frFR) { this._frenchVoice = frFR; return frFR; }
+      // Then any French voice at all
+      const anyFr = voices.find(v => v.lang.startsWith('fr'));
+      if (anyFr) { this._frenchVoice = anyFr; return anyFr; }
+      return null;
+    },
+
     speak(text, lang) {
-      if ('speechSynthesis' in window) {
-        const u = new SpeechSynthesisUtterance(text);
-        u.lang = lang === 'fr' ? 'fr-FR' : 'en-US';
+      if (!('speechSynthesis' in window)) return;
+      speechSynthesis.cancel(); // Stop any current speech
+      const u = new SpeechSynthesisUtterance(text);
+      if (lang === 'fr') {
+        u.lang = 'fr-FR';
+        const voice = this.getBestFrenchVoice();
+        if (voice) u.voice = voice;
+        u.rate = 0.82;
+        u.pitch = 1.05;
+      } else {
+        u.lang = 'en-US';
         u.rate = 0.85;
-        speechSynthesis.speak(u);
+      }
+      speechSynthesis.speak(u);
+      return u;
+    },
+
+    speakFrenchNumber(event, text) {
+      if (!('speechSynthesis' in window)) return;
+      const btn = event.currentTarget;
+      // Add speaking animation
+      btn.classList.add('speaking');
+      const u = this.speak(text, 'fr');
+      if (u) {
+        u.onend = () => btn.classList.remove('speaking');
+        // Fallback removal in case onend doesn't fire
+        setTimeout(() => btn.classList.remove('speaking'), 3000);
+      } else {
+        setTimeout(() => btn.classList.remove('speaking'), 600);
       }
     },
 
