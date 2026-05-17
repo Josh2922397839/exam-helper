@@ -478,7 +478,7 @@ tailwind.config = {
               </div>
             </template>
             <div x-show="allAnswered()" class="text-center">
-              <button @click="checkQuiz()" class="px-8 py-3 rounded-xl bg-gradient-to-r from-primary-500 to-accent-500 text-white font-bold hover:shadow-xl transition-all">Check Answers</button>
+              <button @click="checkQuiz()" class="px-8 py-3 rounded-xl bg-gradient-to-r from-primary-500 to-accent-500 text-white font-bold hover:shadow-xl transition-all" x-text="checked ? 'Retry Quiz' : 'Check Answers'"></button>
               <div x-show="score!==null" class="mt-4 text-2xl font-bold" :class="score>=80?'text-green-400':score>=50?'text-yellow-400':'text-red-400'">
                 Score: <span x-text="score+'%'"></span>
               </div>
@@ -784,7 +784,7 @@ tailwind.config = {
               </div>
             </template>
             <div x-show="allAnswered()" class="text-center">
-              <button @click="checkQuiz()" class="px-8 py-3 rounded-xl bg-gradient-to-r from-blue-500 to-red-500 text-white font-bold hover:shadow-xl transition-all">Check Answers</button>
+              <button @click="checkQuiz()" class="px-8 py-3 rounded-xl bg-gradient-to-r from-blue-500 to-red-500 text-white font-bold hover:shadow-xl transition-all" x-text="checked ? 'Retry Quiz' : 'Check Answers'"></button>
               <div x-show="score!==null" class="mt-4 text-2xl font-bold" :class="score>=80?'text-green-400':score>=50?'text-yellow-400':'text-red-400'">Score: <span x-text="score+'%'"></span></div>
             </div>
           </div>
@@ -1107,7 +1107,7 @@ tailwind.config = {
               </div>
             </template>
             <div x-show="allAnswered()" class="text-center">
-              <button @click="checkQuiz()" class="px-8 py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-bold hover:shadow-xl transition-all">Check Answers</button>
+              <button @click="checkQuiz()" class="px-8 py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-bold hover:shadow-xl transition-all" x-text="checked ? 'Retry Quiz' : 'Check Answers'"></button>
               <div x-show="score!==null" class="mt-4 text-2xl font-bold" :class="score>=80?'text-green-400':score>=50?'text-yellow-400':'text-red-400'">Score: <span x-text="score+'%'"></span></div>
             </div>
           </div>
@@ -1339,7 +1339,7 @@ tailwind.config = {
               </div>
             </template>
             <div x-show="allAnswered()" class="text-center">
-              <button @click="checkQuiz()" class="px-8 py-3 rounded-xl bg-gradient-to-r from-green-500 to-emerald-500 text-white font-bold hover:shadow-xl transition-all">Check Answers</button>
+              <button @click="checkQuiz()" class="px-8 py-3 rounded-xl bg-gradient-to-r from-green-500 to-emerald-500 text-white font-bold hover:shadow-xl transition-all" x-text="checked ? 'Retry Quiz' : 'Check Answers'"></button>
               <div x-show="score!==null" class="mt-4 text-2xl font-bold" :class="score>=80?'text-green-400':score>=50?'text-yellow-400':'text-red-400'">Score: <span x-text="score+'%'"></span></div>
             </div>
           </div>
@@ -1579,7 +1579,7 @@ tailwind.config = {
               </div>
             </template>
             <div class="text-center">
-              <button @click="checkQuiz()" :disabled="!allAnswered()" class="px-8 py-3 rounded-xl bg-gradient-to-r from-red-500 to-rose-500 text-white font-bold disabled:opacity-40 hover:shadow-lg hover:shadow-red-500/25 transition-all" x-text="checked?'Quiz Complete!':'Check Answers'"></button>
+              <button @click="checkQuiz()" :disabled="!allAnswered()" class="px-8 py-3 rounded-xl bg-gradient-to-r from-red-500 to-rose-500 text-white font-bold disabled:opacity-40 hover:shadow-lg hover:shadow-red-500/25 transition-all" x-text="checked?'Retry Quiz':'Check Answers'"></button>
               <div x-show="score!==null" class="mt-4 text-2xl font-bold" :class="score>=80?'text-green-400':score>=50?'text-yellow-400':'text-red-400'">Score: <span x-text="score+'%'"></span></div>
             </div>
           </div>
@@ -1934,7 +1934,7 @@ tailwind.config = {
               </div>
             </template>
             <div class="text-center">
-              <button @click="checkQuiz()" :disabled="!allAnswered()" class="px-8 py-3 rounded-xl bg-gradient-to-r from-yellow-500 to-amber-500 text-white font-bold disabled:opacity-40 hover:shadow-lg hover:shadow-yellow-500/25 transition-all" x-text="checked?'Quiz Complete!':'Check Answers'"></button>
+              <button @click="checkQuiz()" :disabled="!allAnswered()" class="px-8 py-3 rounded-xl bg-gradient-to-r from-yellow-500 to-amber-500 text-white font-bold disabled:opacity-40 hover:shadow-lg hover:shadow-yellow-500/25 transition-all" x-text="checked?'Retry Quiz':'Check Answers'"></button>
               <div x-show="score!==null" class="mt-4 text-2xl font-bold" :class="score>=80?'text-green-400':score>=50?'text-yellow-400':'text-red-400'">Score: <span x-text="score+'%'"></span></div>
             </div>
           </div>
@@ -2203,7 +2203,7 @@ tailwind.config = {
               </div>
             </template>
             <div class="text-center">
-              <button @click="checkQuiz()" :disabled="!allAnswered()" class="px-8 py-3 rounded-xl bg-gradient-to-r from-purple-500 to-violet-500 text-white font-bold disabled:opacity-40 hover:shadow-lg hover:shadow-purple-500/25 transition-all" x-text="checked?'Quiz Complete!':'Check Answers'"></button>
+              <button @click="checkQuiz()" :disabled="!allAnswered()" class="px-8 py-3 rounded-xl bg-gradient-to-r from-purple-500 to-violet-500 text-white font-bold disabled:opacity-40 hover:shadow-lg hover:shadow-purple-500/25 transition-all" x-text="checked?'Retry Quiz':'Check Answers'"></button>
               <div x-show="score!==null" class="mt-4 text-2xl font-bold" :class="score>=80?'text-green-400':score>=50?'text-yellow-400':'text-red-400'">Score: <span x-text="score+'%'"></span></div>
             </div>
           </div>
@@ -2842,9 +2842,30 @@ function quizComponent(subject) {
     checked: false,
     score: null,
 
+    init() {
+      const saved = localStorage.getItem('ef-quiz-' + subject);
+      if (saved) {
+        try {
+          const data = JSON.parse(saved);
+          this.answers = data.answers || {};
+          this.checked = data.checked || false;
+          this.score = data.score !== undefined ? data.score : null;
+        } catch(e) {}
+      }
+    },
+
+    saveProgress() {
+      localStorage.setItem('ef-quiz-' + subject, JSON.stringify({
+        answers: this.answers,
+        checked: this.checked,
+        score: this.score
+      }));
+    },
+
     selectAnswer(qi, oi) {
       if (this.checked) return;
       this.answers[qi] = oi;
+      this.saveProgress();
     },
 
     allAnswered() {
@@ -2852,10 +2873,18 @@ function quizComponent(subject) {
     },
 
     checkQuiz() {
+      if (this.checked) {
+        this.answers = {};
+        this.checked = false;
+        this.score = null;
+        localStorage.removeItem('ef-quiz-' + subject);
+        return;
+      }
       this.checked = true;
       let correct = 0;
       this.questions.forEach((q, i) => { if (this.answers[i] === q.correct) correct++; });
       this.score = Math.round((correct / this.questions.length) * 100);
+      this.saveProgress();
       if (this.score >= 90) launchConfetti();
     },
 
