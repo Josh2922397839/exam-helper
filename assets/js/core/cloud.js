@@ -7,7 +7,7 @@
   const EF = window.EF;
   const esc = EF.esc, icon = EF.icon;
   const cfg = window.EF_CONFIG || {};
-  const LIB = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js';
+  const LIB = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.js';
   const JOINED = 'ef2:cloud', XPQ = 'ef2:xpq', PUB = 'ef2:published', SEEN = 'ef2:lastResultSeen';
   const enabled = !!(cfg.supabaseUrl && cfg.supabaseKey);
 

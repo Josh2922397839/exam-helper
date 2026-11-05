@@ -3,7 +3,7 @@
 --
 -- Security model: every table has row-level security turned ON with NO policies, so the browser can't read or
 -- write tables directly. All access goes through the ef_* functions below, which check who is calling
--- (auth.uid()), validate input and cap XP. The public "anon" key in the website can only call these functions.
+-- (auth.uid()), validate input and cap XP. The public anon key in the website can only call these functions.
 
 -- ---------------------------------------------------------------- tables
 create table if not exists public.schools (
@@ -25,6 +25,7 @@ create table if not exists public.profiles (
   username text not null check (username ~ '^[A-Za-z0-9_]{3,20}$'),
   school_id bigint references public.schools (id) on delete set null,
   grade smallint check (grade is null or grade between 6 and 13),
+  avatar text check (avatar is null or avatar ~ '^[a-z]{2,16}$'),
   league smallint not null default 1 check (league between 1 and 9),
   xp_total integer not null default 0,
   xp_week integer not null default 0,
@@ -35,6 +36,7 @@ create table if not exists public.profiles (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+alter table public.profiles add column if not exists avatar text;
 create unique index if not exists profiles_username on public.profiles (lower(username));
 create index if not exists profiles_league on public.profiles (league, week, xp_week desc);
 create index if not exists profiles_school on public.profiles (school_id, week, xp_week desc);
@@ -178,7 +180,13 @@ create or replace function public.ef_profile_json(p_id uuid) returns jsonb langu
 security definer set search_path = public
 as $$
   select jsonb_build_object(
-    'id', p.id, 'username', p.username, 'grade', p.grade, 'league', p.league,
+    'id', p.id, 'username', p.username, 'avatar', p.avatar, 'grade', p.grade, 'league', p.league,
+    'followers', (select count(*) from follows where followee = p.id),
+    'following', (select count(*) from follows where follower = p.id),
+    'school_rank', (select t.rk from (select q.id, row_number() over (order by (case when q.week = ef_week() then q.xp_week else 0 end) desc, q.xp_total desc) as rk
+                    from profiles q where q.school_id = p.school_id) t where t.id = p.id),
+    'friends_rank', (select t.rk from (select q.id, row_number() over (order by (case when q.week = ef_week() then q.xp_week else 0 end) desc, q.xp_total desc) as rk
+                     from profiles q where q.id = p.id or q.id in (select followee from follows where follower = p.id)) t where t.id = p.id),
     'xp_total', p.xp_total, 'xp_week', case when p.week = ef_week() then p.xp_week else 0 end,
     'school', case when s.id is null then null else jsonb_build_object('id', s.id, 'name', s.name, 'region', s.region, 'country', s.country) end,
     'last_result', p.last_result, 'has_code', exists (select 1 from secrets where user_id = p.id),
@@ -201,21 +209,23 @@ as $$
   select to_jsonb(not exists (select 1 from profiles where lower(username) = lower(trim(p_username)) and id is distinct from auth.uid()))
 $$;
 
-create or replace function public.ef_save_profile(p_username text, p_school bigint, p_grade integer) returns jsonb language plpgsql
+drop function if exists public.ef_save_profile(text, bigint, integer);
+create or replace function public.ef_save_profile(p_username text, p_school bigint, p_grade integer, p_avatar text default null) returns jsonb language plpgsql
 security definer set search_path = public
 as $$
 declare u uuid := ef_uid(); n text := ef_check_name(p_username);
 begin
+  if p_avatar is not null and p_avatar !~ '^[a-z]{2,16}$' then p_avatar := null; end if;
   if p_school is not null and not exists (select 1 from schools where id = p_school) then
     raise exception 'That school wasn''t found.' using errcode = '22023';
   end if;
   if exists (select 1 from profiles where lower(username) = lower(n) and id <> u) then
     raise exception 'That name is taken. Try another one.' using errcode = '23505';
   end if;
-  insert into profiles (id, username, school_id, grade, week, day)
-  values (u, n, p_school, p_grade, ef_week(), ef_today())
+  insert into profiles (id, username, school_id, grade, avatar, week, day)
+  values (u, n, p_school, p_grade, p_avatar, ef_week(), ef_today())
   on conflict (id) do update set username = excluded.username, school_id = excluded.school_id,
-    grade = excluded.grade, updated_at = now();
+    grade = excluded.grade, avatar = coalesce(excluded.avatar, profiles.avatar), updated_at = now();
   return ef_profile_json(u);
 end $$;
 
@@ -252,7 +262,8 @@ begin
     select id, row_number() over (order by xp_week desc, updated_at) rk
     from profiles where league = me.league and week = w and (xp_week > 0 or id = u)) t where id = u;
   select coalesce(jsonb_agg(to_jsonb(x) order by x.rank), '[]'::jsonb) into rows from (
-    select row_number() over (order by p.xp_week desc, p.updated_at) as rank, p.username, s.name as school, p.xp_week as xp, p.id = u as me
+    select row_number() over (order by p.xp_week desc, p.updated_at) as rank, p.username, p.avatar, s.name as school, p.xp_week as xp, p.id = u as me,
+           exists (select 1 from follows f where f.follower = u and f.followee = p.id) as friend
     from profiles p left join schools s on s.id = p.school_id
     where p.league = me.league and p.week = w and (p.xp_week > 0 or p.id = u)
     order by p.xp_week desc, p.updated_at limit 50) x;
@@ -262,22 +273,26 @@ begin
     'week_ends', ((w + 7)::timestamp at time zone 'America/Jamaica'), 'last_result', me.last_result);
 end $$;
 
-create or replace function public.ef_school_board(p_school bigint) returns jsonb language plpgsql
+drop function if exists public.ef_school_board(bigint);
+create or replace function public.ef_school_board(p_school bigint, p_period text default 'week') returns jsonb language plpgsql
 security definer set search_path = public
 as $$
-declare u uuid := auth.uid(); w date := ef_week(); s schools; rows jsonb; members integer; xp bigint;
+declare u uuid := auth.uid(); w date := ef_week(); s schools; rows jsonb; members integer; xp bigint; friends integer; alltime boolean := coalesce(p_period, 'week') = 'all';
 begin
   perform ef_close_weeks();
   select * into s from schools where id = p_school;
   if not found then return null; end if;
   select count(*), coalesce(sum(case when week = w then xp_week else 0 end), 0) into members, xp from profiles where school_id = s.id;
+  select count(*) into friends from profiles p where p.school_id = s.id and p.id in (select followee from follows where follower = u);
   select coalesce(jsonb_agg(to_jsonb(x) order by x.rank), '[]'::jsonb) into rows from (
-    select row_number() over (order by (case when p.week = w then p.xp_week else 0 end) desc, p.xp_total desc) as rank,
-           p.username, p.grade, p.league, case when p.week = w then p.xp_week else 0 end as xp, p.id = u as me
+    select row_number() over (order by (case when alltime then p.xp_total when p.week = w then p.xp_week else 0 end) desc, p.xp_total desc) as rank,
+           p.username, p.avatar, p.grade, p.league,
+           case when alltime then p.xp_total when p.week = w then p.xp_week else 0 end as xp, p.id = u as me,
+           exists (select 1 from follows f where f.follower = u and f.followee = p.id) as friend
     from profiles p where p.school_id = s.id
-    order by (case when p.week = w then p.xp_week else 0 end) desc, p.xp_total desc limit 50) x;
-  return jsonb_build_object('school', jsonb_build_object('id', s.id, 'name', s.name, 'region', s.region, 'country', s.country, 'members', members, 'xp_week', xp),
-    'rows', rows, 'week_ends', ((w + 7)::timestamp at time zone 'America/Jamaica'));
+    order by (case when alltime then p.xp_total when p.week = w then p.xp_week else 0 end) desc, p.xp_total desc limit 100) x;
+  return jsonb_build_object('school', jsonb_build_object('id', s.id, 'name', s.name, 'region', s.region, 'country', s.country, 'members', members, 'xp_week', xp, 'friends', friends),
+    'period', case when alltime then 'all' else 'week' end, 'rows', rows, 'week_ends', ((w + 7)::timestamp at time zone 'America/Jamaica'));
 end $$;
 
 create or replace function public.ef_schools_board(p_country text default null) returns jsonb language plpgsql
@@ -303,11 +318,25 @@ declare u uuid := ef_uid(); w date := ef_week(); rows jsonb;
 begin
   select coalesce(jsonb_agg(to_jsonb(x) order by x.rank), '[]'::jsonb) into rows from (
     select row_number() over (order by (case when p.week = w then p.xp_week else 0 end) desc, p.xp_total desc) as rank,
-           p.username, s.name as school, p.league, case when p.week = w then p.xp_week else 0 end as xp, p.id = u as me
+           p.username, p.avatar, s.name as school, p.league, case when p.week = w then p.xp_week else 0 end as xp, p.id = u as me, p.id <> u as friend
     from profiles p left join schools s on s.id = p.school_id
     where p.id = u or p.id in (select followee from follows where follower = u)
     order by (case when p.week = w then p.xp_week else 0 end) desc, p.xp_total desc limit 100) x;
   return jsonb_build_object('rows', rows);
+end $$;
+
+-- a public profile (what others see when they tap a name)
+create or replace function public.ef_profile(p_username text) returns jsonb language plpgsql
+security definer set search_path = public
+as $$
+declare t uuid; out jsonb;
+begin
+  perform ef_close_weeks();
+  select id into t from profiles where lower(username) = lower(trim(coalesce(p_username, '')));
+  if t is null then return null; end if;
+  out := ef_profile_json(t) - 'id' - 'has_code' - 'last_result';
+  return out || jsonb_build_object('me', t = auth.uid(),
+    'i_follow', exists (select 1 from follows where follower = auth.uid() and followee = t));
 end $$;
 
 create or replace function public.ef_follow(p_username text) returns jsonb language plpgsql
@@ -340,9 +369,9 @@ as $$
     select s.id, s.name, s.region, s.country, s.kind, (select count(*) from profiles p where p.school_id = s.id) as members
     from schools s
     where char_length(trim(coalesce(p_q, ''))) >= 2
-      and s.name ilike '%' || replace(replace(replace(trim(p_q), '\', '\\'), '%', '\%'), '_', '\_') || '%'
+      and strpos(lower(s.name), lower(trim(p_q))) > 0
       and (p_country is null or s.country = p_country)
-    order by (lower(s.name) like lower(trim(p_q)) || '%') desc, members desc, s.name
+    order by (strpos(lower(s.name), lower(trim(p_q))) = 1) desc, members desc, s.name
     limit 20) x
 $$;
 
@@ -350,7 +379,7 @@ create or replace function public.ef_add_school(p_name text, p_country text, p_r
   p_osm text default null, p_lat double precision default null, p_lon double precision default null) returns jsonb language plpgsql
 security definer set search_path = public
 as $$
-declare u uuid := ef_uid(); nm text := regexp_replace(trim(coalesce(p_name, '')), '\s+', ' ', 'g'); c text := upper(trim(coalesce(p_country, 'JM'))); s schools;
+declare u uuid := ef_uid(); nm text := regexp_replace(trim(coalesce(p_name, '')), '[[:space:]]+', ' ', 'g'); c text := upper(trim(coalesce(p_country, 'JM'))); s schools;
 begin
   if char_length(nm) < 2 or char_length(nm) > 120 then raise exception 'Type the school''s full name.' using errcode = '22023'; end if;
   if c !~ '^[A-Z]{2}$' then raise exception 'Unknown country.' using errcode = '22023'; end if;
@@ -507,8 +536,9 @@ do $$
 declare f record;
 begin
   for f in select p.oid::regprocedure as sig, p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-           where n.nspname = 'public' and p.proname like 'ef\_%' loop
-    execute format('revoke all on function %s from public', f.sig);
+           where n.nspname = 'public' and left(p.proname, 3) = 'ef_' loop
+    -- Supabase grants every new function to anon/authenticated by default, so revoke from them explicitly too
+    execute format('revoke all on function %s from public, anon, authenticated', f.sig);
     if f.proname not in ('ef_today', 'ef_week', 'ef_uid', 'ef_rate', 'ef_check_name', 'ef_close_weeks', 'ef_profile_json') then
       execute format('grant execute on function %s to anon, authenticated', f.sig);
     end if;

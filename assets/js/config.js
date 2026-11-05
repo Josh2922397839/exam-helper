@@ -1,9 +1,9 @@
 /* ExamForge settings.
-   To switch on leagues, schools, friends and cloud saves, paste your Supabase project's URL and its PUBLIC
-   "anon" key below (Supabase dashboard → Project Settings → API). The anon key is meant to be public: the
+   Leagues, schools, friends and cloud saves use the Supabase project below. The key is the PUBLIC
+   publishable key (Supabase dashboard → Project Settings → API Keys): it's meant to be public, and the
    database only lets it call the safe ef_* functions in supabase/schema.sql.
-   NEVER put the "service_role" key here. Leave both empty to run fully offline. */
+   NEVER put a secret / service_role key here. Empty both values to run fully offline. */
 window.EF_CONFIG = {
-  supabaseUrl: '',
-  supabaseKey: ''
+  supabaseUrl: 'https://waycwffzqqcbanuzunxr.supabase.co',
+  supabaseKey: 'sb_publishable_S_lKOkEHfp11gKonwhSpog_FxsJbgxa'
 };

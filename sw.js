@@ -1,7 +1,7 @@
 /* ExamForge service worker — lets the site open and work offline.
    Our own files: network first (so updates show up straight away), cache as the offline fallback.
    Fonts, icons and Three.js from CDNs: cache first (their URLs are versioned, so they never change). */
-const VERSION = 'ef-v8';
+const VERSION = 'ef-v9';
 const SHELL = [
   './',
   './index.html',
