@@ -19,6 +19,19 @@
   EF.subject = (id) => EF.subjects.find((s) => s.id === id);
   EF.reducedMotion = () => window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+  /* Subject icons — one consistent hand-drawn SVG set (emoji render differently on every device;
+     Windows even shows the French flag as the letters "FR"). 24×24, drawn with currentColor. */
+  const SUBJECT_ICONS = {
+    religion: '<path class="f" d="M3 6.6c2.6-1.3 5.6-1.2 9 .9 3.4-2.1 6.4-2.2 9-.9V19c-2.6-1.3-5.6-1.2-9 .9-3.4-2.1-6.4-2.2-9-.9Z"/><path d="M3 6.6c2.6-1.3 5.6-1.2 9 .9 3.4-2.1 6.4-2.2 9-.9V19c-2.6-1.3-5.6-1.2-9 .9-3.4-2.1-6.4-2.2-9-.9Z"/><path d="M12 7.5v12.3"/><path d="M12 1.8v2.4M7.6 3l1.2 1.6M16.4 3l-1.2 1.6"/>',
+    french: '<path d="M12 1.8v2.4M10.4 4.2h3.2"/><path d="M10.9 4.2 9.3 12.6 5.6 21.2M13.1 4.2l1.6 8.4 3.7 8.6"/><path d="M10.2 8.6h3.6M8.4 12.6h7.2M6.9 16.6h10.2"/><path class="f" d="M9.6 21.2c0-2.1 1.1-3.3 2.4-3.3s2.4 1.2 2.4 3.3Z"/><path d="M9.6 21.2c0-2.1 1.1-3.3 2.4-3.3s2.4 1.2 2.4 3.3M4.5 21.2h15"/>',
+    chemistry: '<ellipse cx="12" cy="12" rx="9.6" ry="3.7"/><ellipse cx="12" cy="12" rx="9.6" ry="3.7" transform="rotate(60 12 12)"/><ellipse cx="12" cy="12" rx="9.6" ry="3.7" transform="rotate(-60 12 12)"/><circle class="s" cx="12" cy="12" r="1.9"/>',
+    biology: '<path d="M7 2.5c0 4.7 10 4.8 10 9.5S7 16.8 7 21.5M17 2.5c0 4.7-10 4.8-10 9.5s10 4.8 10 9.5"/><path d="M8.4 5.6h7.2M10.2 8.6h3.6M10.2 15.4h3.6M8.4 18.4h7.2"/>',
+    pe: '<circle class="s" cx="15.4" cy="4.4" r="2.1"/><path d="M14.2 8.2 11 13.1l3.2 2.5-1.4 5.6M11 13.1l-2.5 3.5-3.9-.2M13.8 8.9l3.2 2.4 2.7-1.2M13.6 8.6l-3.8-.2-2.1 2.4"/>',
+    business: '<path d="M3 20.6h18"/><path class="f" d="M5 20.6v-4.8h3.2v4.8M10.4 20.6v-7.8h3.2v7.8M15.8 20.6V9.6H19v11"/><path d="M5 20.6v-4.8h3.2v4.8M10.4 20.6v-7.8h3.2v7.8M15.8 20.6V9.6H19v11"/><path d="M3.6 11.6 9 6.4l3.2 2.8 6.6-6.4M15.6 2.8h3.2V6"/>',
+    history: '<path class="f" d="M2.8 9.2 12 3.6l9.2 5.6Z"/><path d="M2.8 9.2 12 3.6l9.2 5.6ZM4.4 11h15.2"/><path d="M6.4 11v6.4M10.1 11v6.4M13.9 11v6.4M17.6 11v6.4"/><path d="M4.4 17.8h15.2M3 20.6h18"/>'
+  };
+  EF.subjectIcon = (id, cls) => `<svg class="sicon${cls ? ' ' + cls : ''}" viewBox="0 0 24 24" aria-hidden="true" focusable="false">${SUBJECT_ICONS[id] || SUBJECT_ICONS.history}</svg>`;
+
   /* Progress ring as inline SVG (pct 0–100) */
   EF.ring = (pct, size = 56, stroke = 6, label) => {
     const p = Math.max(0, Math.min(100, Math.round(pct || 0)));
@@ -26,8 +39,25 @@
     return `<span class="ring" style="--size:${size}px" role="img" aria-label="${p}% complete">
       <svg viewBox="0 0 ${size} ${size}" width="${size}" height="${size}" aria-hidden="true">
         <circle class="ring-track" cx="${size / 2}" cy="${size / 2}" r="${r}" stroke-width="${stroke}" fill="none"/>
-        <circle class="ring-fill" cx="${size / 2}" cy="${size / 2}" r="${r}" stroke-width="${stroke}" fill="none" pathLength="100" stroke-dasharray="${p} 100" transform="rotate(-90 ${size / 2} ${size / 2})"/>
-      </svg><span class="ring-label">${label != null ? label : p + '%'}</span></span>`;
+        ${p > 0 ? `<circle class="ring-fill" cx="${size / 2}" cy="${size / 2}" r="${r}" stroke-width="${stroke}" fill="none" pathLength="100" style="--p:${p}" transform="rotate(-90 ${size / 2} ${size / 2})"/>` : ''}
+      </svg><span class="ring-label">${label != null ? label : `<span data-count="${p}">${p}</span>%`}</span></span>`;
+  };
+
+  /* Count numbers up from 0 when they appear (skipped for reduced motion) */
+  EF.countUp = (root) => {
+    if (EF.reducedMotion()) return;
+    (root || document).querySelectorAll('[data-count]').forEach((el) => {
+      const to = parseFloat(el.dataset.count);
+      if (!(to > 0)) return;
+      const t0 = performance.now(), dur = 700 + Math.min(500, to * 4);
+      el.textContent = '0';
+      const step = (now) => {
+        const k = Math.min(1, (now - t0) / dur), e = 1 - Math.pow(1 - k, 3);
+        el.textContent = Math.round(to * e);
+        if (k < 1) requestAnimationFrame(step);
+      };
+      requestAnimationFrame(step);
+    });
   };
 
   /* ---------- events ---------- */
@@ -142,7 +172,21 @@
       if (meta) meta.setAttribute('content', t === 'dark' ? '#0c0d11' : '#f6f3ec');
       EF.emit('theme', t);
     },
-    toggle() { EF.theme.set(EF.theme.get() === 'dark' ? 'light' : 'dark'); }
+    toggle(origin) {
+      const next = EF.theme.get() === 'dark' ? 'light' : 'dark';
+      const root = document.documentElement;
+      if (!document.startViewTransition || EF.reducedMotion()) { EF.theme.set(next); return; }
+      const r = origin && origin.getBoundingClientRect ? origin.getBoundingClientRect() : { left: innerWidth - 40, top: 30, width: 0, height: 0 };
+      const x = r.left + r.width / 2, y = r.top + r.height / 2;
+      const end = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y));
+      root.classList.add('vt-theme');
+      const t = document.startViewTransition(() => EF.theme.set(next));
+      t.ready.then(() => {
+        root.animate({ clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${end}px at ${x}px ${y}px)`] },
+          { duration: 550, easing: 'cubic-bezier(.2,.8,.2,1)', pseudoElement: '::view-transition-new(root)' });
+      }).catch(() => {});
+      t.finished.catch(() => {}).finally(() => root.classList.remove('vt-theme'));
+    }
   };
 
   /* ---------- speech (French TTS with smart voice picking) ---------- */

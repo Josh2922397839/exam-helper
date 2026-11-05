@@ -30,13 +30,13 @@
 
   EF.mountQuiz = (el, id, opts = {}) => {
     const meta = EF.quizMeta(id);
-    let qs = [], i = 0, picked = null, right = 0, wrong = [], phase = 'start';
+    let qs = [], i = 0, picked = null, right = 0, wrong = [], phase = 'start', barFrom = 0, entering = false;
     el.classList.add('quiz', 'tint');
     el.style.setProperty('--c', meta.color);
 
     const start = (list) => {
       qs = list || EF.buildQuiz(id);
-      i = 0; picked = null; right = 0; wrong = []; phase = qs.length ? 'q' : 'empty';
+      i = 0; picked = null; right = 0; wrong = []; phase = qs.length ? 'q' : 'empty'; barFrom = 0; entering = true;
       render();
       if (opts.inline) el.scrollIntoView({ behavior: EF.reducedMotion() ? 'auto' : 'smooth', block: 'start' });
     };
@@ -63,10 +63,10 @@
       el.innerHTML = `
         <div class="quiz-top">
           <span class="quiz-count">Question <strong>${i + 1}</strong> of ${qs.length}</span>
-          ${subj ? `<span class="pill tint" style="--c:${subj.color}">${subj.emoji} ${esc(subj.short)}</span>` : ''}
+          ${subj ? `<span class="pill tint" style="--c:${subj.color}">${EF.subjectIcon(subj.id)} ${esc(subj.short)}</span>` : ''}
           <span class="quiz-score">${icon('fa-check')} ${right}</span>
         </div>
-        <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="${qs.length}" aria-valuenow="${i}"><span style="width:${(i / qs.length) * 100}%"></span></div>
+        <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="${qs.length}" aria-valuenow="${i}"><span style="width:${barFrom}%"></span></div>
         <h3 class="quiz-q" id="qq-${esc(id)}">${q.q}</h3>
         <div class="quiz-opts" role="group" aria-labelledby="qq-${esc(id)}">
           ${q.options.map((o, oi) => `<button type="button" class="opt${picked == null ? '' : oi === q.answer ? ' is-right' : oi === picked ? ' is-wrong' : ' is-dim'}" data-opt="${oi}" ${picked == null ? '' : 'disabled'}><span class="opt-key">${'ABCD'[oi]}</span><span>${o}</span>${picked != null && oi === q.answer ? icon('fa-circle-check', 'opt-mark') : picked === oi ? icon('fa-circle-xmark', 'opt-mark') : ''}</button>`).join('')}
@@ -78,7 +78,12 @@
         </div>
         <div class="quiz-next"><button type="button" class="btn btn-c" data-next>${i + 1 < qs.length ? 'Next question ' + icon('fa-arrow-right') : 'See results ' + icon('fa-flag-checkered')}</button></div>`}`;
       const nb = el.querySelector('[data-next]');
-      if (nb) nb.focus({ preventScroll: true });
+      if (nb) { nb.focus({ preventScroll: true }); requestAnimationFrame(() => nb.scrollIntoView({ block: 'nearest', behavior: EF.reducedMotion() ? 'auto' : 'smooth' })); }
+      const target = (i / qs.length) * 100, barEl = el.querySelector('.bar > span');
+      if (barEl) requestAnimationFrame(() => { barEl.style.width = target + '%'; });
+      barFrom = target;
+      el.classList.toggle('is-entering', entering);
+      if (entering) { entering = false; setTimeout(() => el.classList.remove('is-entering'), 600); }
     }
 
     function results() {
@@ -111,7 +116,7 @@
     }
     function next() {
       if (picked == null) return;
-      if (i + 1 < qs.length) { i++; picked = null; render(); const t = el.querySelector('.quiz-q'); if (t && !inView(t)) el.scrollIntoView({ block: 'start' }); return; }
+      if (i + 1 < qs.length) { i++; picked = null; entering = true; render(); const t = el.querySelector('.quiz-q'); if (t && !inView(t)) el.scrollIntoView({ block: 'start' }); return; }
       phase = 'done';
       const pct = Math.round((right / qs.length) * 100);
       if (id !== 'mistakes') EF.store.recordQuiz(id, pct);
@@ -189,19 +194,19 @@
       const b = box(c);
       el.innerHTML = header() + `
         <div class="cards-meta"><span>Card <strong>${i + 1}</strong> of ${deck.length}</span>${c.cat ? `<span class="pill">${esc(c.cat)}</span>` : ''}<span class="boxes" title="Memory level ${b} of 5" aria-label="Memory level ${b} of 5">${[1, 2, 3, 4, 5].map((n) => `<i class="${n <= b ? 'on' : ''}"></i>`).join('')}</span></div>
-        <div class="bigcard${flipped ? ' is-flipped' : ''}" role="button" tabindex="0" aria-pressed="${flipped}" data-flipcard aria-label="${flipped ? 'Answer: ' + esc(c.back) : esc(c.front) + ' — press to reveal'}">
+        <div class="bigcard${flipped ? ' is-flipped' : ' is-new'}" role="button" tabindex="0" aria-pressed="${flipped}" data-flipcard aria-label="${flipped ? 'Answer: ' + esc(c.back) : esc(c.front) + ' — press to reveal'}">
           <div class="flip-inner">
             <div class="flip-face bigcard-front"><span class="bigcard-tag">Question</span><p${s.lang ? ' lang="fr"' : ''}>${esc(c.front)}</p>${s.lang ? `<button type="button" class="speak" data-speak="${esc(c.front)}" aria-label="Hear it">${icon('fa-volume-high')}</button>` : ''}<span class="flip-hint">${icon('fa-rotate')} Tap or press space</span></div>
             <div class="flip-face bigcard-back"><span class="bigcard-tag">Answer</span><p>${esc(c.back)}</p></div>
           </div>
         </div>
-        <div class="cards-actions">
-          ${flipped ? `
-            <button type="button" class="btn btn-again" data-grade="0">${icon('fa-rotate-left')} Again <kbd>1</kbd></button>
-            <button type="button" class="btn btn-got" data-grade="1">${icon('fa-check')} Got it <kbd>2</kbd></button>` : `
-            <button type="button" class="btn btn-c btn-lg" data-reveal>${icon('fa-eye')} Show answer <kbd>space</kbd></button>`}
-        </div>`;
+        <div class="cards-actions">${actions()}</div>`;
     }
+    const actions = () => flipped ? `
+            <button type="button" class="btn btn-again" data-grade="0">${icon('fa-rotate-left')} Again <kbd>1</kbd></button>
+            <button type="button" class="btn btn-got" data-grade="1">${icon('fa-check')} Got it <kbd>2</kbd></button>
+            <p class="swipe-hint">${icon('fa-hand-point-right')} Or swipe: right = got it, left = again</p>` : `
+            <button type="button" class="btn btn-c btn-lg" data-reveal>${icon('fa-eye')} Show answer <kbd>space</kbd></button>`;
 
     function grade(ok) {
       const c = deck[i];
@@ -210,9 +215,56 @@
       if (ok) got++; else { again++; if (deck.length < 25) deck.push(c); } // missed cards come back later in the session
       i++; flipped = false; render();
     }
-    const flip = () => { flipped = !flipped; render(); const card = el.querySelector('[data-flipcard]'); if (card) card.focus({ preventScroll: true }); };
+    // Flip in place so the 3D turn actually animates (re-rendering would just swap the faces)
+    const flip = () => {
+      const card = el.querySelector('[data-flipcard]');
+      if (!card) return;
+      flipped = !flipped;
+      const c = deck[i];
+      card.classList.remove('is-new');
+      card.classList.toggle('is-flipped', flipped);
+      card.setAttribute('aria-pressed', flipped);
+      card.setAttribute('aria-label', flipped ? 'Answer: ' + c.back : c.front + ' — press to reveal');
+      el.querySelector('.cards-actions').innerHTML = actions();
+      card.focus({ preventScroll: true });
+    };
+
+    /* Swipe the card: right = Got it, left = Again (after it's flipped). A drag never counts as a tap. */
+    let drag = null, justDragged = false;
+    const onDown = (e) => {
+      const card = e.target.closest('[data-flipcard]');
+      if (!card || e.target.closest('.speak') || (e.pointerType === 'mouse' && e.button !== 0)) return;
+      drag = { card, x: e.clientX, y: e.clientY, dx: 0, id: e.pointerId, moved: false };
+    };
+    const onMove = (e) => {
+      if (!drag || e.pointerId !== drag.id) return;
+      drag.dx = e.clientX - drag.x;
+      const dy = e.clientY - drag.y;
+      if (!drag.moved && Math.abs(drag.dx) > 8 && Math.abs(drag.dx) > Math.abs(dy)) { drag.moved = true; drag.card.classList.add('is-dragging'); try { drag.card.setPointerCapture(drag.id); } catch (err) { /* ignore */ } }
+      if (!drag.moved) return;
+      const dx = flipped ? drag.dx : drag.dx * 0.35;
+      drag.card.style.transform = `translateX(${dx}px) rotate(${dx * 0.04}deg)`;
+      drag.card.dataset.swipe = flipped && Math.abs(dx) > 50 ? (dx > 0 ? 'got' : 'again') : '';
+    };
+    const onUp = (e) => {
+      if (!drag || e.pointerId !== drag.id) return;
+      const d = drag; drag = null;
+      if (!d.moved) return;
+      justDragged = true; setTimeout(() => { justDragged = false; }, 50);
+      d.card.classList.remove('is-dragging');
+      if (flipped && Math.abs(d.dx) > 90) {
+        const ok = d.dx > 0;
+        d.card.classList.add(ok ? 'fly-right' : 'fly-left');
+        setTimeout(() => grade(ok), 220);
+      } else { d.card.style.transform = ''; d.card.dataset.swipe = ''; }
+    };
+    el.addEventListener('pointerdown', onDown);
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
 
     const onClick = (e) => {
+      if (justDragged) return;
       if (e.target.closest('.speak')) return;
       const t = e.target.closest('button,[data-flipcard]');
       if (!t || !el.contains(t)) return;
@@ -230,6 +282,10 @@
     el.addEventListener('click', onClick);
     document.addEventListener('keydown', onKey);
     newSession('due');
-    return () => { el.removeEventListener('click', onClick); document.removeEventListener('keydown', onKey); };
+    return () => {
+      el.removeEventListener('click', onClick); document.removeEventListener('keydown', onKey);
+      el.removeEventListener('pointerdown', onDown); window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp); window.removeEventListener('pointercancel', onUp);
+    };
   };
 })();

@@ -3,24 +3,28 @@ window.EF = window.EF || {};
 EF.subjects = EF.subjects || [];
 
 (function () {
-  // The 3D skeleton uses these exact names, so keep them in sync with assets/js/core/three-scenes.js
+  // The 3D skeleton uses these exact names, so keep them in sync with assets/js/core/skeleton.js
   var bones = [
     { name: 'Cranium', location: 'Head (skull)', type: 'Flat bone', count: '8 cranial bones (22 in the whole skull)', desc: 'The cranium is the bony case that protects the brain. Its bones are fused together at immovable joints called sutures.', fact: 'A baby is born with about 300 bones, but many fuse together — adults end up with 206!' },
+    { name: 'Mandible', location: 'Lower jaw', type: 'Irregular bone', count: '1', desc: 'The mandible is the lower jaw. It holds the lower teeth and is the only bone of the skull that can move, letting you chew and speak.', fact: 'The mandible is the largest and strongest bone in the face.' },
     { name: 'Clavicle', location: 'Shoulder (collarbone)', type: 'Long bone', count: '2 (left and right)', desc: 'The clavicle connects the arm to the body and helps stabilise the shoulder. It is one of the most commonly broken bones.', fact: 'The clavicle is the only long bone that lies horizontally in the body.' },
     { name: 'Scapula', location: 'Upper back (shoulder blade)', type: 'Flat bone', count: '2 (left and right)', desc: 'A triangular bone that connects the humerus with the clavicle. Many arm and chest muscles attach to it.', fact: 'The scapula can move in 6 different directions, making it one of the most mobile bones.' },
+    { name: 'Sternum', location: 'Centre of chest (breastbone)', type: 'Flat bone', count: '1', desc: 'A flat bone at the front of the chest. It connects to the ribs with cartilage and protects the heart, lungs and major blood vessels.', fact: 'CPR chest compressions push down on the sternum about 5–6 cm to pump the heart by hand.' },
+    { name: 'Ribs', location: 'Chest (thorax)', type: 'Flat bone', count: '24 (12 pairs)', desc: 'The ribs form a cage that protects the heart and lungs. Pairs 1–7 are “true ribs” (joined to the sternum), 8–10 are “false ribs” and 11–12 are “floating ribs.”', fact: 'About 1 in 200 people are born with an extra (cervical) rib!' },
+    { name: 'Vertebral Column', location: 'Spine (backbone)', type: 'Irregular bone', count: '33 vertebrae (26 bones in adults)', desc: '7 cervical, 12 thoracic, 5 lumbar, 5 sacral (fused) and 4 coccygeal (fused). It protects the spinal cord and holds the body upright.', fact: 'You’re about 1 cm taller in the morning — your spinal discs squash a little during the day!' },
     { name: 'Humerus', location: 'Upper arm', type: 'Long bone', count: '2 (left and right)', desc: 'The largest bone in the arm. It connects the shoulder to the elbow.', fact: 'Hitting your “funny bone” is really hitting the ulnar nerve near the humerus — nothing funny about it!' },
     { name: 'Radius', location: 'Forearm (thumb side)', type: 'Long bone', count: '2 (left and right)', desc: 'The shorter forearm bone. It lets the forearm and hand rotate (pronation and supination).', fact: 'The radius rotates around the ulna when you turn your palm up and down.' },
     { name: 'Ulna', location: 'Forearm (little-finger side)', type: 'Long bone', count: '2 (left and right)', desc: 'The longer forearm bone. It forms the point of the elbow and stabilises the forearm.', fact: 'The ulna is the bone you lean on when you rest your elbow on a table.' },
     { name: 'Carpals', location: 'Wrist', type: 'Short bone', count: '16 (8 per wrist)', desc: 'Eight small bones in each wrist arranged in two rows. They connect the forearm to the hand and let the wrist bend and rotate smoothly.', fact: 'The scaphoid is the most commonly broken carpal — often from falling onto an outstretched hand!' },
-    { name: 'Ribs', location: 'Chest (thorax)', type: 'Flat bone', count: '24 (12 pairs)', desc: 'The ribs form a cage that protects the heart and lungs. Pairs 1–7 are “true ribs” (joined to the sternum), 8–10 are “false ribs” and 11–12 are “floating ribs.”', fact: 'About 1 in 200 people are born with an extra (cervical) rib!' },
-    { name: 'Sternum', location: 'Centre of chest (breastbone)', type: 'Flat bone', count: '1', desc: 'A flat bone at the front of the chest. It connects to the ribs with cartilage and protects the heart, lungs and major blood vessels.', fact: 'CPR chest compressions push down on the sternum about 5–6 cm to pump the heart by hand.' },
-    { name: 'Vertebral Column', location: 'Spine (backbone)', type: 'Irregular bone', count: '33 vertebrae (26 bones in adults)', desc: '7 cervical, 12 thoracic, 5 lumbar, 5 sacral (fused) and 4 coccygeal (fused). It protects the spinal cord and holds the body upright.', fact: 'You’re about 1 cm taller in the morning — your spinal discs squash a little during the day!' },
+    { name: 'Metacarpals', location: 'Palm of the hand', type: 'Long bone', count: '10 (5 per hand)', desc: 'Five long bones in each palm connect the carpals (wrist) to the fingers. Their rounded heads form your knuckles.', fact: 'Punching something hard can break the 5th metacarpal — doctors call it a “boxer’s fracture.”' },
+    { name: 'Phalanges', location: 'Fingers and toes', type: 'Long bone', count: '56 (14 per hand, 14 per foot)', desc: 'The bones of the fingers and toes. Each finger and toe has three phalanges, except the thumb and big toe, which have two.', fact: 'Over half of all your bones (106 of 206) are in your hands and feet!' },
     { name: 'Pelvis', location: 'Hip region', type: 'Flat bone', count: '1 (3 fused bones per side)', desc: 'The pelvis carries the weight of the upper body to the legs and protects the bladder and reproductive organs.', fact: 'The female pelvis is wider and rounder than the male pelvis to allow for childbirth.' },
     { name: 'Femur', location: 'Upper leg (thigh)', type: 'Long bone', count: '2 (left and right)', desc: 'The longest, heaviest and strongest bone in the body. It supports your full weight for walking, running and jumping.', fact: 'Bone for bone, the femur is incredibly strong — it can handle forces many times your body weight.' },
     { name: 'Patella', location: 'Knee (kneecap)', type: 'Sesamoid bone', count: '2 (left and right)', desc: 'A small triangular bone in front of the knee joint. It protects the joint and improves the leverage of the quadriceps.', fact: 'Babies’ kneecaps start as cartilage and only harden into bone between ages 2 and 6.' },
     { name: 'Tibia', location: 'Lower leg (shinbone)', type: 'Long bone', count: '2 (left and right)', desc: 'The larger lower-leg bone, carrying most of your weight. It connects the knee to the ankle.', fact: 'The tibia is the second largest bone in the body after the femur.' },
     { name: 'Fibula', location: 'Lower leg (outer side)', type: 'Long bone', count: '2 (left and right)', desc: 'The thin bone beside the tibia. Mainly a muscle attachment point that helps stabilise the ankle.', fact: 'Even though it’s a leg bone, the fibula carries very little of your body weight!' },
-    { name: 'Tarsals', location: 'Ankle / foot', type: 'Short bone', count: '14 (7 per foot)', desc: 'Seven bones in each foot that form the ankle and back of the foot. The largest is the calcaneus (heel bone).', fact: 'Each foot has 26 bones, 33 joints and over 100 muscles, tendons and ligaments!' }
+    { name: 'Tarsals', location: 'Ankle / foot', type: 'Short bone', count: '14 (7 per foot)', desc: 'Seven bones in each foot that form the ankle and back of the foot. The largest is the calcaneus (heel bone).', fact: 'Each foot has 26 bones, 33 joints and over 100 muscles, tendons and ligaments!' },
+    { name: 'Metatarsals', location: 'Middle of the foot', type: 'Long bone', count: '10 (5 per foot)', desc: 'Five long bones in each foot connect the tarsals to the toes and form the arch of the foot, which absorbs shock when you walk and run.', fact: 'The 2nd metatarsal is a common place for stress fractures in runners — sometimes called a “march fracture.”' }
   ];
 
   var drugs = [
@@ -40,7 +44,7 @@ EF.subjects = EF.subjects || [];
     emoji: '🏃',
     color: '#f0506e',
     tagline: 'Skeletal system, muscles and drugs in sport',
-    intro: 'Explore a 3D skeleton you can spin and click, learn the 16 major bones, the three muscle types, and why doping is banned.',
+    intro: 'Explore a 3D skeleton you can spin and click, learn the 20 major bones, the three muscle types, and why doping is banned.',
 
     data: { bones: bones },
 
@@ -59,10 +63,10 @@ EF.subjects = EF.subjects || [];
             return { title: b.name, sub: b.location, html: b.desc, more: '<p><strong>Type:</strong> ' + b.type + ' · <strong>Count:</strong> ' + b.count + '</p><p class="fact">💡 ' + b.fact + '</p>' };
           }) },
           { type: 'table', title: 'Bone types', head: ['Type', 'Shape', 'Examples'], rows: [
-            ['Long', 'Longer than wide; act as levers', 'Femur, humerus, tibia, radius'],
+            ['Long', 'Longer than wide; act as levers', 'Femur, humerus, tibia, radius, metacarpals, phalanges'],
             ['Short', 'Cube-shaped; strength and small movements', 'Carpals, tarsals'],
             ['Flat', 'Thin and flat; protect organs, big muscle attachment', 'Cranium, sternum, ribs, scapula, pelvis'],
-            ['Irregular', 'Complex shapes', 'Vertebrae'],
+            ['Irregular', 'Complex shapes', 'Vertebrae, mandible'],
             ['Sesamoid', 'Sit inside a tendon', 'Patella']
           ] }
         ]
@@ -130,6 +134,8 @@ EF.subjects = EF.subjects || [];
       { q: 'Why might an athlete misuse diuretics?', options: ['To build muscle', 'To lose weight fast or hide other drugs', 'To breathe more easily', 'To reduce pain'], answer: 1, why: 'Diuretics flush water out — quick weight loss and masking banned substances.' },
       { q: 'Which type of muscle is found in the walls of internal organs?', options: ['Skeletal', 'Cardiac', 'Smooth', 'Striated'], answer: 2, why: 'Smooth muscle lines organs like the stomach, intestines and blood vessels.' },
       { q: 'How many pairs of ribs do most people have?', options: ['10', '12', '14', '24'], answer: 1, why: '12 pairs (24 ribs): 7 true, 3 false, 2 floating.' },
+      { q: 'Which is the only bone of the skull that can move?', options: ['Cranium', 'Mandible', 'Clavicle', 'Sternum'], answer: 1, why: 'The mandible (lower jaw) moves so you can chew and speak.' },
+      { q: 'How many phalanges are in one hand?', options: ['5', '10', '14', '27'], answer: 2, why: '3 in each finger × 4 + 2 in the thumb = 14.' },
       { q: 'The patella is an example of which bone type?', options: ['Long', 'Flat', 'Sesamoid', 'Irregular'], answer: 2, why: 'Sesamoid bones sit inside a tendon — the kneecap sits in the quadriceps tendon.' }
     ],
 

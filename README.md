@@ -30,8 +30,11 @@ Search, progress tracking and the sidebar all update automatically.
 
 - `index.html` — the page shell
 - `assets/css/app.css` — the design system (colours, light/dark themes, layout)
-- `assets/js/core/` — the engine: routing, page rendering, quiz runner, flashcards, widgets and the Three.js 3D scenes (Three.js only loads when you open a 3D section)
+- `assets/js/core/` — the engine: routing, page rendering, quiz runner, flashcards and widgets
+- `assets/js/core/three-scenes.js` — the shared 3D stage (smooth drag, zoom, focus) and the atom viewer
+- `assets/js/core/skeleton.js` — the anatomical 3D skeleton. Each bone is built on real landmarks and merged into one mesh per bone, so the whole body is about 24 draw calls. Bone names must match the list in `pe.js`. Three.js only loads when you open a 3D section
+- `sw.js` + `manifest.webmanifest` — make the site installable and work offline. **When you change files, bump `VERSION` in `sw.js`** so phones pick up the new version
 
 Progress (streak, quiz scores, flashcard levels, topics read) is saved in the browser with `localStorage`, so it stays on the device you study on.
 
-Keyboard shortcuts: `/` search · `D` dark/light · `1`–`4` answer a quiz question · `space` flip a flashcard.
+Keyboard shortcuts: `/` search · `D` dark/light · `1`–`4` answer a quiz question · `space` flip a flashcard · `?` show them all. On phones, flashcards can be swiped (right = got it, left = again).

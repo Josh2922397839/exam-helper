@@ -19,6 +19,10 @@
     document.documentElement.setAttribute('data-theme', t);
   })();
 </script>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="ExamForge">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
@@ -42,6 +46,7 @@
     <a class="streak-chip" href="#/progress" aria-label="Study streak"></a>
     <button type="button" class="icon-btn" data-theme-toggle aria-label="Toggle theme"></button>
   </div>
+  <div class="read-bar" aria-hidden="true"><span></span></div>
 </header>
 
 <div class="shell">
@@ -52,12 +57,35 @@
     </main>
     <footer class="footer">
       <div class="footer-brand"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" width="14" height="14"><path d="M13.5 2 5 13.5h5.5L9 22l9.5-12.5H13z" fill="currentColor"/></svg></span> ExamForge <span class="muted">· built for exam crushing</span></div>
-      <div class="footer-keys"><span><kbd>/</kbd> search</span><span><kbd>D</kbd> dark / light</span><span><kbd>1</kbd>–<kbd>4</kbd> answer quiz</span><span><kbd>space</kbd> flip card</span></div>
+      <div class="footer-keys"><span><kbd>/</kbd> search</span><span><kbd>D</kbd> dark / light</span><span><kbd>1</kbd>–<kbd>4</kbd> answer quiz</span><span><kbd>space</kbd> flip card</span><button type="button" class="link" data-keys><kbd>?</kbd> all shortcuts</button></div>
       <p class="footer-note muted">Your progress is saved on this device only.</p>
     </footer>
   </div>
 </div>
 <div class="scrim" aria-hidden="true"></div>
+
+<nav class="tabbar" aria-label="Quick navigation">
+  <a href="#/" data-tab="home"><i class="fa-solid fa-house" aria-hidden="true"></i><span>Home</span></a>
+  <button type="button" data-tab="s" data-open-subjects><i class="fa-solid fa-book-open" aria-hidden="true"></i><span>Subjects</span></button>
+  <a href="#/quiz" data-tab="quiz"><i class="fa-solid fa-bolt" aria-hidden="true"></i><span>Quiz</span></a>
+  <a href="#/cards" data-tab="cards"><i class="fa-solid fa-clone" aria-hidden="true"></i><span>Cards</span></a>
+  <a href="#/progress" data-tab="progress"><i class="fa-solid fa-chart-simple" aria-hidden="true"></i><span>Progress</span></a>
+</nav>
+
+<dialog id="keys" class="keys" aria-labelledby="keys-title">
+  <h2 id="keys-title">Keyboard shortcuts</h2>
+  <dl>
+    <div><dt><kbd>/</kbd> or <kbd>Ctrl</kbd> <kbd>K</kbd></dt><dd>Search every subject</dd></div>
+    <div><dt><kbd>D</kbd></dt><dd>Switch dark / light mode</dd></div>
+    <div><dt><kbd>1</kbd> – <kbd>4</kbd> or <kbd>A</kbd> – <kbd>D</kbd></dt><dd>Answer a quiz question</dd></div>
+    <div><dt><kbd>Enter</kbd> or <kbd>→</kbd></dt><dd>Next quiz question</dd></div>
+    <div><dt><kbd>Space</kbd></dt><dd>Flip a flashcard</dd></div>
+    <div><dt><kbd>1</kbd> / <kbd>2</kbd></dt><dd>Flashcard: again / got it</dd></div>
+    <div><dt><kbd>Esc</kbd></dt><dd>Close menus and dialogs</dd></div>
+    <div><dt><kbd>?</kbd></dt><dd>Show this list</dd></div>
+  </dl>
+  <form method="dialog"><button class="btn btn-primary">Got it</button></form>
+</dialog>
 
 <dialog id="search" class="search" aria-label="Search">
   <form method="dialog" class="search-box" role="search">
@@ -83,6 +111,7 @@
 <script src="assets/js/core/ui.js"></script>
 <script src="assets/js/core/blocks.js"></script>
 <script src="assets/js/core/three-scenes.js"></script>
+<script src="assets/js/core/skeleton.js"></script>
 <script src="assets/js/core/widgets.js"></script>
 <script src="assets/js/core/study.js"></script>
 <script src="assets/js/core/app.js"></script>

@@ -1,0 +1,22 @@
+{
+  "name": "ExamForge — Grade 9 Exam Prep",
+  "short_name": "ExamForge",
+  "description": "Notes, 3D models, smart flashcards and quizzes for 7 Grade 9 subjects.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0c0d11",
+  "theme_color": "#0c0d11",
+  "categories": ["education"],
+  "icons": [
+    { "src": "assets/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "assets/icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "assets/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Exam Mode", "url": "./#/quiz/exam" },
+    { "name": "Flashcards", "url": "./#/cards" },
+    { "name": "My Progress", "url": "./#/progress" }
+  ]
+}

@@ -266,58 +266,178 @@
     return () => { dead = true; el.removeEventListener('click', onClick); if (scene) scene.dispose(); };
   };
 
-  /* ---------------- 3D skeleton + bone picker ---------------- */
+  /* ---------------- 3D skeleton: explore, labels, find-the-bone ---------------- */
   W.skeleton = (el, s) => {
     const bones = s.data.bones;
-    let sel = null, scene = null, dead = false;
+    const info = (n) => bones.find((x) => x.name === n);
+    let sel = null, scene = null, dead = false, mode = 'explore', game = null, lw = {};
+    const HINT = {
+      explore: `${icon('fa-hand-pointer')} Drag to spin · tap a bone`,
+      labels: `${icon('fa-tags')} Tap a label to learn about it`,
+      find: `${icon('fa-crosshairs')} Tap the bone named above`
+    };
     el.innerHTML = `
       <div class="skel-layout">
         <div class="stage stage-skel">
           <div class="stage-3d"></div>
+          <svg class="skel-lines" aria-hidden="true"></svg>
+          <div class="skel-labels" hidden>${bones.map((b) => `<button type="button" class="lbl" data-label="${esc(b.name)}">${esc(b.name)}</button>`).join('')}</div>
           <div class="stage-tip" hidden></div>
+          <div class="seg seg-sm seg-dark skel-modes" role="tablist" aria-label="Skeleton mode">
+            <button type="button" role="tab" data-mode="explore" aria-selected="true">${icon('fa-rotate')} Explore</button>
+            <button type="button" role="tab" data-mode="labels" aria-selected="false">${icon('fa-tags')} Labels</button>
+            <button type="button" role="tab" data-mode="find" aria-selected="false">${icon('fa-crosshairs')} Find the bone</button>
+          </div>
+          <div class="find-bar" hidden aria-live="polite"></div>
           <div class="stage-controls">
             <button type="button" class="icon-btn" data-zoom="-1" aria-label="Zoom in">${icon('fa-plus')}</button>
             <button type="button" class="icon-btn" data-zoom="1" aria-label="Zoom out">${icon('fa-minus')}</button>
-            <button type="button" class="icon-btn" data-reset aria-label="Reset view">${icon('fa-rotate-left')}</button>
+            <button type="button" class="icon-btn" data-reset aria-label="Reset view">${icon('fa-expand')}</button>
           </div>
-          <div class="stage-hint">${icon('fa-hand-pointer')} Drag to rotate · tap a bone</div>
+          <div class="stage-hint">${HINT.explore}</div>
         </div>
         <div class="skel-side">
           <div class="bone-chips" role="group" aria-label="Bones">${bones.map((b) => `<button type="button" class="chip-btn" data-bone="${esc(b.name)}" aria-pressed="false">${esc(b.name)}</button>`).join('')}</div>
           <div class="bone-info" aria-live="polite"></div>
         </div>
       </div>`;
-    const stage3d = el.querySelector('.stage-3d');
-    function info() {
+    const stage = el.querySelector('.stage-skel'), stage3d = el.querySelector('.stage-3d');
+    const svg = el.querySelector('.skel-lines'), labelsBox = el.querySelector('.skel-labels'), bar = el.querySelector('.find-bar');
+    const labels = {};
+    el.querySelectorAll('.lbl').forEach((l) => { labels[l.dataset.label] = l; });
+
+    function infoPanel() {
       el.querySelectorAll('[data-bone]').forEach((b) => { const on = b.dataset.bone === sel; b.classList.toggle('is-on', on); b.setAttribute('aria-pressed', on); });
-      const b = bones.find((x) => x.name === sel);
+      Object.keys(labels).forEach((n) => labels[n].classList.toggle('is-on', n === sel));
+      const b = info(sel);
+      const i = bones.indexOf(b);
       el.querySelector('.bone-info').innerHTML = b ? `
         <div class="card bone-card">
-          <div class="card-top"><span class="tile">${icon('fa-bone')}</span><div><h4 class="card-title">${esc(b.name)}</h4><p class="card-sub">${esc(b.location)}</p></div></div>
+          <div class="card-top"><span class="tile">${icon('fa-bone')}</span><div class="bone-card-title"><h4 class="card-title">${esc(b.name)}</h4><p class="card-sub">${esc(b.location)}</p></div>
+            <div class="bone-nav"><button type="button" class="icon-btn" data-step="-1" aria-label="Previous bone">${icon('fa-chevron-left')}</button><button type="button" class="icon-btn" data-step="1" aria-label="Next bone">${icon('fa-chevron-right')}</button></div></div>
           <p>${esc(b.desc)}</p>
-          <div class="pill-row"><span class="pill pill-c">${esc(b.type)}</span><span class="pill">Count: ${esc(b.count)}</span></div>
+          <div class="pill-row"><span class="pill pill-c">${esc(b.type)}</span><span class="pill">Count: ${esc(b.count)}</span><span class="pill">${i + 1} of ${bones.length}</span></div>
           <p class="fact">💡 ${esc(b.fact)}</p>
-        </div>` : `<div class="empty-hint">${icon('fa-hand-pointer')}<p>Click a bone on the model or pick one above.</p></div>`;
+        </div>` : `<div class="empty-hint">${icon('fa-hand-pointer')}<p>Tap a bone on the model, pick one above, or switch to <strong>Labels</strong> to see them all named.</p></div>`;
     }
-    const select = (name) => { sel = name; info(); if (scene) scene.highlight(name); };
+    function select(name, focus) {
+      sel = name;
+      infoPanel();
+      if (!scene) return;
+      scene.set(name, 'sel');
+      if (focus && name) scene.focus(name);
+    }
+
+    /* ---- labels: two columns with leader lines, laid out every frame ---- */
+    function measure() { Object.keys(labels).forEach((n) => { lw[n] = labels[n].offsetWidth; }); }
+    function layout(project) {
+      const w = stage.clientWidth, h = stage.clientHeight, cx = w / 2;
+      const pts = project().filter((p) => labels[p.name]);
+      const left = [], right = [];
+      pts.forEach((p) => (p.x < cx ? left : right).push(p));
+      const gap = 25, top = 56, bottom = h - 58;
+      [left, right].forEach((col) => {
+        col.sort((a, b) => a.y - b.y);
+        let y = top;
+        col.forEach((p) => { p.ly = Math.max(p.y, y); y = p.ly + gap; });
+        let max = bottom;
+        for (let i = col.length - 1; i >= 0; i--) { if (col[i].ly > max) col[i].ly = max; max = col[i].ly - gap; }
+      });
+      let lines = '';
+      pts.forEach((p) => {
+        const isL = p.x < cx, wdt = lw[p.name] || 80;
+        const lx = isL ? 10 : w - 10 - wdt;
+        labels[p.name].style.transform = `translate(${lx}px, ${p.ly - 11}px)`;
+        const ex = isL ? lx + wdt : lx;
+        const on = p.name === sel ? ' is-on' : '';
+        lines += `<path class="ll${on}" d="M${ex.toFixed(1)} ${p.ly.toFixed(1)} L${(isL ? ex + 10 : ex - 10).toFixed(1)} ${p.ly.toFixed(1)} L${p.x.toFixed(1)} ${p.y.toFixed(1)}"/><circle class="ld${on}" cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="3"/>`;
+      });
+      svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+      svg.innerHTML = lines;
+    }
+
+    /* ---- find-the-bone game ---- */
+    function newGame() {
+      game = { order: EF.shuffle(bones.map((b) => b.name)).slice(0, 10), i: 0, score: 0, busy: false, missed: [] };
+      if (scene) scene.clear();
+      ask();
+    }
+    function ask() {
+      const g = game;
+      if (g.i >= g.order.length) {
+        const pct = Math.round((g.score / g.order.length) * 100);
+        bar.innerHTML = `<div class="find-done"><strong>${g.score}/${g.order.length}</strong> found ${pct >= 80 ? '🔥' : ''}<button type="button" class="btn btn-c btn-sm" data-again>${icon('fa-rotate-right')} Play again</button></div>`;
+        if (pct >= 80) EF.confetti();
+        EF.store.touchDay();
+        return;
+      }
+      bar.innerHTML = `<span class="find-q">Find the <strong>${esc(g.order[g.i])}</strong></span><span class="find-score">${g.i + 1}/${g.order.length} · ${icon('fa-check')} ${g.score}</span><button type="button" class="find-skip" data-skip aria-label="Skip">${icon('fa-forward')}</button>`;
+    }
+    function answer(name) {
+      const g = game;
+      if (!g || g.busy || g.i >= g.order.length || !name) return;
+      const want = g.order[g.i];
+      g.busy = true;
+      if (name === want) {
+        g.score++;
+        scene.flash(name, 'good');
+        bar.innerHTML = `<span class="find-q good">${icon('fa-circle-check')} Yes — that’s the ${esc(want)}!</span>`;
+      } else {
+        g.missed.push(want);
+        scene.flash(name, 'bad'); scene.flash(want, 'good');
+        bar.innerHTML = `<span class="find-q bad">${icon('fa-circle-xmark')} That’s the ${esc(name)}. The ${esc(want)} is glowing green.</span>`;
+      }
+      setTimeout(() => { if (dead || !game) return; scene.clear(); g.i++; g.busy = false; ask(); }, name === want ? 900 : 2000);
+    }
+
+    function setMode(m) {
+      mode = m;
+      el.querySelectorAll('[data-mode]').forEach((b) => b.setAttribute('aria-selected', b.dataset.mode === m));
+      stage.dataset.mode = m;
+      labelsBox.hidden = m !== 'labels';
+      svg.style.display = m === 'labels' ? '' : 'none';
+      bar.hidden = m !== 'find';
+      el.querySelector('.stage-hint').innerHTML = HINT[m];
+      if (scene) { scene.setMode(m); scene.clear(); }
+      if (m === 'labels') { requestAnimationFrame(measure); if (sel && scene) scene.set(sel, 'sel'); }
+      if (m === 'find') newGame(); else game = null;
+      if (m === 'explore' && sel && scene) scene.set(sel, 'sel');
+    }
+
     const onClick = (e) => {
       const t = e.target.closest('button');
       if (!t || !el.contains(t)) return;
-      if (t.dataset.bone) select(t.dataset.bone);
+      if (t.dataset.mode) setMode(t.dataset.mode);
+      else if (t.dataset.bone) { if (mode === 'find') setMode('explore'); select(t.dataset.bone, true); }
+      else if (t.dataset.label) select(t.dataset.label, false);
+      else if (t.dataset.step) { const i = bones.findIndex((b) => b.name === sel); const n = bones[(i + +t.dataset.step + bones.length) % bones.length]; select(n.name, mode === 'explore'); }
       else if (t.dataset.zoom && scene) scene.zoom(+t.dataset.zoom);
       else if (t.hasAttribute('data-reset') && scene) scene.reset();
+      else if (t.hasAttribute('data-again')) newGame();
+      else if (t.hasAttribute('data-skip') && game && !game.busy) { game.missed.push(game.order[game.i]); game.i++; ask(); }
     };
     el.addEventListener('click', onClick);
-    info();
-    stage3d.innerHTML = `<div class="stage-msg">${icon('fa-spinner', 'fa-spin')} Loading 3D skeleton…</div>`;
+    infoPanel();
+    stage3d.innerHTML = `<div class="stage-msg">${icon('fa-spinner', 'fa-spin')} Building the skeleton…</div>`;
     EF.loadThree().then(() => {
       if (dead) return;
       stage3d.innerHTML = '';
       try {
-        scene = EF.skeletonScene(stage3d, { tooltip: el.querySelector('.stage-tip'), onSelect: (name) => { sel = name; info(); } });
+        scene = EF.skeletonScene(stage3d, {
+          tooltip: el.querySelector('.stage-tip'),
+          onPick: (name) => {
+            if (mode === 'find') answer(name);
+            else if (name) select(name, false);
+          },
+          afterFrame: (project) => { if (mode === 'labels') layout(project); }
+        });
+        stage.classList.add('is-ready');
+        if (sel) scene.set(sel, 'sel');
       } catch (err) { stage3d.innerHTML = `<div class="stage-msg">${icon('fa-triangle-exclamation')} ${esc(err.message)}</div>`; }
     }).catch(() => { if (!dead) stage3d.innerHTML = `<div class="stage-msg">${icon('fa-wifi')} Couldn’t load the 3D engine. The bone list still works.</div>`; });
-    return () => { dead = true; el.removeEventListener('click', onClick); if (scene) scene.dispose(); };
+    const onResize = () => { if (mode === 'labels') measure(); };
+    window.addEventListener('resize', onResize);
+    return () => { dead = true; el.removeEventListener('click', onClick); window.removeEventListener('resize', onResize); if (scene) scene.dispose(); };
   };
 
   /* ---------------- Menstrual cycle: interactive 28-day chart ---------------- */

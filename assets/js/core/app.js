@@ -36,7 +36,7 @@
           const p = EF.store.progress(s.id);
           const seen = EF.store.state().visited[s.id] || [];
           return `<li class="side-subject tint${on ? ' is-open' : ''}" style="--c:${s.color}">
-            <a class="side-link" href="#/s/${s.id}" ${on ? 'aria-current="page"' : ''}><span class="side-emoji" aria-hidden="true">${s.emoji}</span><span>${esc(s.name)}</span><span class="side-pct" title="${p.pct}% complete">${p.pct}%</span></a>
+            <a class="side-link" href="#/s/${s.id}" ${on ? 'aria-current="page"' : ''}><span class="side-emoji">${EF.subjectIcon(s.id)}</span><span>${esc(s.name)}</span><span class="side-pct" title="${p.pct}% complete">${p.pct}%</span></a>
             ${on ? `<ul class="side-topics">${s.topics.map((t) => `<li><a href="#/s/${s.id}/${t.id}" data-topic="${t.id}">${seen.includes(t.id) ? icon('fa-circle-check', 'seen') : '<i class="dot-o" aria-hidden="true"></i>'}${esc(topicLabel(t))}</a></li>`).join('')}
               <li><a href="#/s/${s.id}/quiz" data-topic="quiz">${icon('fa-bolt')}Quiz</a></li>
               <li><a href="#/cards/${s.id}">${icon('fa-clone')}Flashcards</a></li></ul>` : ''}
@@ -44,7 +44,8 @@
         }).join('')}
       </ul>
       <div class="side-foot">
-        <span><kbd>/</kbd> search</span><span><kbd>D</kbd> theme</span>
+        ${installEvt ? `<button type="button" class="btn btn-sm side-install" data-install>${icon('fa-download')} Install app</button>` : ''}
+        <span><kbd>/</kbd> search</span><span><kbd>D</kbd> theme</span><button type="button" class="link" data-keys><kbd>?</kbd></button>
       </div>`;
     if (here && spy && spy.active) markTopic(spy.active);
   }
@@ -62,7 +63,7 @@
     const acc = st.answered ? Math.round((st.correct / st.answered) * 100) : 0;
     const mastered = EF.subjects.reduce((n, s) => n + EF.store.mastered(s.id), 0);
     const week = Array.from({ length: 7 }, (_, i) => { const d = new Date(); d.setDate(d.getDate() - (6 - i)); return d; });
-    const stickers = EF.subjects.map((s, i) => `<a class="sticker tint" href="#/s/${s.id}" style="--c:${s.color};--i:${i}" tabindex="-1"><span>${s.emoji}</span><b>${esc(s.short)}</b></a>`).join('');
+    const stickers = EF.subjects.map((s, i) => `<a class="sticker tint" href="#/s/${s.id}" style="--c:${s.color};--i:${i}" tabindex="-1">${EF.subjectIcon(s.id)}<b>${esc(s.short)}</b></a>`).join('');
 
     return `
       <div class="page home">
@@ -93,12 +94,12 @@
         <section class="dash" aria-label="Your stats">
           <div class="dash-tile">
             <span class="dash-ic dash-fire">${icon('fa-fire')}</span>
-            <div><strong class="dash-v">${streak}</strong><span class="dash-l">day streak</span></div>
+            <div><strong class="dash-v" data-count="${streak}">${streak}</strong><span class="dash-l">day streak</span></div>
             <div class="week" aria-label="Last 7 days">${week.map((d) => `<i class="${EF.store.studiedOn(d) ? 'on' : ''}" title="${d.toLocaleDateString(undefined, { weekday: 'short' })}">${d.toLocaleDateString(undefined, { weekday: 'narrow' })}</i>`).join('')}</div>
           </div>
           <div class="dash-tile">${EF.ring(EF.store.overall(), 64, 7)}<div><strong class="dash-v">Overall</strong><span class="dash-l">progress</span></div></div>
-          <div class="dash-tile"><span class="dash-ic">${icon('fa-bullseye')}</span><div><strong class="dash-v">${st.answered}</strong><span class="dash-l">questions answered${st.answered ? ` · ${acc}% right` : ''}</span></div></div>
-          <div class="dash-tile"><span class="dash-ic">${icon('fa-medal')}</span><div><strong class="dash-v">${mastered}</strong><span class="dash-l">of ${tot.cards} cards mastered</span></div></div>
+          <div class="dash-tile"><span class="dash-ic">${icon('fa-bullseye')}</span><div><strong class="dash-v" data-count="${st.answered}">${st.answered}</strong><span class="dash-l">questions answered${st.answered ? ` · ${acc}% right` : ''}</span></div></div>
+          <div class="dash-tile"><span class="dash-ic">${icon('fa-medal')}</span><div><strong class="dash-v" data-count="${mastered}">${mastered}</strong><span class="dash-l">of ${tot.cards} cards mastered</span></div></div>
         </section>
 
         <section class="home-section">
@@ -107,7 +108,7 @@
             ${EF.subjects.map((s) => {
               const p = EF.store.progress(s.id);
               return `<a class="subject-card tint" href="#/s/${s.id}" style="--c:${s.color}">
-                <div class="subject-card-top"><span class="subject-emoji" aria-hidden="true">${s.emoji}</span>${EF.ring(p.pct, 48, 5)}</div>
+                <div class="subject-card-top"><span class="subject-emoji">${EF.subjectIcon(s.id)}</span>${EF.ring(p.pct, 48, 5)}</div>
                 <h3>${esc(s.name)}</h3>
                 <p>${esc(s.tagline)}</p>
                 <div class="subject-card-meta"><span>${icon('fa-book-open')} ${p.visited}/${p.total} topics</span><span>${icon('fa-bolt')} ${p.attempts ? 'Best ' + p.best + '%' : s.quiz.length + ' Qs'}</span></div>
@@ -138,7 +139,7 @@
         <header class="subject-hero">
           <a class="crumb" href="#/">${icon('fa-arrow-left')} All subjects</a>
           <div class="subject-hero-row">
-            <span class="subject-emoji subject-emoji-lg" aria-hidden="true">${s.emoji}</span>
+            <span class="subject-emoji subject-emoji-lg">${EF.subjectIcon(s.id)}</span>
             <div class="subject-hero-text"><h1>${esc(s.name)}</h1><p>${esc(s.intro)}</p></div>
             ${EF.ring(p.pct, 84, 8)}
           </div>
@@ -179,8 +180,8 @@
         </section>
 
         <nav class="pager" aria-label="Other subjects">
-          <a href="#/s/${prev.id}" class="pager-link"><small>${icon('fa-arrow-left')} Previous</small><span>${prev.emoji} ${esc(prev.name)}</span></a>
-          <a href="#/s/${next.id}" class="pager-link pager-next"><small>Next ${icon('fa-arrow-right')}</small><span>${next.emoji} ${esc(next.name)}</span></a>
+          <a href="#/s/${prev.id}" class="pager-link tint" style="--c:${prev.color}"><small>${icon('fa-arrow-left')} Previous</small><span>${EF.subjectIcon(prev.id)} ${esc(prev.name)}</span></a>
+          <a href="#/s/${next.id}" class="pager-link pager-next tint" style="--c:${next.color}"><small>Next ${icon('fa-arrow-right')}</small><span>${esc(next.name)} ${EF.subjectIcon(next.id)}</span></a>
         </nav>
       </div>`;
   };
@@ -208,7 +209,7 @@
           ${EF.subjects.map((s) => {
             const q = EF.store.quiz(s.id);
             return `<a class="subject-card tint" href="#/quiz/${s.id}" style="--c:${s.color}">
-              <div class="subject-card-top"><span class="subject-emoji" aria-hidden="true">${s.emoji}</span>${q ? EF.ring(q.best, 48, 5) : `<span class="pill">${s.quiz.length} Qs</span>`}</div>
+              <div class="subject-card-top"><span class="subject-emoji">${EF.subjectIcon(s.id)}</span>${q ? EF.ring(q.best, 48, 5) : `<span class="pill">${s.quiz.length} Qs</span>`}</div>
               <h3>${esc(s.name)}</h3>
               <p>${q ? `Best ${q.best}% · last ${q.last}% · ${q.attempts} attempt${q.attempts === 1 ? '' : 's'}` : 'Not attempted yet'}</p>
               <div class="subject-card-meta"><span>${icon('fa-play')} Start quiz</span></div>
@@ -234,7 +235,7 @@
         ${EF.subjects.map((s) => {
           const n = (s.flashcards || []).length, m = EF.store.mastered(s.id);
           return `<a class="subject-card tint" href="#/cards/${s.id}" style="--c:${s.color}">
-            <div class="subject-card-top"><span class="subject-emoji" aria-hidden="true">${s.emoji}</span>${EF.ring(n ? (m / n) * 100 : 0, 48, 5)}</div>
+            <div class="subject-card-top"><span class="subject-emoji">${EF.subjectIcon(s.id)}</span>${EF.ring(n ? (m / n) * 100 : 0, 48, 5)}</div>
             <h3>${esc(s.name)}</h3>
             <p>${m} of ${n} cards mastered</p>
             <div class="subject-card-meta"><span>${icon('fa-clone')} Study deck</span></div>
@@ -246,7 +247,7 @@
   pages.cards = (s) => `
     <div class="page narrow">
       <a class="crumb" href="#/cards">${icon('fa-arrow-left')} All decks</a>
-      <header class="page-head page-head-sm tint" style="--c:${s.color}"><span class="eyebrow">${s.emoji} Flashcards</span><h1>${esc(s.name)}</h1></header>
+      <header class="page-head page-head-sm tint" style="--c:${s.color}"><span class="eyebrow">${EF.subjectIcon(s.id)} Flashcards</span><h1>${esc(s.name)}</h1></header>
       <div class="cards-host" data-cards="${s.id}"></div>
       <p class="muted small center">Shortcuts: <kbd>space</kbd> flip · <kbd>1</kbd> again · <kbd>2</kbd> got it</p>
     </div>`;
@@ -270,7 +271,7 @@
           <tbody>${EF.subjects.map((s) => {
             const p = EF.store.progress(s.id);
             return `<tr class="tint" style="--c:${s.color}">
-              <th scope="row"><a href="#/s/${s.id}">${s.emoji} ${esc(s.name)}</a></th>
+              <th scope="row"><a href="#/s/${s.id}" class="tint" style="--c:${s.color}">${EF.subjectIcon(s.id)} ${esc(s.name)}</a></th>
               <td>${p.visited}/${p.total}</td>
               <td>${p.attempts ? p.best + '%' : '—'}</td>
               <td>${p.mastered}/${p.cards}</td>
@@ -294,7 +295,20 @@
     EF.stopSpeaking();
   }
 
+  let firstShow = true;
   function show(key, html, title, after) {
+    const swap = () => render(key, html, title, after);
+    // Cross-fade between pages where the browser supports it (not on first load or with reduced motion)
+    if (document.startViewTransition && !firstShow && !EF.reducedMotion() && !document.documentElement.classList.contains('vt-theme')) {
+      document.documentElement.classList.add('vt-page');
+      const t = document.startViewTransition(swap);
+      // An interrupted transition (fast clicking, rotating the phone) is harmless — the page still updates
+      t.ready.catch(() => {});
+      t.finished.catch(() => {}).finally(() => document.documentElement.classList.remove('vt-page'));
+    } else swap();
+    firstShow = false;
+  }
+  function render(key, html, title, after) {
     teardown();
     viewKey = key;
     main.innerHTML = html;
@@ -304,7 +318,10 @@
     $$('[data-cards]', main).forEach((el) => cleanup.push(EF.mountCards(el, el.dataset.cards)));
     renderSidebar();
     closeDrawer();
+    document.body.dataset.view = key.split(':')[0];
     if (after) after(); else window.scrollTo(0, 0);
+    EF.countUp(main);
+    updateReadBar();
   }
 
   function scrollToTopic(tid, smooth) {
@@ -447,7 +464,7 @@
     if (!found.length) { results.innerHTML = `<div class="search-empty">${icon('fa-ghost')}<p>No results for “${esc(input.value)}”.</p></div>`; return; }
     results.innerHTML = found.map((e, i) => `
       <a class="result tint${i === sel ? ' is-sel' : ''}" href="${e.href}" role="option" aria-selected="${i === sel}" id="res-${i}" style="--c:${e.s.color}">
-        <span class="result-ic" aria-hidden="true">${e.s.emoji}</span>
+        <span class="result-ic">${EF.subjectIcon(e.s.id)}</span>
         <span class="result-body"><span class="result-kind">${esc(e.s.short)} · ${esc(e.kind)}</span><strong>${highlight(e.title, terms)}</strong><span class="result-text">${highlight(snippet(e.text, terms), terms)}</span></span>
       </a>`).join('');
   }
@@ -494,8 +511,11 @@
     if (flip && !t.closest('.speak')) { const on = !flip.classList.contains('is-flipped'); flip.classList.toggle('is-flipped', on); flip.setAttribute('aria-pressed', on); return; }
     const sp = t.closest('.speak');
     if (sp) { e.preventDefault(); e.stopPropagation(); EF.speak(sp.dataset.speak, 'fr-FR', sp); return; }
-    if (t.closest('[data-theme-toggle]')) { EF.theme.toggle(); return; }
+    if (t.closest('[data-theme-toggle]')) { EF.theme.toggle(t.closest('[data-theme-toggle]')); return; }
     if (t.closest('[data-search-open]')) { EF.openSearch(); return; }
+    if (t.closest('[data-open-subjects]')) { openDrawer(); return; }
+    if (t.closest('[data-keys]')) { openKeys(); return; }
+    if (t.closest('[data-install]') && installEvt) { installEvt.prompt(); installEvt.userChoice.finally(() => { installEvt = null; renderSidebar(); }); return; }
     if (t.closest('.menu-btn')) { document.body.classList.contains('nav-open') ? closeDrawer() : openDrawer(); return; }
     if (t.closest('.scrim')) { closeDrawer(); return; }
     if (t.closest('[data-print]')) { window.print(); return; }
@@ -514,7 +534,8 @@
     if ((e.key === 'k' || e.key === 'K') && (e.metaKey || e.ctrlKey)) { e.preventDefault(); EF.openSearch(); return; }
     if (typing || e.metaKey || e.ctrlKey || e.altKey) return;
     if (e.key === '/') { e.preventDefault(); EF.openSearch(); }
-    else if (e.key === 'd' || e.key === 'D') EF.theme.toggle();
+    else if (e.key === '?') { e.preventDefault(); openKeys(); }
+    else if (e.key === 'd' || e.key === 'D') EF.theme.toggle($('[data-theme-toggle]'));
     else if (e.key === 'Escape') closeDrawer();
   });
   // Open every collapsible bit before printing so the printout has all the notes
@@ -527,6 +548,31 @@
   EF.on('streak', paintStreak);
   let sideTimer = null;
   EF.on('progress', () => { clearTimeout(sideTimer); sideTimer = setTimeout(renderSidebar, 200); });
+
+  const readBar = $('.read-bar > span');
+  let readTick = false;
+  function updateReadBar() {
+    readTick = false;
+    if (!readBar) return;
+    const on = viewKey.startsWith('s:');
+    readBar.parentElement.classList.toggle('is-on', on);
+    if (!on) return;
+    const h = document.documentElement.scrollHeight - innerHeight;
+    readBar.style.transform = `scaleX(${h > 0 ? Math.min(1, scrollY / h) : 0})`;
+  }
+  window.addEventListener('scroll', () => { if (!readTick) { readTick = true; requestAnimationFrame(updateReadBar); } }, { passive: true });
+
+  const keysDlg = $('#keys');
+  function openKeys() { if (keysDlg && !keysDlg.open) { if (keysDlg.showModal) keysDlg.showModal(); else keysDlg.setAttribute('open', ''); } }
+  if (keysDlg) keysDlg.addEventListener('click', (e) => { if (e.target === keysDlg) keysDlg.close(); });
+
+  /* Installable + offline (only over http/https — service workers don't run from a local file) */
+  let installEvt = null;
+  window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installEvt = e; renderSidebar(); });
+  window.addEventListener('appinstalled', () => { installEvt = null; renderSidebar(); EF.toast('ExamForge installed — study anywhere, even offline', 'fa-download'); });
+  if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
+    window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+  }
 
   window.addEventListener('hashchange', route);
 
