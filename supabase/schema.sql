@@ -18,7 +18,14 @@ create table if not exists public.schools (
   added_by uuid,
   created_at timestamptz not null default now()
 );
-create unique index if not exists schools_name_country on public.schools (lower(name), country);
+-- v3: every Jamaican school comes pre-loaded from the Ministry of Education's directory (moey_code), and
+-- schools can show their real crest. Logos may only point at Wikimedia or at an image shipped with the site.
+alter table public.schools add column if not exists moey_code text unique check (moey_code is null or moey_code ~ '^[0-9]{5}$');
+alter table public.schools add column if not exists logo text check (logo is null or logo ~ '^https://(upload|thumb)[.]wikimedia[.]org/[A-Za-z0-9/._%()~,!*+-]+$' or logo ~ '^assets/img/schools/[a-z0-9-]+[.](webp|png|jpg|svg)$');
+alter table public.schools add column if not exists logo_kind text check (logo_kind is null or logo_kind in ('logo', 'photo'));
+-- names only need to be unique within a parish (there are many Mount Pleasant Primary Schools)
+drop index if exists public.schools_name_country;
+create unique index if not exists schools_name_country_region on public.schools (lower(name), country, lower(coalesce(region, '')));
 
 create table if not exists public.profiles (
   id uuid primary key references auth.users (id) on delete cascade,
@@ -128,6 +135,24 @@ begin
   if used > p_max then raise exception 'Daily limit reached. Try again tomorrow.' using errcode = '54000'; end if;
 end $$;
 
+-- groups the Ministry's school types for the school picker
+create or replace function public.ef_kind_group(p_kind text) returns text language sql immutable
+as $$
+  select case when p_kind is null then 'other'
+              when p_kind ~* '(university|college|tertiary|polytechnic|post secondary)' then 'tertiary'
+              when p_kind ~* '(high|secondary)' and p_kind !~* 'junior' then 'high'
+              when p_kind ~* 'special' then 'special'
+              else 'primary' end
+$$;
+
+-- what the website gets to know about a school
+create or replace function public.ef_school_json(s public.schools) returns jsonb language sql stable
+security definer set search_path = public
+as $$
+  select jsonb_build_object('id', s.id, 'name', s.name, 'region', s.region, 'country', s.country, 'kind', s.kind,
+    'group', ef_kind_group(s.kind), 'logo', s.logo, 'logo_kind', s.logo_kind)
+$$;
+
 create or replace function public.ef_check_name(p_name text) returns text language plpgsql immutable
 as $$
 declare n text := trim(coalesce(p_name, ''));
@@ -188,7 +213,7 @@ as $$
     'friends_rank', (select t.rk from (select q.id, row_number() over (order by (case when q.week = ef_week() then q.xp_week else 0 end) desc, q.xp_total desc) as rk
                      from profiles q where q.id = p.id or q.id in (select followee from follows where follower = p.id)) t where t.id = p.id),
     'xp_total', p.xp_total, 'xp_week', case when p.week = ef_week() then p.xp_week else 0 end,
-    'school', case when s.id is null then null else jsonb_build_object('id', s.id, 'name', s.name, 'region', s.region, 'country', s.country) end,
+    'school', case when s.id is null then null else ef_school_json(s) end,
     'last_result', p.last_result, 'has_code', exists (select 1 from secrets where user_id = p.id),
     'week_ends', ((ef_week() + 7)::timestamp at time zone 'America/Jamaica'))
   from profiles p left join schools s on s.id = p.school_id where p.id = p_id
@@ -291,7 +316,7 @@ begin
            exists (select 1 from follows f where f.follower = u and f.followee = p.id) as friend
     from profiles p where p.school_id = s.id
     order by (case when alltime then p.xp_total when p.week = w then p.xp_week else 0 end) desc, p.xp_total desc limit 100) x;
-  return jsonb_build_object('school', jsonb_build_object('id', s.id, 'name', s.name, 'region', s.region, 'country', s.country, 'members', members, 'xp_week', xp, 'friends', friends),
+  return jsonb_build_object('school', ef_school_json(s) || jsonb_build_object('members', members, 'xp_week', xp, 'friends', friends),
     'period', case when alltime then 'all' else 'week' end, 'rows', rows, 'week_ends', ((w + 7)::timestamp at time zone 'America/Jamaica'));
 end $$;
 
@@ -303,7 +328,7 @@ begin
   perform ef_close_weeks();
   select coalesce(jsonb_agg(to_jsonb(x) order by x.rank), '[]'::jsonb) into rows from (
     select row_number() over (order by sum(case when p.week = w then p.xp_week else 0 end) desc, count(*) desc, s.name) as rank,
-           s.id, s.name, s.region, s.country, count(*) as members, sum(case when p.week = w then p.xp_week else 0 end) as xp
+           s.id, s.name, s.region, s.country, s.kind, s.logo, s.logo_kind, count(*) as members, sum(case when p.week = w then p.xp_week else 0 end) as xp
     from schools s join profiles p on p.school_id = s.id
     where p_country is null or s.country = p_country
     group by s.id
@@ -362,17 +387,41 @@ begin
 end $$;
 
 -- ---------------------------------------------------------------- schools
+-- search ignores punctuation and spaces, so st georges, St. George's and stgeorges all find the same school
 create or replace function public.ef_search_schools(p_q text, p_country text default null) returns jsonb language sql stable
 security definer set search_path = public
 as $$
-  select coalesce(jsonb_agg(to_jsonb(x)), '[]'::jsonb) from (
-    select s.id, s.name, s.region, s.country, s.kind, (select count(*) from profiles p where p.school_id = s.id) as members
-    from schools s
-    where char_length(trim(coalesce(p_q, ''))) >= 2
-      and strpos(lower(s.name), lower(trim(p_q))) > 0
+  with q as (select regexp_replace(lower(trim(coalesce(p_q, ''))), '[^a-z0-9]+', '', 'g') as k)
+  select coalesce(jsonb_agg(x.j order by x.rk), '[]'::jsonb) from (
+    select ef_school_json(s) || jsonb_build_object('members', (select count(*) from profiles p where p.school_id = s.id)) as j,
+           row_number() over (order by (strpos(regexp_replace(lower(s.name), '[^a-z0-9]+', '', 'g'), q.k) = 1) desc,
+             (select count(*) from profiles p where p.school_id = s.id) desc,
+             (ef_kind_group(s.kind) = 'high') desc, (s.logo is not null) desc, s.name) as rk
+    from schools s, q
+    where char_length(q.k) >= 2
+      and strpos(regexp_replace(lower(s.name), '[^a-z0-9]+', '', 'g'), q.k) > 0
       and (p_country is null or s.country = p_country)
-    order by (strpos(lower(s.name), lower(trim(p_q))) = 1) desc, members desc, s.name
-    limit 20) x
+    order by rk limit 20) x
+$$;
+
+-- browse without typing: by parish and by type (high school, primary and prep, college and university)
+create or replace function public.ef_browse_schools(p_country text default 'JM', p_region text default null, p_group text default null, p_offset integer default 0)
+returns jsonb language sql stable
+security definer set search_path = public
+as $$
+  select jsonb_build_object('rows', coalesce(jsonb_agg(x.j order by x.rk), '[]'::jsonb),
+    'total', (select count(*) from schools s where s.country = upper(coalesce(p_country, 'JM'))
+              and (p_region is null or s.region = p_region) and (p_group is null or ef_kind_group(s.kind) = p_group)))
+  from (
+    select ef_school_json(s) || jsonb_build_object('members', m.n) as j,
+           row_number() over (order by m.n desc, (s.logo is not null) desc, s.name) as rk
+    from schools s
+    cross join lateral (select count(*) as n from profiles p where p.school_id = s.id) m
+    where s.country = upper(coalesce(p_country, 'JM'))
+      and (p_region is null or s.region = p_region)
+      and (p_group is null or ef_kind_group(s.kind) = p_group)
+    order by m.n desc, (s.logo is not null) desc, s.name
+    limit 60 offset least(greatest(coalesce(p_offset, 0), 0), 5000)) x
 $$;
 
 create or replace function public.ef_add_school(p_name text, p_country text, p_region text default null, p_kind text default null,
@@ -384,14 +433,16 @@ begin
   if char_length(nm) < 2 or char_length(nm) > 120 then raise exception 'Type the school''s full name.' using errcode = '22023'; end if;
   if c !~ '^[A-Z]{2}$' then raise exception 'Unknown country.' using errcode = '22023'; end if;
   if p_osm is not null and p_osm !~ '^(node|way|relation)/[0-9]+$' then p_osm := null; end if;
-  select * into s from schools where (p_osm is not null and osm_ref = p_osm) or (lower(name) = lower(nm) and country = c) limit 1;
+  select * into s from schools where (p_osm is not null and osm_ref = p_osm)
+    or (lower(name) = lower(nm) and country = c and (p_region is null or region is null or lower(region) = lower(trim(p_region))))
+    order by (p_osm is not null and osm_ref = p_osm) desc limit 1;
   if not found then
     perform ef_rate('add_school', 10);
     insert into schools (name, country, region, kind, osm_ref, lat, lon, added_by)
     values (nm, c, nullif(left(trim(coalesce(p_region, '')), 80), ''), nullif(left(trim(coalesce(p_kind, '')), 40), ''), p_osm, p_lat, p_lon, u)
     returning * into s;
   end if;
-  return jsonb_build_object('id', s.id, 'name', s.name, 'region', s.region, 'country', s.country);
+  return ef_school_json(s);
 end $$;
 
 -- ---------------------------------------------------------------- cloud save + moving to a new device
@@ -539,7 +590,7 @@ begin
            where n.nspname = 'public' and left(p.proname, 3) = 'ef_' loop
     -- Supabase grants every new function to anon/authenticated by default, so revoke from them explicitly too
     execute format('revoke all on function %s from public, anon, authenticated', f.sig);
-    if f.proname not in ('ef_today', 'ef_week', 'ef_uid', 'ef_rate', 'ef_check_name', 'ef_close_weeks', 'ef_profile_json') then
+    if f.proname not in ('ef_today', 'ef_week', 'ef_uid', 'ef_rate', 'ef_check_name', 'ef_close_weeks', 'ef_profile_json', 'ef_kind_group', 'ef_school_json') then
       execute format('grant execute on function %s to anon, authenticated', f.sig);
     end if;
   end loop;
