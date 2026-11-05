@@ -209,7 +209,31 @@
       if (!EF.subjects.length) return 0;
       return Math.round(EF.subjects.reduce((sum, s) => sum + store.progress(s.id).pct, 0) / EF.subjects.length);
     },
-    reset() { state = fresh(); ls.set(KEY, JSON.stringify(state)); EF.emit('progress'); EF.emit('streak', 0); }
+    reset() { state = fresh(); ls.set(KEY, JSON.stringify(state)); EF.emit('progress'); EF.emit('streak', 0); },
+    /* Combine a backup from the cloud with this device: keep the best of both, never lose progress */
+    merge(r) {
+      if (!r || typeof r !== 'object') return;
+      const obj = (x) => (x && typeof x === 'object' && !Array.isArray(x) ? x : {});
+      const arr = (x) => (Array.isArray(x) ? x : []);
+      state.xp = Math.max(state.xp || 0, +r.xp || 0);
+      Object.entries(obj(r.xpDays)).forEach(([d, n]) => { state.xpDays[d] = Math.max(state.xpDays[d] || 0, +n || 0); });
+      state.days = Array.from(new Set(state.days.concat(arr(r.days).filter((d) => typeof d === 'string')))).sort().slice(-120);
+      Object.entries(obj(r.visited)).forEach(([s, list]) => { state.visited[s] = Array.from(new Set((state.visited[s] || []).concat(arr(list)))); });
+      Object.entries(obj(r.quiz)).forEach(([id, q]) => {
+        const a = state.quiz[id] || { best: 0, last: 0, attempts: 0 }; q = obj(q);
+        state.quiz[id] = { best: Math.max(a.best, +q.best || 0), last: a.attempts >= (+q.attempts || 0) ? a.last : +q.last || 0, attempts: Math.max(a.attempts, +q.attempts || 0) };
+      });
+      Object.entries(obj(r.cards)).forEach(([s, boxes]) => { const m = (state.cards[s] = state.cards[s] || {}); Object.entries(obj(boxes)).forEach(([k, b]) => { m[k] = Math.max(m[k] || 0, Math.min(5, +b || 0)); }); });
+      Object.entries(obj(r.seen)).forEach(([s, seen]) => { const m = (state.seen[s] = state.seen[s] || {}); Object.entries(obj(seen)).forEach(([k, t]) => { m[k] = Math.max(m[k] || 0, +t || 0); }); });
+      Object.entries(obj(r.match)).forEach(([s, ms]) => { ms = +ms || 0; if (ms && (!state.match[s] || ms < state.match[s])) state.match[s] = ms; });
+      state.mistakes = Array.from(new Set(state.mistakes.concat(arr(r.mistakes).filter((k) => typeof k === 'string'))));
+      state.answered = Math.max(state.answered, +r.answered || 0);
+      state.correct = Math.max(state.correct, +r.correct || 0);
+      if (r.last && (!state.last || (+r.last.at || 0) > (state.last.at || 0))) state.last = r.last;
+      save();
+      EF.emit('progress'); EF.emit('streak', store.streak());
+      EF.emit('xp', { n: 0, today: store.xpToday(), before: store.xpToday(), goal: store.goal() });
+    }
   };
   EF.store = store;
   EF.dayKey = dayKey;

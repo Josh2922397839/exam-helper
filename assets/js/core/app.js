@@ -35,6 +35,7 @@
         ${navItem('#/quiz', 'fa-bolt', 'Quiz Arena', 'quiz', mistakes ? `<span class="side-badge" title="Saved mistakes">${mistakes}</span>` : '')}
         ${navItem('#/cards', 'fa-clone', 'Study sets', 'cards')}
         ${navItem('#/sets', 'fa-layer-group', 'My sets', 'sets')}
+        ${navItem('#/league', 'fa-trophy', 'Leagues', 'league')}
         ${navItem('#/progress', 'fa-chart-simple', 'My Progress', 'progress')}
       </nav>
       ${(EF.multiGrade() ? EF.grades().map((g) => [g, EF.inGrade(g)]) : [[null, EF.subjects]]).map(([g, list]) => `
@@ -63,7 +64,7 @@
   let lastOpen = null;
   function current(key) {
     const k = viewKey.split(':')[0];
-    return viewKey === key || k === key || (key === 'cards' && ['set', 'learn', 'match'].includes(k)) || (key === 'sets' && ['make', 'import'].includes(k));
+    return viewKey === key || k === key || (key === 'cards' && ['set', 'learn', 'match'].includes(k)) || (key === 'sets' && ['make', 'import'].includes(k)) || (key === 'league' && ['join', 'account', 'school', 'shared'].includes(k));
   }
 
   /* ================= PAGES ================= */
@@ -122,6 +123,7 @@
           <a class="dash-tile dash-goal" href="#/progress">${goalRing()}<div><strong class="dash-v">Level ${lv.lvl}</strong><span class="dash-l">${EF.store.xpToday()}/${EF.store.goal()} XP today</span><span class="lvl-bar" aria-hidden="true"><span style="width:${lv.pct}%"></span></span></div></a>
           <a class="dash-tile" href="#/cards"><span class="dash-ic">${icon(dueAll ? 'fa-clock-rotate-left' : 'fa-medal')}</span><div><strong class="dash-v" data-count="${dueAll || mastered}">${dueAll || mastered}</strong><span class="dash-l">${dueAll ? `card${dueAll === 1 ? '' : 's'} due for review` : `of ${tot.cards} cards mastered`}</span></div></a>
         </section>
+        ${EF.cloud.enabled ? '<a class="league-cta" href="#/league" data-league-cta></a>' : ''}
 
         <section class="home-section">
           <div class="section-head"><h2>Your subjects</h2>${gradeSwitch()}<a class="link" href="#/progress">See progress ${icon('fa-arrow-right')}</a></div>
@@ -296,7 +298,7 @@
         ${s.quiz.length ? mode('#/quiz/' + s.id, 'fa-bolt', 'Test', s.quiz.length + ' questions with explanations', q ? q.best + '%' : '') : ''}
         ${s.custom ? '' : mode('#/s/' + s.id, 'fa-book-open', 'Study guide', 'Full notes, worked examples and tools', '')}
       </div>
-      ${s.custom ? `<div class="btn-row"><button type="button" class="btn btn-primary" data-share="${esc(s.id)}">${icon('fa-share-nodes')} Share with friends</button><a class="btn" href="#/make/${esc(s.id)}">${icon('fa-pen')} Edit</a></div>` : ''}
+      ${s.custom ? `<div class="btn-row"><button type="button" class="btn btn-primary" data-share="${esc(s.id)}">${icon('fa-link')} Share by link</button>${EF.cloud.joined() ? `<button type="button" class="btn" data-publish="${esc(s.id)}">${icon(EF.cloud.published(s.id) ? 'fa-rotate' : 'fa-school')} ${EF.cloud.published(s.id) ? 'Update in school library' : 'Share with my school'}</button>${EF.cloud.published(s.id) ? `<button type="button" class="btn btn-ghost" data-unpublish="${esc(s.id)}">${icon('fa-eye-slash')} Remove from library</button>` : ''}` : ''}<a class="btn" href="#/make/${esc(s.id)}">${icon('fa-pen')} Edit</a></div>` : ''}
       <details class="card set-list"><summary>${icon('fa-list')} See all ${n} cards</summary><ol>${s.flashcards.map((c) => `<li><strong>${esc(c[0])}</strong><span>${esc(c[1])}</span></li>`).join('')}</ol></details>
     </div>`;
   };
@@ -323,6 +325,14 @@
       <header class="page-head page-head-sm"><span class="eyebrow">${icon('fa-wand-magic-sparkles')} ${id ? 'Edit set' : 'New set'}</span><h1>${id ? 'Edit your set' : 'Make a study set'}</h1></header>
       <div data-make="${id ? esc(id) : ''}"></div>
     </div>`;
+  /* League pages (content comes from cloud.js) */
+  const cloudPage = (kind, arg, head) => `<div class="page${kind === 'league' || kind === 'school' ? '' : ' narrow'}">${head || ''}<div data-cloud="${kind}"${arg != null ? ` data-arg="${esc(arg)}"` : ''}></div></div>`;
+  pages.league = () => cloudPage('league', null, `<header class="page-head"><span class="eyebrow">${icon('fa-trophy')} Weekly leagues</span><h1>Leagues</h1><p>Earn XP by studying anything. Every Monday the top players in each league move up and the bottom ones move down. Your XP also pushes your school up the rankings.</p></header>`);
+  pages.join = (mode) => cloudPage('join', mode || '', `<a class="crumb" href="#/league">${icon('fa-arrow-left')} Leagues</a><header class="page-head page-head-sm"><span class="eyebrow">${icon('fa-fire')} Join</span><h1>${mode === 'code' ? 'Welcome back' : 'Join the league'}</h1></header>`);
+  pages.account = () => cloudPage('account', null, `<a class="crumb" href="#/league">${icon('fa-arrow-left')} Leagues</a><header class="page-head page-head-sm"><span class="eyebrow">${icon('fa-user')} Account</span><h1>Your account</h1></header>`);
+  pages.school = (id) => cloudPage('school', id, `<a class="crumb" href="#/league">${icon('fa-arrow-left')} Leagues</a>`);
+  pages.shared = (id) => cloudPage('shared', id, `<a class="crumb" href="javascript:history.back()">${icon('fa-arrow-left')} Back</a>`);
+
   pages.importSet = (code) => `<div class="page narrow"><div data-import="${esc(code)}"></div></div>`;
 
   pages.cards = (s) => `
@@ -405,9 +415,12 @@
     $$('[data-match]', main).forEach((el) => cleanup.push(EF.mountMatch(el, el.dataset.match)));
     $$('[data-make]', main).forEach((el) => cleanup.push(EF.mountMake(el, el.dataset.make || null)));
     $$('[data-import]', main).forEach((el) => cleanup.push(EF.mountImport(el, el.dataset.import)));
+    const CLOUD = { league: EF.mountLeague, join: EF.mountJoin, account: EF.mountAccount, school: EF.mountSchool, shared: EF.mountShared };
+    $$('[data-cloud]', main).forEach((el) => { const fn = CLOUD[el.dataset.cloud]; if (fn) cleanup.push(fn(el, el.dataset.arg)); });
+    const lc = $('[data-league-cta]', main); if (lc) EF.paintLeagueCta(lc);
     renderSidebar();
     closeDrawer();
-    const tab = { set: 'cards', learn: 'cards', match: 'cards', sets: 'cards', make: 'cards', import: 'cards' }[key.split(':')[0]] || key.split(':')[0];
+    const tab = { set: 'cards', learn: 'cards', match: 'cards', sets: 'cards', make: 'cards', import: 'cards', join: 'league', account: 'league', school: 'league', shared: 'league' }[key.split(':')[0]] || key.split(':')[0];
     document.body.dataset.view = tab;
     if (after) after(); else window.scrollTo(0, 0);
     EF.countUp(main);
@@ -456,6 +469,11 @@
       return show(a + ':' + s.id, pages[a](s), s.short + (a === 'set' ? '' : a === 'learn' ? ' · Learn' : ' · Match'));
     }
     if (a === 'sets') return show('sets', pages.sets(), 'My sets');
+    if (a === 'league') return show('league', pages.league(), 'Leagues');
+    if (a === 'join') return show('join' + (b ? ':' + b : ''), pages.join(b), 'Join the league');
+    if (a === 'account') return show('account', pages.account(), 'Account');
+    if (a === 'school' && /^\d+$/.test(b || '')) return show('school:' + b, pages.school(b), 'School');
+    if (a === 'shared' && /^[0-9a-f-]{36}$/.test(b || '')) return show('shared:' + b, pages.shared(b), 'Shared set');
     if (a === 'make') { if (b && !EF.sets.raw(b)) return show('404', pages.notFound(), 'Not found'); return show('make' + (b ? ':' + b : ''), pages.make(b), b ? 'Edit set' : 'Make a set'); }
     if (a === 'import' && b) return show('import:x', pages.importSet(p.slice(1).join('/')), 'Shared set');
     return show('404', pages.notFound(), 'Not found');
@@ -636,6 +654,10 @@
     if (t.closest('[data-theme-toggle]')) { EF.theme.toggle(t.closest('[data-theme-toggle]')); return; }
     if (t.closest('[data-search-open]')) { EF.openSearch(); return; }
     if (t.closest('[data-open-subjects]')) { openDrawer(); return; }
+    const pb = t.closest('[data-publish]');
+    if (pb) { EF.cloud.publish(pb.dataset.publish).then((r) => { EF.toast(r.updated ? 'Updated in your school library' : 'Shared with your school library!', 'fa-school'); EF.haptic('success'); if (!r.updated) EF.store.addXP(10); route(); }).catch((er) => EF.toast(er.message, 'fa-circle-exclamation')); return; }
+    const upb = t.closest('[data-unpublish]');
+    if (upb) { EF.cloud.unpublish(upb.dataset.unpublish).then(() => { EF.toast('Removed from your school library', 'fa-eye-slash'); route(); }).catch((er) => EF.toast(er.message, 'fa-circle-exclamation')); return; }
     const sh = t.closest('[data-share]');
     if (sh) { const set = EF.sets.raw(sh.dataset.share); if (set) EF.sets.share(set).then((r) => { if (r === 'copied') EF.toast('Link copied: send it to your friends!', 'fa-link'); else if (r === 'shared') EF.toast('Shared!', 'fa-share-nodes'); }); return; }
     const wk = t.closest('[data-worked]');

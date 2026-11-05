@@ -1,11 +1,12 @@
 /* ExamForge service worker — lets the site open and work offline.
    Our own files: network first (so updates show up straight away), cache as the offline fallback.
    Fonts, icons and Three.js from CDNs: cache first (their URLs are versioned, so they never change). */
-const VERSION = 'ef-v7';
+const VERSION = 'ef-v8';
 const SHELL = [
   './',
   './index.html',
   './manifest.webmanifest',
+  './assets/js/config.js',
   './assets/css/app.css',
   './assets/js/content/religion.js',
   './assets/js/content/french.js',
@@ -29,6 +30,7 @@ const SHELL = [
   './assets/js/core/widgets.js',
   './assets/js/core/study.js',
   './assets/js/core/learn.js',
+  './assets/js/core/cloud.js',
   './assets/js/core/motion.js',
   './assets/js/core/app.js',
   './assets/icons/icon-192.png'
@@ -63,7 +65,7 @@ self.addEventListener('fetch', (e) => {
     return;
   }
 
-  const cdn = /^(fonts\.googleapis\.com|fonts\.gstatic\.com|cdnjs\.cloudflare\.com)$/.test(url.hostname);
+  const cdn = /^(fonts\.googleapis\.com|fonts\.gstatic\.com|cdnjs\.cloudflare\.com|cdn\.jsdelivr\.net)$/.test(url.hostname);
   if (cdn) {
     e.respondWith(
       caches.match(req).then((hit) => hit || fetch(req).then((res) => {

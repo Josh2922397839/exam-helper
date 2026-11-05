@@ -40,12 +40,28 @@
     save(set) {
       load();
       const s = { id: set.id || 'my-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name: clean(set.name, 60) || 'My set', color: COLORS.includes(set.color) ? set.color : COLORS[0], cards: (set.cards || []).map((c) => [clean(c[0], 300), clean(c[1], 300)]).filter((c) => c[0] && c[1]).slice(0, 400), updated: Date.now() };
+      if (typeof set.from === 'string' && /^[0-9a-f-]{36}$/.test(set.from)) s.from = set.from; // came from a school library
       const i = cache.findIndex((x) => x.id === s.id);
       if (i >= 0) cache[i] = s; else cache.push(s);
       persist();
       return s;
     },
     remove(id) { load(); cache = cache.filter((x) => x.id !== id); persist(); },
+    // sets from a cloud backup: add the ones this device doesn't have, keep the newer copy of the rest
+    mergeIn(list) {
+      load();
+      let changed = false;
+      (Array.isArray(list) ? list : []).forEach((x) => {
+        if (!x || typeof x.id !== 'string' || !/^my-[a-z0-9]{4,24}$/.test(x.id) || !Array.isArray(x.cards)) return;
+        const mine = cache.find((y) => y.id === x.id);
+        if (mine && (mine.updated || 0) >= (+x.updated || 0)) return;
+        const s = { id: x.id, name: clean(x.name, 60) || 'My set', color: COLORS.includes(x.color) ? x.color : COLORS[0], cards: x.cards.filter((c) => Array.isArray(c)).map((c) => [clean(c[0], 300), clean(c[1], 300)]).filter((c) => c[0] && c[1]).slice(0, 400), updated: +x.updated || Date.now() };
+        if (typeof x.from === 'string' && /^[0-9a-f-]{36}$/.test(x.from)) s.from = x.from;
+        if (mine) Object.assign(mine, s); else cache.push(s);
+        changed = true;
+      });
+      if (changed) persist();
+    },
     colors: COLORS,
 
     /* Paste notes → cards. Understands "term - meaning", "term: meaning", tabs (spreadsheet / app exports),

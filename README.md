@@ -20,6 +20,18 @@ Studying earns **XP** (quiz answers, cards, topics, Learn, Match). Today's XP fi
 
 `#/make` turns pasted notes into a set (one card per line: `term - meaning`, `term: meaning`, a tab, or `Q:` / `A:` lines). **Share** puts the whole set, compressed, inside the link (`#/import/…`), so a friend can open it and add it to their own sets with no server or account. Everything typed into a set is shown as plain text, never as HTML.
 
+## Leagues, schools and cloud saves (optional)
+
+With a free Supabase database connected (see [`docs/cloud-setup.md`](docs/cloud-setup.md)), students can:
+
+- **Join with a nickname and their school.** There's no email or password; each device gets a private guest account.
+- **Find any school:** first from ExamForge's own list, then from **OpenStreetMap** (searched from the student's browser, so schools all over the world work), or by adding it by hand.
+- **Compete in 9 weekly leagues** (Spark → Supernova). Every Monday the top 20% move up and the bottom 20% move down. There are also leaderboards for **my school**, **all schools** and **friends** (add by username).
+- **Share sets with their school's library**: the most-saved sets rise to the top, and anyone can add them to their own sets.
+- **Back up automatically and move to a new phone** with a one-time transfer code.
+
+All database access goes through the checked `ef_*` functions in [`supabase/schema.sql`](supabase/schema.sql). Tables have row-level security with no direct access, XP is capped (400 per update, 5,000 per day), and names, schools and sets from other students are always shown as plain text. Without keys in `assets/js/config.js`, the site runs fully offline and the league pages say "coming soon".
+
 ## Editing the notes
 
 Every subject lives in its own file in `assets/js/content/`:
@@ -61,6 +73,8 @@ To add a subject, create a new file, add a `<script>` tag for it in `index.html`
 - `assets/js/core/app.js`: routing and page rendering
 - `assets/js/core/study.js`: quiz runner and flashcards
 - `assets/js/core/learn.js`: Learn, Match, make / share sets, the XP ring
+- `assets/js/core/cloud.js` + `assets/js/config.js`: leagues, schools, friends, cloud saves and school libraries (Supabase; loads only when switched on)
+- `supabase/schema.sql`: the database (tables, security rules and the `ef_*` functions); run it in the Supabase SQL editor
 - `assets/js/core/widgets.js`: interactive tools (French drills, atom, skeleton, cell cycle, cash book, Vernier caliper, moments see-saw, grid method, mini-spreadsheet)
 - `assets/js/core/motion.js`: Apple-style motion (springs, sliding selection, card tilt, draggable drawer, scroll reveals); all of it turns off with Reduce Motion
 - `assets/js/core/three-scenes.js` + `skeleton.js`: the 3D stage, atom viewer and anatomical skeleton. Three.js only loads when you open a 3D section
