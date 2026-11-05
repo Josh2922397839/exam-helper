@@ -1,7 +1,7 @@
 {
-  "name": "ExamForge — Grade 9 Exam Prep",
+  "name": "ExamForge — Grade 9 & 10 Exam Prep",
   "short_name": "ExamForge",
-  "description": "Notes, 3D models, smart flashcards and quizzes for 7 Grade 9 subjects.",
+  "description": "Study guides, Learn mode, Match, smart flashcards, quizzes and shareable study sets for Grade 9 and Grade 10.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

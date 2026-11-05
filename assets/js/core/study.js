@@ -20,9 +20,12 @@
     EF.subjects.forEach((s) => s.quiz.forEach((q, i) => all.push(Object.assign({ key: s.id + ':' + i, sid: s.id }, q))));
     let list;
     const ex = /^exam(\d*)$/.exec(id);
+    // questions from your own sets (they live outside EF.subjects)
+    const mine = () => EF.sets.list().map((x) => EF.sets.get(x.id)).flatMap((s) => s.quiz.map((q, i) => Object.assign({ key: s.id + ':' + i, sid: s.id }, q)));
     if (ex) list = EF.shuffle(ex[1] ? all.filter((q) => EF.gradeOf(EF.subject(q.sid)) === +ex[1]) : all).slice(0, 20);
-    else if (id === 'mistakes') { const m = EF.store.state().mistakes; list = EF.shuffle(all.filter((q) => m.includes(q.key))); }
-    else list = EF.shuffle(all.filter((q) => q.sid === id));
+    else if (id === 'mistakes') { const m = EF.store.state().mistakes; list = EF.shuffle(all.concat(mine()).filter((q) => m.includes(q.key))); }
+    else if (EF.subjects.some((s) => s.id === id)) list = EF.shuffle(all.filter((q) => q.sid === id));
+    else list = EF.shuffle(mine().filter((q) => q.sid === id));
     // Shuffle answer order too, remembering where the right one went
     return list.map((q) => {
       const order = EF.shuffle(q.options.map((_, i) => i));
@@ -162,7 +165,9 @@
     function newSession(m) {
       mode = m || mode;
       const p = pool();
-      let list = mode === 'all' ? EF.shuffle(p) : EF.shuffle(p.filter((c) => box(c) < 3)).sort((a, b) => box(a) - box(b));
+      // review order: cards that are due today first, then cards you haven't mastered yet
+      const due = new Set(EF.store.due(sid).map((c) => c[0]));
+      let list = mode === 'all' ? EF.shuffle(p) : EF.shuffle(p.filter((c) => due.has(c.front) || box(c) < 3)).sort((a, b) => (due.has(b.front) - due.has(a.front)) || box(a) - box(b));
       deck = list.slice(0, 15); i = 0; flipped = false; got = 0; again = 0;
       render();
     }

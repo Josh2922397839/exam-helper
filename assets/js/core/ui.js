@@ -16,7 +16,8 @@
     for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
     return a;
   };
-  EF.subject = (id) => EF.subjects.find((s) => s.id === id);
+  // built-in subjects first, then the student's own sets (see learn.js)
+  EF.subject = (id) => EF.subjects.find((s) => s.id === id) || (EF.sets ? EF.sets.get(id) : undefined);
   EF.reducedMotion = () => window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   /* Subject icons — one consistent hand-drawn SVG set (emoji render differently on every device;
@@ -95,7 +96,9 @@
     const x = d || new Date();
     return x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0');
   };
-  const fresh = () => ({ visited: {}, quiz: {}, cards: {}, mistakes: [], days: [], last: null, answered: 0, correct: 0 });
+  const fresh = () => ({ visited: {}, quiz: {}, cards: {}, seen: {}, mistakes: [], days: [], last: null, answered: 0, correct: 0, xp: 0, xpDays: {}, match: {} });
+  // Spaced repetition: after a card reaches box n, it is due again after this many days
+  const DUE_DAYS = [0, 0, 1, 3, 7, 16];
   let state = fresh();
   try { state = Object.assign(fresh(), JSON.parse(ls.get(KEY) || '{}')); } catch (e) { state = fresh(); }
   let saveTimer = null;
@@ -122,9 +125,38 @@
       return n;
     },
     studiedOn: (d) => state.days.includes(dayKey(d)),
+    /* XP: every bit of studying earns some, and today's total fills the daily-goal ring */
+    addXP(n) {
+      if (!(n > 0)) return;
+      const t = dayKey(), before = state.xpDays[t] || 0;
+      state.xp = (state.xp || 0) + n;
+      state.xpDays[t] = before + n;
+      const keys = Object.keys(state.xpDays).sort();
+      if (keys.length > 90) keys.slice(0, keys.length - 90).forEach((k) => delete state.xpDays[k]);
+      save();
+      EF.emit('xp', { n, today: before + n, before, goal: store.goal() });
+    },
+    xp: () => state.xp || 0,
+    xpToday: () => state.xpDays[dayKey()] || 0,
+    goal: () => +ls.get('ef2:goal') || 50,
+    setGoal(g) { ls.set('ef2:goal', String(g)); EF.emit('xp', { n: 0, today: store.xpToday(), before: store.xpToday(), goal: g }); },
+    level(xp) {
+      const x = xp == null ? store.xp() : xp;
+      const lvl = Math.floor(Math.sqrt(x / 40)) + 1, from = 40 * (lvl - 1) * (lvl - 1), to = 40 * lvl * lvl;
+      return { lvl, from, to, pct: Math.round(((x - from) / (to - from)) * 100) };
+    },
+    /* cards due for review today (Leitner boxes + the time each card was last seen) */
+    due(sid) {
+      const s = EF.subject(sid);
+      if (!s || !s.flashcards) return [];
+      const boxes = state.cards[sid] || {}, seen = state.seen[sid] || {}, now = Date.now();
+      return s.flashcards.filter((c) => { const b = boxes[c[0]] || 0; return b > 0 && now - (seen[c[0]] || 0) >= DUE_DAYS[b] * 864e5 - 36e5; });
+    },
+    bestMatch: (sid) => state.match[sid] || 0,
+    setMatch(sid, ms) { const old = state.match[sid] || 0; if (!old || ms < old) { state.match[sid] = ms; save(); return true; } return false; },
     markVisited(sid, tid) {
       const v = (state.visited[sid] = state.visited[sid] || []);
-      if (!v.includes(tid)) { v.push(tid); save(); EF.emit('progress', sid); }
+      if (!v.includes(tid)) { v.push(tid); save(); EF.emit('progress', sid); store.addXP(5); }
       store.touchDay();
     },
     setLast(sid, tid) { state.last = { s: sid, t: tid, at: Date.now() }; save(); },
@@ -137,6 +169,7 @@
         state.mistakes.push(key);
       }
       save();
+      store.addXP(ok ? 10 : 2);
       store.touchDay();
     },
     recordQuiz(id, pct) {
@@ -147,9 +180,12 @@
     },
     quiz: (id) => state.quiz[id] || null,
     cardBox: (sid, key) => ((state.cards[sid] || {})[key] || 0),
-    setCardBox(sid, key, box) {
+    setCardBox(sid, key, box, quiet) {
+      const prev = (state.cards[sid] || {})[key] || 0;
       (state.cards[sid] = state.cards[sid] || {})[key] = box;
+      (state.seen[sid] = state.seen[sid] || {})[key] = Date.now();
       save(); store.touchDay(); EF.emit('progress', sid);
+      if (!quiet) store.addXP(box > prev ? 4 : 1);
     },
     mastered(sid) {
       const s = EF.subject(sid);
