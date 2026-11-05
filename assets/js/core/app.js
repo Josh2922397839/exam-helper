@@ -76,7 +76,8 @@
     const acc = st.answered ? Math.round((st.correct / st.answered) * 100) : 0;
     const mastered = EF.subjects.reduce((n, s) => n + EF.store.mastered(s.id), 0);
     const week = Array.from({ length: 7 }, (_, i) => { const d = new Date(); d.setDate(d.getDate() - (6 - i)); return d; });
-    const ring = subs.slice(0, 10); // the hero ring spaces itself evenly for however many subjects there are
+    // the hero ring spaces itself evenly for however many subjects there are (newest grade first)
+    const ring = subs.slice().sort((a, b) => EF.gradeOf(b) - EF.gradeOf(a)).slice(0, 10);
     const stickers = ring.map((s, i) => `<a class="sticker tint" href="#/s/${s.id}" style="--c:${s.color};--i:${i}" tabindex="-1">${EF.subjectIcon(s.id)}<b>${esc(s.short)}</b></a>`).join('');
 
     return `
@@ -525,6 +526,22 @@
   const closeDrawer = () => { if (!document.body.classList.contains('nav-open')) return; document.body.classList.remove('nav-open'); $('.menu-btn').setAttribute('aria-expanded', 'false'); };
   EF.closeDrawer = closeDrawer;
 
+  /* Worked examples: one step at a time, then the answer */
+  function stepWorked(box, how) {
+    const steps = $$('.worked-steps > li', box), ans = $('.worked-ans', box);
+    const next = $('[data-worked="next"], [data-worked="reset"]', box), all = $('[data-worked="all"]', box);
+    const show = (el) => { if (!el.hidden) return; el.hidden = false; el.classList.remove('is-in'); void el.offsetWidth; el.classList.add('is-in'); };
+    if (how === 'reset') { steps.forEach((li) => { li.hidden = true; }); ans.hidden = true; }
+    else if (how === 'all') { steps.forEach(show); show(ans); }
+    else { const h = steps.find((li) => li.hidden); show(h || ans); }
+    const left = steps.filter((li) => li.hidden).length;
+    if (how !== 'reset') EF.haptic(left || ans.hidden ? undefined : 'success');
+    if (!left && !ans.hidden) { next.innerHTML = `${icon('fa-rotate-left')} Start again`; next.dataset.worked = 'reset'; all.hidden = true; }
+    else { next.dataset.worked = 'next'; all.hidden = false; next.innerHTML = left ? `${icon('fa-forward-step')} Show step ${steps.length - left + 1}` : `${icon('fa-flag-checkered')} Show answer`; }
+    if (how !== 'reset') { const last = !ans.hidden ? ans : steps[steps.length - left - 1]; if (last) last.scrollIntoView({ block: 'nearest', behavior: EF.reducedMotion() ? 'auto' : 'smooth' }); }
+    EF.store.touchDay && EF.store.touchDay();
+  }
+
   /* ================= GLOBAL EVENTS ================= */
   document.addEventListener('click', (e) => {
     const t = e.target;
@@ -535,6 +552,8 @@
     if (t.closest('[data-theme-toggle]')) { EF.theme.toggle(t.closest('[data-theme-toggle]')); return; }
     if (t.closest('[data-search-open]')) { EF.openSearch(); return; }
     if (t.closest('[data-open-subjects]')) { openDrawer(); return; }
+    const wk = t.closest('[data-worked]');
+    if (wk) { stepWorked(wk.closest('.worked'), wk.dataset.worked); return; }
     const gs = t.closest('[data-set-grade]');
     if (gs) { EF.setGrade(gs.dataset.setGrade); route(); return; }
     if (t.closest('[data-keys]')) { openKeys(); return; }

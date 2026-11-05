@@ -1,7 +1,7 @@
 /* ExamForge service worker — lets the site open and work offline.
    Our own files: network first (so updates show up straight away), cache as the offline fallback.
    Fonts, icons and Three.js from CDNs: cache first (their URLs are versioned, so they never change). */
-const VERSION = 'ef-v5';
+const VERSION = 'ef-v6';
 const SHELL = [
   './',
   './index.html',
@@ -14,6 +14,14 @@ const SHELL = [
   './assets/js/content/pe.js',
   './assets/js/content/business.js',
   './assets/js/content/history.js',
+  './assets/js/content/g10-english.js',
+  './assets/js/content/g10-math.js',
+  './assets/js/content/g10-physics.js',
+  './assets/js/content/g10-hsb.js',
+  './assets/js/content/g10-it.js',
+  './assets/js/content/g10-geography.js',
+  './assets/js/content/g10-social.js',
+  './assets/js/content/g10-pob.js',
   './assets/js/core/ui.js',
   './assets/js/core/blocks.js',
   './assets/js/core/three-scenes.js',

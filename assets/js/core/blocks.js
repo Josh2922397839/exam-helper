@@ -169,19 +169,32 @@
         </div>`).join('')}</div>`;
     },
 
-    /* ExploreLearning Gizmo write-up: question, variables, steps, data, conclusion, vocab, self-test questions */
+    /* Formula cards: big formula, what it's for, units */
+    formulas: (b) => `${b.title ? `<h3 class="sub-heading">${esc(b.title)}</h3>` : ''}<div class="formulas">${b.items.map((it) => `
+      <div class="formula"><span class="formula-name">${esc(it.name)}</span><span class="formula-f">${it.f}</span>${it.html ? `<p>${it.html}</p>` : ''}${it.units ? `<span class="formula-u">${icon('fa-ruler')} ${it.units}</span>` : ''}</div>`).join('')}</div>`,
+
+    /* Worked example: reveal the working one step at a time, then the answer */
+    worked: (b) => `<article class="worked">
+      <header><span class="worked-badge">${icon(b.icon || 'fa-pen-ruler')} ${esc(b.label || 'Worked example')}</span><p class="worked-q">${b.q}</p></header>
+      <ol class="worked-steps">${b.steps.map((x) => `<li hidden>${x}</li>`).join('')}</ol>
+      <div class="worked-ans" hidden>${icon('fa-circle-check')}<span>${b.answer}</span></div>
+      <div class="worked-ctrl"><button type="button" class="btn btn-sm btn-c" data-worked="next">${icon('fa-forward-step')} Show step 1</button><button type="button" class="btn btn-sm" data-worked="all">Show all</button></div>
+    </article>`,
+
+    /* Lab write-up (ExploreLearning Gizmo or a school practical): question, variables, steps, data, conclusion, vocab, self-test */
     gizmo: (b, s) => {
       const V = [['independent', 'You change', 'fa-sliders'], ['dependent', 'You measure', 'fa-ruler-combined'], ['controlled', 'Kept the same', 'fa-lock']];
       return `<article class="gizmo">
         <header class="gizmo-head">
-          <span class="gizmo-ic">${icon('fa-flask-vial')}</span>
-          <div class="gizmo-title"><span class="gizmo-badge">Gizmo lab</span><h3>${esc(b.name)}</h3>${b.topic ? `<p>${esc(b.topic)}</p>` : ''}</div>
-          ${b.url ? `<a class="btn btn-sm" href="${esc(b.url)}" target="_blank" rel="noopener">${icon('fa-arrow-up-right-from-square')} Open Gizmo</a>` : ''}
+          <span class="gizmo-ic">${icon(b.icon || 'fa-flask-vial')}</span>
+          <div class="gizmo-title"><span class="gizmo-badge">${esc(b.badge || 'Gizmo lab')}</span><h3>${esc(b.name)}</h3>${b.topic ? `<p>${esc(b.topic)}</p>` : ''}</div>
+          ${b.url ? `<a class="btn btn-sm" href="${esc(b.url)}" target="_blank" rel="noopener">${icon('fa-arrow-up-right-from-square')} ${esc(b.linkLabel || 'Open Gizmo')}</a>` : ''}
         </header>
-        ${b.goal ? `<div class="gizmo-goal"><span>${icon('fa-circle-question')} Question</span><p>${b.goal}</p></div>` : ''}
+        ${b.goal ? `<div class="gizmo-goal"><span>${icon('fa-circle-question')} ${esc(b.goalLabel || 'Question')}</span><p>${b.goal}</p></div>` : ''}
         ${b.variables ? `<div class="vars">${V.filter((v) => b.variables[v[0]]).map((v) => `<div class="var var-${v[0]}"><span class="var-k">${icon(v[2])} ${v[1]}</span><strong>${b.variables[v[0]]}</strong><small>${v[0]} variable</small></div>`).join('')}</div>` : ''}
-        ${b.steps ? `<div class="gizmo-sec"><h4>What you do</h4><ol class="gizmo-steps">${b.steps.map((x) => `<li>${x}</li>`).join('')}</ol></div>` : ''}
+        ${b.steps ? `<div class="gizmo-sec"><h4>${esc(b.stepsLabel || 'What you do')}</h4><ol class="gizmo-steps">${b.steps.map((x) => `<li>${x}</li>`).join('')}</ol></div>` : ''}
         ${b.data ? `<div class="gizmo-sec">${R.table({ title: b.data.title || 'Data & results', head: b.data.head, rows: b.data.rows, align: b.data.align })}</div>` : ''}
+        ${b.extra ? b.extra.map((x) => `<div class="gizmo-sec"><h4>${esc(x.title)}</h4><ul class="ticks">${x.list.map((l) => `<li>${l}</li>`).join('')}</ul></div>`).join('') : ''}
         ${b.conclusion ? `<div class="gizmo-conc"><span>${icon('fa-lightbulb')} What it shows</span><p>${b.conclusion}</p></div>` : ''}
         ${b.vocab ? `<div class="gizmo-sec">${R.terms({ title: 'Vocabulary', items: b.vocab }, s)}</div>` : ''}
         ${b.questions ? `<div class="gizmo-sec"><h4>Test yourself</h4><div class="gizmo-qs">${b.questions.map((q, i) => `
@@ -204,7 +217,8 @@
   EF.blockText = (b) => {
     const parts = [];
     const add = (x) => { if (x) parts.push(EF.strip(x)); };
-    ['html', 'text', 'title', 'sub', 'more', 'name', 'topic', 'goal', 'conclusion'].forEach((k) => add(b[k]));
+    ['html', 'text', 'title', 'sub', 'more', 'name', 'topic', 'goal', 'conclusion', 'q', 'answer'].forEach((k) => add(b[k]));
+    (b.extra || []).forEach((x) => { add(x.title); x.list.forEach(add); });
     if (b.variables) Object.keys(b.variables).forEach((k) => add(k + ' variable: ' + b.variables[k]));
     (b.steps || []).forEach(add);
     (b.vocab || []).forEach((v) => add(v.join(' ')));
@@ -213,7 +227,7 @@
     (b.items || []).forEach((it) => {
       if (Array.isArray(it)) it.forEach((x) => typeof x === 'string' && add(x));
       else if (it && typeof it === 'object') {
-        ['title', 'sub', 'html', 'more', 'label', 'name', 'badge', 'foot', 'desc'].forEach((k) => add(it[k]));
+        ['title', 'sub', 'html', 'more', 'label', 'name', 'badge', 'foot', 'desc', 'f', 'units'].forEach((k) => add(it[k]));
         (it.rows || it.points || it.summary || it.phases || []).forEach((r) => add(r.join ? r.join(' ') : r));
         (it.list || []).forEach(add);
       }

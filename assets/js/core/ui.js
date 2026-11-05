@@ -37,6 +37,7 @@
     geography: '<circle class="f" cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.6 2.6 3.8 5.6 3.8 9s-1.2 6.4-3.8 9c-2.6-2.6-3.8-5.6-3.8-9S9.4 5.6 12 3Z"/>',
     it: '<rect class="f" x="4.5" y="5" width="15" height="10.5" rx="1.5"/><rect x="4.5" y="5" width="15" height="10.5" rx="1.5"/><path d="M2.5 19h19M9.6 8.8l-2 1.6 2 1.6M14.4 8.8l2 1.6-2 1.6"/>',
     art: '<path class="f" d="M12 3a9 9 0 1 0 0 18c1.4 0 1.8-1 1.4-2-.5-1.2.1-2.4 1.6-2.4H17a4 4 0 0 0 4-4C21 7 17 3 12 3Z"/><path d="M12 3a9 9 0 1 0 0 18c1.4 0 1.8-1 1.4-2-.5-1.2.1-2.4 1.6-2.4H17a4 4 0 0 0 4-4C21 7 17 3 12 3Z"/><circle class="s" cx="7.6" cy="11" r="1.2"/><circle class="s" cx="10.4" cy="7.2" r="1.2"/><circle class="s" cx="15" cy="7.6" r="1.2"/>',
+    social: '<circle class="f" cx="8.5" cy="7.6" r="2.8"/><circle cx="8.5" cy="7.6" r="2.8"/><circle cx="16.4" cy="8.6" r="2.3"/><path d="M3.2 19.6c.4-3.7 2.5-5.8 5.3-5.8s4.9 2.1 5.3 5.8M14.2 14.3c.7-.5 1.5-.7 2.3-.7 2.4 0 4.1 1.8 4.4 5"/>',
     study: '<path class="f" d="M2.5 9 12 4.5 21.5 9 12 13.5Z"/><path d="M2.5 9 12 4.5 21.5 9 12 13.5ZM6.5 11v4.6c3.3 2.4 7.7 2.4 11 0V11M21.5 9v5.5"/>'
   };
   // a subject can pick an icon with `iconKey`; "chemistry-g10" falls back to the chemistry icon
