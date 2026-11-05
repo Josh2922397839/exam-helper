@@ -16,6 +16,10 @@
     ['Spark', '#9ca3af'], ['Ember', '#b45309'], ['Flame', '#f97316'], ['Blaze', '#ef4444'], ['Torch', '#eab308'],
     ['Forge', '#14b8a6'], ['Inferno', '#8b5cf6'], ['Phoenix', '#ec4899'], ['Supernova', '#38bdf8']
   ];
+  const PARISHES = ['Kingston', 'St. Andrew', 'St. Catherine', 'Clarendon', 'Manchester', 'St. Elizabeth', 'Westmoreland', 'Hanover', 'St. James', 'Trelawny', 'St. Ann', 'St. Mary', 'Portland', 'St. Thomas'];
+  const SP_GROUPS = [['high', 'High schools'], ['primary', 'Primary & prep'], ['tertiary', 'College & uni'], ['', 'All']];
+  const KIND_LABEL = { 'Secondary High': 'High school', 'Kindergarten & Preparatory': 'Prep school', 'Preparatory': 'Prep school', 'Preparatory & Secondary High': 'Prep & high school', 'Primary': 'Primary school', 'All Age': 'All-age school', 'Special': 'Special school' };
+  const kindLabel = (k) => (!k || /^(school|kindergarten)$/i.test(k) ? '' : KIND_LABEL[k] || k.charAt(0).toUpperCase() + k.slice(1));
   const COUNTRIES = [['JM', 'Jamaica'], ['TT', 'Trinidad & Tobago'], ['BB', 'Barbados'], ['BS', 'Bahamas'], ['GY', 'Guyana'], ['BZ', 'Belize'], ['KY', 'Cayman Islands'], ['LC', 'Saint Lucia'], ['GD', 'Grenada'], ['VC', 'St Vincent & the Grenadines'], ['AG', 'Antigua & Barbuda'], ['DM', 'Dominica'], ['KN', 'St Kitts & Nevis'], ['TC', 'Turks & Caicos'], ['US', 'United States'], ['CA', 'Canada'], ['GB', 'United Kingdom']];
 
   let client = null, loading = null, me = null;
@@ -144,6 +148,7 @@
       return me;
     },
     searchSchools: (q, country) => rpc('ef_search_schools', { p_q: q, p_country: country || null }),
+    browseSchools: (country, region, group, offset) => rpc('ef_browse_schools', { p_country: country || 'JM', p_region: region || null, p_group: group || null, p_offset: offset || 0 }),
     searchMap,
     async addSchool(s) { await ensureUser(); return rpc('ef_add_school', { p_name: s.name, p_country: s.country || 'JM', p_region: s.region || null, p_kind: s.kind || null, p_osm: s.osm || null, p_lat: s.lat == null ? null : s.lat, p_lon: s.lon == null ? null : s.lon }); },
     leagueBoard: () => rpc('ef_league_board'),
@@ -223,7 +228,7 @@
   const fmtXP = (n) => { n = +n || 0; return n >= 10000 ? Math.round(n / 1000) + 'k' : n >= 1000 ? Math.round(n / 100) / 10 + 'k' : String(n); };
   const medal = (rank) => (rank <= 3 ? `<span class="lb-medal">${EF.img3d(['gold', 'silver', 'bronze'][rank - 1], 32, 'Rank ' + rank)}</span>` : `<span class="lb-num">${rank}</span>`);
   const row = (r, extra) => `<li class="lb-row${r.me ? ' is-me' : ''}${extra || ''}">${medal(r.rank)}${EF.avatar(r.avatar, r.username, 40)}<a class="lb-name" href="#/u/${encodeURIComponent(r.username)}"><strong>${esc(r.username)}</strong>${r.school ? `<small>${esc(r.school)}</small>` : r.grade ? `<small>Grade ${esc(r.grade)}</small>` : ''}</a>${r.friend ? `<span class="lb-friend" title="Friend">${icon('fa-user-check')}</span>` : ''}${r.league ? badge(r.league, 'xs') : ''}<span class="xp-pill${r.xp ? '' : ' is-zero'}">${fmtXP(r.xp)} XP</span></li>`;
-  const schoolRow = (s, mine) => `<li class="lb-row is-link${mine ? ' is-me' : ''}"><a href="#/school/${s.id}">${medal(s.rank)}${EF.crest(s.name, 38)}<span class="lb-name"><strong>${esc(s.name)}</strong><small>${s.members} student${s.members === 1 ? '' : 's'}${s.region ? ' · ' + esc(s.region) : ''}</small></span><span class="xp-pill${+s.xp ? '' : ' is-zero'}">${fmtXP(s.xp)} XP</span></a></li>`;
+  const schoolRow = (s, mine) => `<li class="lb-row is-link${mine ? ' is-me' : ''}"><a href="#/school/${s.id}">${medal(s.rank)}${EF.schoolMark(s, 38)}<span class="lb-name"><strong>${esc(s.name)}</strong><small>${s.members} student${s.members === 1 ? '' : 's'}${s.region ? ' · ' + esc(s.region) : ''}</small></span><span class="xp-pill${+s.xp ? '' : ' is-zero'}">${fmtXP(s.xp)} XP</span></a></li>`;
 
   function lastResultBanner(p) {
     const lr = p && p.last_result;
@@ -298,7 +303,7 @@
           if (!p.school) { board().innerHTML = `<div class="cloud-msg">${icon('fa-school')} Pick your school in <a href="#/account">your account</a> to see your school’s board.</div>`; return; }
           const r = await EF.cloud.schoolBoard(p.school.id);
           if (!alive || !board()) return;
-          board().innerHTML = `<a class="school-strip" href="#/school/${r.school.id}">${EF.crest(r.school.name, 40)}<span><strong>${esc(r.school.name)}</strong><small>${r.school.members} student${r.school.members === 1 ? '' : 's'} · ${(+r.school.xp_week).toLocaleString()} XP this week</small></span><span class="link">Library ${icon('fa-arrow-right')}</span></a><ol class="lb">${r.rows.map((x) => row(x)).join('')}</ol>`;
+          board().innerHTML = `<a class="school-strip" href="#/school/${r.school.id}">${EF.schoolMark(r.school, 40)}<span><strong>${esc(r.school.name)}</strong><small>${r.school.members} student${r.school.members === 1 ? '' : 's'} · ${(+r.school.xp_week).toLocaleString()} XP this week</small></span><span class="link">Library ${icon('fa-arrow-right')}</span></a><ol class="lb">${r.rows.map((x) => row(x)).join('')}</ol>`;
         } else if (tab === 'schools') {
           board().innerHTML = `<div class="lb-tools">${countrySel()}</div><div data-schools>${loadingRows(6)}</div>`;
           const r = await EF.cloud.schoolsBoard(country);
@@ -337,11 +342,18 @@
   /* ---------------- school picker (used by Join and Account) ---------------- */
   function schoolPicker(host, onPick, initial) {
     let country = ls.get('ef2:country') || 'JM', timer = 0, seq = 0, picked = initial || null;
+    let group = ls.get('ef2:spGroup') || 'high', region = ls.get('ef2:spRegion') || '', offset = 0;
     host.innerHTML = `<div class="sp">
-      <div class="sp-picked"${picked ? '' : ' hidden'}><span class="sp-crest">${picked ? EF.crest(picked.name, 34) : ''}</span><span class="sp-picked-name">${picked ? esc(picked.name) : ''}</span><button type="button" class="link" data-sp-change>Change</button></div>
+      <div class="sp-picked"${picked ? '' : ' hidden'}><span class="sp-crest">${picked ? EF.schoolMark(picked, 34) : ''}</span><span class="sp-picked-name">${picked ? esc(picked.name) : ''}</span><button type="button" class="link" data-sp-change>Change</button></div>
       <div class="sp-search"${picked ? ' hidden' : ''}>
-        <div class="sp-row"><input type="search" class="sp-q" placeholder="Start typing your school’s name" autocomplete="off" aria-label="Search for your school"><select class="country-sel sp-country" aria-label="Country">${COUNTRIES.map(([c, n]) => `<option value="${c}"${c === country ? ' selected' : ''}>${esc(n)}</option>`).join('')}</select></div>
+        <div class="sp-row"><input type="search" class="sp-q" placeholder="Search your school, or pick below" autocomplete="off" aria-label="Search for your school"><select class="country-sel sp-country" aria-label="Country">${COUNTRIES.map(([c, n]) => `<option value="${c}"${c === country ? ' selected' : ''}>${esc(n)}</option>`).join('')}</select></div>
+        <div class="sp-browse" hidden>
+          <div class="pill-tabs sp-groups" role="tablist" aria-label="Type of school">${SP_GROUPS.map(([g, label]) => `<button type="button" role="tab" data-sp-group="${g}" aria-selected="${g === group}">${label}</button>`).join('')}</div>
+          <label class="pill-select sp-parish">${icon('fa-location-dot')}<select data-sp-region aria-label="Parish"><option value="">All parishes</option>${PARISHES.map((x) => `<option${x === region ? ' selected' : ''}>${esc(x)}</option>`).join('')}</select></label>
+        </div>
+        <p class="sp-count muted small" aria-live="polite"></p>
         <ul class="sp-results" role="listbox" aria-label="Schools"></ul>
+        <button type="button" class="btn btn-sm btn-ghost sp-loadmore" data-sp-more hidden>${icon('fa-chevron-down')} Show more schools</button>
         <div class="sp-more" hidden><button type="button" class="btn btn-sm" data-sp-map>${icon('fa-earth-americas')} Search the world map</button><button type="button" class="btn btn-sm btn-ghost" data-sp-add>${icon('fa-plus')} Add it myself</button></div>
         <div class="sp-add" hidden><input class="sp-add-n" placeholder="Full school name" maxlength="120" aria-label="School name"><input class="sp-add-r" placeholder="Parish / city" maxlength="80" aria-label="Parish or city"><button class="btn btn-c btn-sm" type="button" data-sp-addgo>Add school</button></div>
         <p class="sp-credit muted small">World map search: © OpenStreetMap contributors</p>
@@ -349,21 +361,50 @@
     </div>`;
     const $ = (s) => host.querySelector(s);
     const list = $('.sp-results');
-    const pick = (s) => { picked = s; $('.sp-picked-name').textContent = s.name; $('.sp-crest').innerHTML = EF.crest(s.name, 34); $('.sp-picked').hidden = false; $('.sp-search').hidden = true; onPick(s); EF.haptic(); };
-    const show = (items, from) => {
-      list.innerHTML = items.map((s, i) => `<li><button type="button" class="sp-item" data-sp-i="${i}" data-from="${from}">${EF.crest(s.name, 34)}<span><strong>${esc(s.name)}</strong><small>${[s.region, from === 'db' && s.members ? `${s.members} on ExamForge` : from === 'map' ? 'from the world map' : ''].filter(Boolean).map(esc).join(' · ')}</small></span></button></li>`).join('');
-      list._items = items;
+    const pick = (s) => { picked = s; $('.sp-picked-name').textContent = s.name; $('.sp-crest').innerHTML = EF.schoolMark(s, 34); $('.sp-picked').hidden = false; $('.sp-search').hidden = true; onPick(s); EF.haptic(); };
+    const item = (s, i, from) => `<li><button type="button" class="sp-item" data-sp-i="${i}" data-from="${from}">${EF.schoolMark(s, 38)}<span><strong>${esc(s.name)}</strong><small>${[s.region, kindLabel(s.kind), from === 'map' ? 'from the world map' : ''].filter(Boolean).map(esc).join(' · ')}</small></span>${s.members ? `<span class="sp-members" aria-hidden="true">${icon('fa-user-group')} ${s.members}</span>` : ''}</button></li>`;
+    const show = (items, from, append) => {
+      const start = append ? (list._items || []).length : 0;
+      const html = items.map((s, i) => item(s, start + i, from)).join('');
+      if (append) list.insertAdjacentHTML('beforeend', html); else list.innerHTML = html;
+      list._items = append ? (list._items || []).concat(items) : items;
     };
+    const browsing = () => country === 'JM' && $('.sp-q').value.trim().length < 2;
+    async function browse(more) {
+      const my = ++seq;
+      $('.sp-browse').hidden = false; $('.sp-more').hidden = true;
+      if (!more) { offset = 0; list.classList.add('is-loading'); }
+      try {
+        const r = await EF.cloud.browseSchools(country, region || null, group || null, offset);
+        if (my !== seq) return;
+        show(r.rows, 'db', more);
+        offset += r.rows.length;
+        const what = (SP_GROUPS.find(([g]) => g === group) || [0, 'schools'])[1].toLowerCase();
+        $('.sp-count').textContent = r.total ? `${r.total.toLocaleString()} ${group ? what : 'schools'}${region ? ' in ' + region : ' in Jamaica'} · busiest first` : `No ${group ? what : 'schools'}${region ? ' in ' + region + ' yet. Try All parishes.' : ' yet.'}`;
+        $('[data-sp-more]').hidden = offset >= r.total;
+        if (!more) list.scrollTop = 0;
+      } catch (e) { if (my === seq) list.innerHTML = `<li class="muted small">${esc(e.message)}</li>`; }
+      list.classList.remove('is-loading');
+    }
     async function search() {
       const q = $('.sp-q').value.trim(), my = ++seq;
+      $('[data-sp-more]').hidden = true;
+      if (browsing()) { browse(); return; }
+      $('.sp-browse').hidden = true;
       $('.sp-more').hidden = q.length < 2;
-      if (q.length < 2) { list.innerHTML = ''; return; }
-      try { const r = await EF.cloud.searchSchools(q, country); if (my === seq) show(r, 'db'); } catch (e) { if (my === seq) list.innerHTML = `<li class="muted small">${esc(e.message)}</li>`; }
+      if (q.length < 2) { list.innerHTML = ''; $('.sp-count').textContent = ''; return; }
+      try { const r = await EF.cloud.searchSchools(q, country); if (my === seq) { show(r, 'db'); $('.sp-count').textContent = r.length ? '' : 'No match yet. Try fewer letters, the world map, or add it.'; } } catch (e) { if (my === seq) list.innerHTML = `<li class="muted small">${esc(e.message)}</li>`; }
     }
     host.addEventListener('input', (e) => { if (e.target.classList.contains('sp-q')) { clearTimeout(timer); timer = setTimeout(search, 250); } });
-    host.addEventListener('change', (e) => { if (e.target.classList.contains('sp-country')) { country = e.target.value; ls.set('ef2:country', country); search(); } });
+    host.addEventListener('change', (e) => {
+      if (e.target.classList.contains('sp-country')) { country = e.target.value; ls.set('ef2:country', country); search(); }
+      if (e.target.matches('[data-sp-region]')) { region = e.target.value; ls.set('ef2:spRegion', region); browse(); }
+    });
     host.addEventListener('click', async (e) => {
-      if (e.target.closest('[data-sp-change]')) { $('.sp-picked').hidden = true; $('.sp-search').hidden = false; $('.sp-q').focus(); return; }
+      if (e.target.closest('[data-sp-change]')) { $('.sp-picked').hidden = true; $('.sp-search').hidden = false; $('.sp-q').focus(); if (!list._items) search(); return; }
+      const gb = e.target.closest('[data-sp-group]');
+      if (gb) { group = gb.dataset.spGroup; ls.set('ef2:spGroup', group); host.querySelectorAll('[data-sp-group]').forEach((x) => x.setAttribute('aria-selected', String(x === gb))); browse(); return; }
+      if (e.target.closest('[data-sp-more]')) { browse(true); return; }
       const it = e.target.closest('[data-sp-i]');
       if (it) {
         const s = list._items[+it.dataset.spI];
@@ -397,6 +438,7 @@
       e.preventDefault();
       if (e.target.classList.contains('sp-q')) { clearTimeout(timer); search(); } else addManual();
     });
+    if (!picked) search();
     return { get: () => picked };
   }
 
@@ -407,6 +449,7 @@
     if (!enabled) { el.innerHTML = offBox(); return () => {}; }
     if (joined()) { el.innerHTML = `<div class="cloud-msg">${icon('fa-circle-check')} You’ve already joined on this device. <a href="#/league">Go to your league</a>.</div>`; return () => {}; }
     let grade = 10, school = null, nameOk = false, timer = 0, avatar = EF.AVATARS[Math.floor(Math.random() * EF.AVATARS.length)];
+    try { const pre = JSON.parse(sessionStorage.getItem('ef2:joinSchool') || 'null'); if (pre && pre.id && pre.name) school = pre; sessionStorage.removeItem('ef2:joinSchool'); } catch (er) { /* private mode */ }
     el.innerHTML = `<div class="join-hero">${EF.mascot('wave', 120)}<p>Pick a nickname, an avatar and your school. That’s it: no email, no password.</p></div>
       <form class="join-form card" novalidate${mode === 'code' ? ' hidden' : ''}>
         <label class="make-field"><span>1 · Pick a username</span><div class="join-name"><input name="u" maxlength="20" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="e.g. jay_studies" aria-describedby="join-name-hint"><span class="join-check" aria-live="polite"></span></div>
@@ -423,7 +466,7 @@
         <input name="c" class="code-input" placeholder="XXXX-XXXX-XXXX" autocomplete="one-time-code" autocapitalize="characters" spellcheck="false" maxlength="16" aria-label="Transfer code">
         <div class="btn-row"><button class="btn btn-primary" type="submit">${icon('fa-right-to-bracket')} Move my account</button><button type="button" class="btn btn-ghost" data-show-join>New here? Join instead</button></div>
       </form>`;
-    const picker = schoolPicker(el.querySelector('[data-picker]'), (s) => { school = s; });
+    const picker = schoolPicker(el.querySelector('[data-picker]'), (s) => { school = s; }, school);
     const check = el.querySelector('.join-check');
     const onInput = (e) => {
       if (e.target.name !== 'u') return;
@@ -544,7 +587,8 @@
       const b = data, mineHere = me && me.school && me.school.id === b.school.id, myLocal = EF.sets.list();
       const rows = b.rows.filter((r) => tab === 'all' || r.friend || r.me);
       el.innerHTML = `<section class="school-board">
-          <header class="sb-head">${EF.crest(b.school.name, 58)}<div><span class="sb-name">${esc(b.school.name)}${b.school.region ? ' · ' + esc(b.school.region) : ''}</span><h1>${b.school.members} classmate${b.school.members === 1 ? '' : 's'} on ExamForge</h1></div></header>
+          <header class="sb-head">${EF.schoolMark(b.school, 58)}<div><span class="sb-name">${esc(b.school.name)}${b.school.region ? ' · ' + esc(b.school.region) : ''}</span><h1>${b.school.members} classmate${b.school.members === 1 ? '' : 's'} on ExamForge</h1>${kindLabel(b.school.kind) ? `<span class="sb-kind">${esc(kindLabel(b.school.kind))}</span>` : ''}</div>
+            <div class="sb-cta">${mineHere ? `<span class="sb-mine">${icon('fa-circle-check')} Your school</span>` : joined() ? `<button type="button" class="btn btn-sm" data-switch-school>${icon('fa-right-left')} Switch to this school</button>` : `<a class="btn btn-primary btn-sm" href="#/join" data-join-school>${icon('fa-fire')} Join with this school</a>`}</div></header>
           <div class="sb-tools">
             <div class="pill-tabs" role="tablist" aria-label="Who"><button type="button" role="tab" data-sbtab="all" aria-selected="${tab === 'all'}">All (${b.school.members})</button><button type="button" role="tab" data-sbtab="friends" aria-selected="${tab === 'friends'}">Friends (${b.school.friends || 0})</button></div>
             <label class="pill-select">${icon('fa-calendar')}<select data-period aria-label="Time period"><option value="week"${period === 'week' ? ' selected' : ''}>Week</option><option value="all"${period === 'all' ? ' selected' : ''}>All time</option></select></label>
@@ -565,6 +609,13 @@
     const onClick = async (e) => {
       const t = e.target.closest('[data-sbtab]');
       if (t) { tab = t.dataset.sbtab; draw(); return; }
+      if (e.target.closest('[data-join-school]')) { try { sessionStorage.setItem('ef2:joinSchool', JSON.stringify(data.school)); } catch (er) { /* private mode */ } return; }
+      if (e.target.closest('[data-switch-school]')) {
+        if (!me || !confirm(`Move to ${data.school.name}? Your XP and league come with you.`)) return;
+        try { await EF.cloud.updateProfile({ username: me.username, schoolId: data.school.id, grade: me.grade, avatar: me.avatar }); EF.toast(`Welcome to ${data.school.name}!`, 'fa-school'); EF.haptic('success'); load(); }
+        catch (er) { EF.toast(er.message, 'fa-circle-exclamation'); }
+        return;
+      }
       if (!e.target.closest('[data-share-school]')) return;
       const sel = el.querySelector('[data-share-pick]');
       try { const r = await EF.cloud.publish(sel.value); EF.toast(r.updated ? 'Updated in your school library' : 'Shared with your school!', 'fa-share-nodes'); EF.haptic('success'); if (!r.updated) EF.store.addXP(10); load(); }
@@ -582,7 +633,7 @@
       <div class="profile-ava">${EF.avatar(p.avatar, p.username, 116)}${p.league ? `<span class="profile-league">${badge(p.league)}</span>` : ''}</div>
       <div class="profile-info">
         <h1>${esc(p.username)}</h1>
-        <p class="profile-sub">${p.school ? `<a href="#/school/${p.school.id}">${EF.crest(p.school.name, 22)} ${esc(p.school.name)}</a>` : 'No school yet'}${p.grade ? ` · Grade ${esc(p.grade)}` : ''}</p>
+        <p class="profile-sub">${p.school ? `<a href="#/school/${p.school.id}">${EF.schoolMark(p.school, 22)} ${esc(p.school.name)}</a>` : 'No school yet'}${p.grade ? ` · Grade ${esc(p.grade)}` : ''}</p>
         <p class="profile-follow"><strong>${p.followers || 0}</strong> follower${p.followers === 1 ? '' : 's'} · <strong>${p.following || 0}</strong> following</p>
         <div class="btn-row">${actions}</div>
       </div>
@@ -604,7 +655,7 @@
       }
       return `<div class="lb-links">
           <a class="lb-link" href="#/league" data-goto-friends>${EF.img3d('heart', 40)}<span><strong>My friends</strong><small>${p.friends_rank ? '#' + p.friends_rank + ' position' : 'Add friends to race them'}</small></span>${icon('fa-chevron-right')}</a>
-          ${p.school ? `<a class="lb-link" href="#/school/${p.school.id}">${EF.crest(p.school.name, 40)}<span><strong>${esc(p.school.name)}</strong><small>#${p.school_rank || '–'} position this week</small></span>${icon('fa-chevron-right')}</a>` : ''}
+          ${p.school ? `<a class="lb-link" href="#/school/${p.school.id}">${EF.schoolMark(p.school, 40)}<span><strong>${esc(p.school.name)}</strong><small>#${p.school_rank || '–'} position this week</small></span>${icon('fa-chevron-right')}</a>` : ''}
           <a class="lb-link" href="#/league">${badge(p.league)}<span><strong>${lname} League</strong><small>${countdown(p.week_ends)} · ${fmtXP(p.xp_week)} XP this week</small></span>${icon('fa-chevron-right')}</a>
         </div>`;
     }

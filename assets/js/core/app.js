@@ -34,7 +34,7 @@
     const st = EF.store.state(), lastS = st.last && EF.subject(st.last.s);
     const mine = EF.sets.list();
     sidebar.innerHTML = `
-      <a class="side-brand" href="#/" aria-label="ExamForge home"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20"><path d="M13.5 2 5 13.5h5.5L9 22l9.5-12.5H13z" fill="currentColor"/></svg></span><span class="brand-name">Exam<b>Forge</b></span></a>
+      <a class="side-brand" href="#/" aria-label="ExamForge home"><span class="brand-mark" aria-hidden="true"><img src="assets/img/emby-mark.svg" alt="" width="44" height="48"></span><span class="brand-name">Exam<b>Forge</b></span></a>
       <nav class="side-nav" aria-label="Main">
         ${navItem('#/', 'home', 'Home', 'home')}
         ${navItem('#/league', 'trophy', 'Leagues', 'league')}

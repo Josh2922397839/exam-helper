@@ -68,6 +68,25 @@
     </svg>`;
   };
 
+  /* ---------- a school's real crest or photo (from Wikimedia, or one shipped in assets/img/schools/),
+     falling back to the generated crest when a school has none or the picture fails to load ---------- */
+  const LOGO_OK = /^(https:\/\/(upload|thumb)\.wikimedia\.org\/[A-Za-z0-9/._%()~,!*+-]+|assets\/img\/schools\/[a-z0-9-]+\.(webp|png|jpg|svg))$/;
+  EF.schoolLogoOk = (url) => typeof url === 'string' && LOGO_OK.test(url);
+  EF.schoolMark = (s, size) => {
+    const sz = size || 40, name = (s && s.name) || '';
+    if (!s || !EF.schoolLogoOk(s.logo)) return EF.crest(name, sz);
+    const kind = s.logo_kind === 'photo' ? 'photo' : 'logo';
+    return `<span class="school-mark is-${kind}" style="--s:${sz}px" data-crest-name="${esc(name)}" data-crest-size="${sz}"><img src="${esc(s.logo)}" alt="${esc(name)} ${kind === 'photo' ? 'photo' : 'crest'}" width="${sz}" height="${sz}" loading="lazy" decoding="async" referrerpolicy="no-referrer" draggable="false"></span>`;
+  };
+  // a picture that can't load (offline, removed from Wikimedia) quietly becomes the generated crest
+  document.addEventListener('error', (e) => {
+    const img = e.target;
+    if (!img || img.tagName !== 'IMG') return;
+    const box = img.parentElement;
+    if (!box || !box.classList.contains('school-mark')) return;
+    box.outerHTML = EF.crest(box.dataset.crestName || '', +box.dataset.crestSize || 40);
+  }, true);
+
   /* ---------- Emby, the mascot ----------
      moods: read (default), wave, cheer, sad, think, sleep */
   let uid = 0;

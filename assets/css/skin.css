@@ -118,7 +118,12 @@ img.sicon { object-fit: contain; stroke: none; }
 
 /* ---------- sidebar ---------- */
 .side-brand { display: flex; align-items: center; gap: 10px; padding: 2px 10px 18px; text-decoration: none; color: var(--text); }
-.side-brand .brand-mark { width: 40px; height: 40px; border-radius: 13px; }
+/* the brand mark is Emby himself */
+.brand-mark { width: 36px; height: 36px; border-radius: 0; background: none; box-shadow: none; overflow: visible; }
+.brand-mark img { display: block; width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 4px 6px rgba(239, 84, 67, .35)); transition: transform .6s var(--spring); transform-origin: 50% 90%; }
+.brand:hover .brand-mark img, .side-brand:hover .brand-mark img { transform: rotate(-8deg) translateY(-2px) scale(1.08); }
+.side-brand .brand-mark { width: 46px; height: 46px; border-radius: 0; }
+.footer .brand-mark { width: 26px; height: 26px; border-radius: 0; }
 .side-brand .brand-name { font-family: var(--font-display); font-size: 1.62rem; font-weight: 900; letter-spacing: -.02em; }
 .side-brand .brand-name b { color: var(--brand); font-weight: 900; }
 .side-nav { gap: 3px; }
@@ -332,6 +337,34 @@ select option { background: var(--surface); color: var(--text); }
 .sp-picked { border-radius: 16px; }
 .sp-item { border-radius: 16px; }
 .sp-crest { display: inline-grid; }
+/* real school crests and photos (Wikimedia), same footprint as the generated crest */
+.school-mark { flex: none; display: inline-grid; place-items: center; width: var(--s); height: var(--s); border-radius: 26%; background: #fff; border: 1.5px solid var(--line); overflow: hidden; vertical-align: middle; box-shadow: 0 3px 8px -4px rgba(15, 20, 40, .35); }
+.school-mark img { display: block; width: 100%; height: 100%; object-fit: contain; padding: 7%; }
+.school-mark.is-photo img { object-fit: cover; padding: 0; }
+.profile-sub .school-mark { border-width: 1px; border-radius: 30%; }
+.sb-head .school-mark { border-radius: 22px; }
+.sb-head { flex-wrap: wrap; }
+.sb-head > div:not(.sb-cta) { flex: 1; min-width: 0; }
+.sb-cta { margin-left: auto; }
+.sb-kind { display: inline-flex; margin-top: 6px; padding: 3px 10px; border-radius: 999px; background: var(--surface-2); color: var(--text-2); font-weight: 800; font-size: .76rem; }
+.sb-mine { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 999px; background: color-mix(in srgb, var(--ok) 14%, var(--surface)); color: var(--ok); font-weight: 900; font-size: .86rem; }
+@media (max-width: 720px) { .sb-cta { width: 100%; margin-left: 0; } .sb-cta .btn { width: 100%; justify-content: center; } }
+/* school picker: browse by type and parish */
+.sp-browse { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.sp-groups { gap: 6px; }
+.sp-groups button { height: 36px; padding: 0 14px; font-size: .88rem; }
+.sp-parish { height: 36px; font-size: .88rem; }
+.sp-count { margin: 2px 2px 0; }
+.sp-count:empty { display: none; }
+.sp-results { max-height: 380px; padding: 2px; scroll-behavior: smooth; overscroll-behavior: contain; transition: opacity .2s; }
+.sp-results.is-loading { opacity: .45; }
+.sp-item { border-width: 1.5px; padding: 9px 12px; text-align: left; transition: border-color .2s, transform .4s var(--spring), background .2s; }
+.sp-item:hover { background: color-mix(in srgb, var(--brand) 5%, var(--surface)); }
+.sp-item:active { transform: scale(.985); }
+.sp-item > span:not(.school-mark):not(.sp-members) { flex: 1; }
+.sp-item strong { font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sp-members { flex: none; display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 999px; background: var(--xp-bg); color: var(--xp-ink); font-weight: 900; font-size: .78rem; }
+.sp-loadmore { justify-self: center; }
 
 /* ---------- subject + set headers use the 3D icons ---------- */
 .subject-emoji { background: var(--c-soft); }
