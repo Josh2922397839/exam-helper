@@ -27,125 +27,140 @@
   function renderSidebar() {
     const [a, sid] = parts();
     const here = a === 's' ? sid : null;
-    const navItem = (href, ic, label, key, extra) => `<a class="side-link${current(key) ? ' is-active' : ''}" href="${href}" ${current(key) ? 'aria-current="page"' : ''}>${icon(ic)}<span>${label}</span>${extra || ''}</a>`;
+    const link = (href, art, label, key, extra) => `<a class="side-link${current(key) ? ' is-active' : ''}" href="${href}" ${current(key) ? 'aria-current="page"' : ''}>${art}<span>${label}</span>${extra || ''}</a>`;
+    const navItem = (href, img, label, key, extra) => link(href, EF.img3d(img, 30), label, key, extra);
     const mistakes = EF.store.state().mistakes.length;
+    const me = EF.cloud.joined() ? EF.cloud.cachedMe() : null;
+    const st = EF.store.state(), lastS = st.last && EF.subject(st.last.s);
+    const mine = EF.sets.list();
     sidebar.innerHTML = `
-      <nav class="side-nav" aria-label="Study tools">
-        ${navItem('#/', 'fa-house', 'Home', 'home')}
-        ${navItem('#/quiz', 'fa-bolt', 'Quiz Arena', 'quiz', mistakes ? `<span class="side-badge" title="Saved mistakes">${mistakes}</span>` : '')}
-        ${navItem('#/cards', 'fa-clone', 'Study sets', 'cards')}
-        ${navItem('#/sets', 'fa-layer-group', 'My sets', 'sets')}
-        ${navItem('#/league', 'fa-trophy', 'Leagues', 'league')}
-        ${navItem('#/progress', 'fa-chart-simple', 'My Progress', 'progress')}
+      <a class="side-brand" href="#/" aria-label="ExamForge home"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20"><path d="M13.5 2 5 13.5h5.5L9 22l9.5-12.5H13z" fill="currentColor"/></svg></span><span class="brand-name">Exam<b>Forge</b></span></a>
+      <nav class="side-nav" aria-label="Main">
+        ${navItem('#/', 'home', 'Home', 'home')}
+        ${navItem('#/league', 'trophy', 'Leagues', 'league')}
+        ${navItem('#/cards', 'cards', 'Study sets', 'cards')}
+        ${navItem('#/quiz', 'bolt', 'Quiz Arena', 'quiz', mistakes ? `<span class="side-badge" title="Saved mistakes">${mistakes}</span>` : '')}
+        ${navItem('#/sets', 'memo', 'My sets', 'sets')}
+        ${navItem('#/progress', 'chart', 'Progress', 'progress')}
+        ${me ? link('#/me', EF.avatar(me.avatar, me.username, 30), esc(me.username), 'me') : navItem('#/me', 'wave', 'Profile', 'me')}
       </nav>
+      <div class="side-cta">
+        <a class="btn btn-ink btn-block side-study" href="${lastS ? '#/learn/' + lastS.id : '#/cards'}">${EF.img3d('game', 26)} Study</a>
+        <a class="btn btn-block side-add" href="#/make">${icon('fa-plus')} Make a set</a>
+      </div>
       ${(EF.multiGrade() ? EF.grades().map((g) => [g, EF.inGrade(g)]) : [[null, EF.subjects]]).map(([g, list]) => `
-      <p class="side-label">${g ? 'Grade ' + g : 'Subjects'}</p>
+      <div class="side-head"><span>${g ? 'Grade ' + g : 'My subjects'}</span></div>
       <ul class="side-subjects">
         ${list.map((s) => {
           const on = here === s.id;
           const p = EF.store.progress(s.id);
           const seen = EF.store.state().visited[s.id] || [];
           return `<li class="side-subject tint${on ? ' is-open' : ''}" style="--c:${s.color}">
-            <a class="side-link" href="#/s/${s.id}" ${on ? 'aria-current="page"' : ''}><span class="side-emoji">${EF.subjectIcon(s.id)}</span><span>${esc(s.name)}</span><span class="side-pct" title="${p.pct}% complete">${p.pct}%</span></a>
+            <a class="side-link side-deck" href="#/s/${s.id}" ${on ? 'aria-current="page"' : ''}><span class="side-sq" aria-hidden="true"></span><span>${esc(s.name)}</span>${p.pct ? `<span class="side-pct" title="${p.pct}% complete">${p.pct}%</span>` : ''}</a>
             ${on ? `<ul class="side-topics">${s.topics.map((t) => `<li><a href="#/s/${s.id}/${t.id}" data-topic="${t.id}">${seen.includes(t.id) ? icon('fa-circle-check', 'seen') : '<i class="dot-o" aria-hidden="true"></i>'}${esc(topicLabel(t))}</a></li>`).join('')}
               <li><a href="#/s/${s.id}/quiz" data-topic="quiz">${icon('fa-bolt')}Quiz</a></li>
+              <li><a href="#/learn/${s.id}">${icon('fa-graduation-cap')}Learn</a></li>
               <li><a href="#/cards/${s.id}">${icon('fa-clone')}Flashcards</a></li></ul>` : ''}
           </li>`;
         }).join('')}
       </ul>`).join('')}
+      ${mine.length ? `<div class="side-head"><span>My sets</span><a class="side-head-add" href="#/make" aria-label="Make a set">${icon('fa-plus')}</a></div>
+      <ul class="side-subjects">${mine.slice(0, 8).map((x) => `<li class="side-subject tint" style="--c:${esc(x.color)}"><a class="side-link side-deck" href="#/set/${esc(x.id)}"><span class="side-sq" aria-hidden="true"></span><span>${esc(x.name)}</span></a></li>`).join('')}</ul>` : ''}
       <div class="side-foot">
         ${installEvt ? `<button type="button" class="btn btn-sm side-install" data-install>${icon('fa-download')} Install app</button>` : ''}
         <span><kbd>/</kbd> search</span><span><kbd>D</kbd> theme</span><button type="button" class="link" data-keys><kbd>?</kbd></button>
       </div>`;
-    if (here && here !== lastOpen) { const st = $('.side-topics', sidebar); if (st) st.classList.add('is-entering'); }
+    if (here && here !== lastOpen) { const st2 = $('.side-topics', sidebar); if (st2) st2.classList.add('is-entering'); }
     lastOpen = here;
     if (here && spy && spy.active) markTopic(spy.active);
   }
   let lastOpen = null;
   function current(key) {
     const k = viewKey.split(':')[0];
-    return viewKey === key || k === key || (key === 'cards' && ['set', 'learn', 'match'].includes(k)) || (key === 'sets' && ['make', 'import'].includes(k)) || (key === 'league' && ['join', 'account', 'school', 'shared'].includes(k));
+    return viewKey === key || k === key || (key === 'cards' && ['set', 'learn', 'match'].includes(k)) || (key === 'sets' && ['make', 'import'].includes(k)) || (key === 'league' && ['join', 'school', 'shared'].includes(k)) || (key === 'me' && ['account', 'u'].includes(k));
   }
 
   /* ================= PAGES ================= */
   const pages = {};
+
+  /* A study tile in the style of a card deck: coloured band, 3D icon, title, progress ring */
+  const deckTile = (s) => {
+    const p = EF.store.progress(s.id);
+    return `<a class="deck-tile tint" href="#/s/${s.id}" style="--c:${s.color}">
+      <span class="deck-band"><span class="deck-3d" ${vt('icon-' + s.id)}>${EF.subject3d(s.id, 60)}</span></span>
+      <span class="deck-body"><strong><span ${vt('title-' + s.id)}>${esc(s.name)}</span></strong><small>${s.topics.length} topics · ${(s.flashcards || []).length} cards</small></span>
+      <span class="deck-prog" title="${p.pct}% complete">${EF.ring(p.pct, 38, 4)}</span>
+    </a>`;
+  };
+
+  function jumpBack(subs, last, lastTopic) {
+    const items = [];
+    if (last) { const p = EF.store.progress(last.id); items.push({ href: '#/s/' + last.id + (lastTopic ? '/' + lastTopic.id : ''), title: lastTopic ? topicLabel(lastTopic) : last.name, sub: (lastTopic ? 'Topic · ' : 'Subject · ') + last.short, pct: p.pct, c: last.color, id: last.id }); }
+    subs.map((s) => [s, EF.store.progress(s.id)]).filter(([s, p]) => p.pct > 0 && p.pct < 100 && (!last || s.id !== last.id)).sort((x, y) => y[1].pct - x[1].pct).slice(0, Math.max(0, 3 - items.length))
+      .forEach(([s, p]) => items.push({ href: '#/s/' + s.id, title: s.name, sub: `Subject · ${p.visited}/${p.total} topics`, pct: p.pct, c: s.color, id: s.id }));
+    EF.sets.list().forEach((x) => { if (items.length < 4) { const s = EF.sets.get(x.id); items.push({ href: '#/set/' + s.id, title: s.name, sub: `My set · ${s.flashcards.length} cards`, pct: Math.round((EF.store.mastered(s.id) / Math.max(1, s.flashcards.length)) * 100), c: s.color, id: s.id }); } });
+    if (!items.length) subs.slice().sort((x, y) => EF.gradeOf(y) - EF.gradeOf(x)).slice(0, 4).forEach((s) => items.push({ href: '#/s/' + s.id, title: s.name, sub: `Start here · ${s.topics.length} topics`, pct: 0, c: s.color, id: s.id }));
+    return `<section class="home-section"><div class="section-head"><h2>${last ? 'Jump back in' : 'Start here'}</h2><a class="link" href="#/progress">View all</a></div>
+      <div class="jump-row">${items.map((it) => `<a class="jump-card tint" href="${it.href}" style="--c:${esc(it.c)}">${EF.ring(it.pct, 50, 5)}<span class="jump-text"><strong>${esc(it.title)}</strong><small>${esc(it.sub)}</small></span><span class="jump-3d">${EF.subject3d(it.id, 36)}</span></a>`).join('')}</div></section>`;
+  }
+
+  /* The right-hand panel: invite card + your stats (like an inventory) */
+  function rail() {
+    const streak = EF.store.streak(), lv = EF.store.level(), today = EF.store.xpToday(), goal = EF.store.goal();
+    const me = EF.cloud.joined() ? EF.cloud.cachedMe() : null;
+    return `<div class="invite-card">
+        <div class="invite-art" aria-hidden="true">${EF.img3d('star', 44)}${EF.img3d('sparkles', 34)}${EF.img3d('rocket', 46)}</div>
+        <strong>Study with your friends</strong>
+        <span>Share ExamForge and race your crew up the leagues</span>
+        <button type="button" class="btn btn-block invite-btn" data-invite>${icon('fa-user-plus')} Invite friends</button>
+      </div>
+      <div class="stats-card">
+        <a class="stats-head" href="#/progress">${EF.img3d('star', 32)}<strong>${EF.store.xp().toLocaleString()}</strong><span>XP · level ${lv.lvl}</span></a>
+        <span class="lvl-bar" aria-hidden="true"><span style="width:${lv.pct}%"></span></span>
+        <div class="stats-grid">
+          <a href="#/progress" title="Day streak">${EF.img3d('fire', 40)}<b>${streak}</b><small>streak</small></a>
+          <a href="#/progress" title="Today's goal">${EF.img3d('target', 40)}<b>${today}/${goal}</b><small>today</small></a>
+          <a href="#/cards" title="Cards mastered">${EF.img3d('gem', 40)}<b>${EF.subjects.reduce((n, s) => n + EF.store.mastered(s.id), 0)}</b><small>mastered</small></a>
+          <a href="#/league" title="Your league">${EF.img3d('trophy', 40)}<b>${me ? esc(EF.cloud.league(me.league)[0]) : '–'}</b><small>league</small></a>
+        </div>
+      </div>`;
+  }
+  EF.rail = rail;
 
   pages.home = () => {
     const st = EF.store.state();
     const last = st.last && EF.subject(st.last.s);
     const lastTopic = last && last.topics.find((t) => t.id === st.last.t);
     const subs = EF.inGrade(EF.grade());
-    const tot = totals(subs);
     const g = EF.grade();
-    const streak = EF.store.streak();
-    const acc = st.answered ? Math.round((st.correct / st.answered) * 100) : 0;
-    const mastered = EF.subjects.reduce((n, s) => n + EF.store.mastered(s.id), 0);
-    const lv = EF.store.level();
-    const dueAll = subs.concat(EF.sets.list().map((x) => EF.sets.get(x.id))).reduce((n, s) => n + EF.store.due(s.id).length, 0);
-    const week = Array.from({ length: 7 }, (_, i) => { const d = new Date(); d.setDate(d.getDate() - (6 - i)); return d; });
-    // the hero ring spaces itself evenly for however many subjects there are (newest grade first)
-    const ring = subs.slice().sort((a, b) => EF.gradeOf(b) - EF.gradeOf(a)).slice(0, 10);
-    const stickers = ring.map((s, i) => `<a class="sticker tint" href="#/s/${s.id}" style="--c:${s.color};--i:${i}" tabindex="-1">${EF.subjectIcon(s.id)}<b>${esc(s.short)}</b></a>`).join('');
-
+    const me = EF.cloud.joined() ? EF.cloud.cachedMe() : null;
+    const h = new Date().getHours();
+    const hello = (h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening') + (me ? ', ' + esc(me.username) : '');
     return `
-      <div class="page home">
-        <section class="hero">
-          <div class="hero-copy">
-            <span class="eyebrow">${icon('fa-graduation-cap')} ${g === 'all' ? EF.gradeLabel() : 'Grade ' + g} exam prep</span>
-            <h1>Master every subject.<br><span class="hl">Crush every exam.</span></h1>
-            <p class="hero-sub">Interactive 3D models, flashcards that remember what you struggle with, and practice quizzes that explain every answer — for all ${EF.subjects.length} of your subjects.</p>
-            <div class="btn-row">
-              ${last ? `<a class="btn btn-primary btn-lg" href="#/s/${last.id}${lastTopic ? '/' + lastTopic.id : ''}">${icon('fa-play')} Continue ${esc(last.short)}${lastTopic ? ` <small>· ${esc(topicLabel(lastTopic))}</small>` : ''}</a>`
-                : `<a class="btn btn-primary btn-lg" href="#/s/${subs[0].id}">${icon('fa-play')} Start studying</a>`}
-              <a class="btn btn-lg" href="#/quiz/exam${g === 'all' ? '' : g}">${icon('fa-fire-flame-curved')} Exam mode</a>
+      <div class="page has-rail home">
+        <div class="page-main">
+          <section class="home-hero">
+            <div class="home-mascot">${EF.mascot('read', 156)}</div>
+            <h1 class="home-hello"><span>${hello}! What shall we</span><strong>Study?</strong></h1>
+          </section>
+          <div class="ask">
+            <button type="button" class="ask-input" data-search-open><span>I want to study…</span>${EF.img3d('search', 28)}</button>
+            <div class="ask-row">
+              <a class="ask-btn" href="#/make">${EF.img3d('clipboard', 26)} Paste notes</a>
+              <a class="ask-btn" href="${last ? '#/learn/' + last.id : '#/learn/' + subs[0].id}">${EF.img3d('grad', 26)} Learn</a>
+              <a class="ask-btn" href="#/quiz/exam${g === 'all' ? '' : g}">${EF.img3d('bolt', 26)} Exam mode</a>
+              <a class="ask-btn" href="#/cards">${EF.img3d('cards', 26)} Study sets</a>
             </div>
-            <ul class="hero-facts">
-              <li><strong>${subs.length}</strong> subjects</li>
-              <li><strong>${tot.topics}</strong> topics</li>
-              <li><strong>${tot.questions}</strong> quiz questions</li>
-              <li><strong>${tot.cards}</strong> flashcards</li>
-            </ul>
           </div>
-          <div class="hero-art${ring.length > 8 ? ' is-crowded' : ''}" aria-hidden="true" style="--n:${Math.max(ring.length, 5)}">
-            <div class="orbit"><span></span><span></span><span></span></div>
-            ${stickers}
-            <span class="sticker sticker-grade">A+</span>
-          </div>
-        </section>
-
-        <section class="dash" aria-label="Your stats">
-          <div class="dash-tile">
-            <span class="dash-ic dash-fire">${icon('fa-fire')}</span>
-            <div><strong class="dash-v" data-count="${streak}">${streak}</strong><span class="dash-l">day streak</span></div>
-            <div class="week" aria-label="Last 7 days">${week.map((d) => `<i class="${EF.store.studiedOn(d) ? 'on' : ''}" title="${d.toLocaleDateString(undefined, { weekday: 'short' })}">${d.toLocaleDateString(undefined, { weekday: 'narrow' })}</i>`).join('')}</div>
-          </div>
-          <div class="dash-tile">${EF.ring(EF.store.overall(), 64, 7)}<div><strong class="dash-v">Overall</strong><span class="dash-l">progress</span></div></div>
-          <a class="dash-tile dash-goal" href="#/progress">${goalRing()}<div><strong class="dash-v">Level ${lv.lvl}</strong><span class="dash-l">${EF.store.xpToday()}/${EF.store.goal()} XP today</span><span class="lvl-bar" aria-hidden="true"><span style="width:${lv.pct}%"></span></span></div></a>
-          <a class="dash-tile" href="#/cards"><span class="dash-ic">${icon(dueAll ? 'fa-clock-rotate-left' : 'fa-medal')}</span><div><strong class="dash-v" data-count="${dueAll || mastered}">${dueAll || mastered}</strong><span class="dash-l">${dueAll ? `card${dueAll === 1 ? '' : 's'} due for review` : `of ${tot.cards} cards mastered`}</span></div></a>
-        </section>
-        ${EF.cloud.enabled ? '<a class="league-cta" href="#/league" data-league-cta></a>' : ''}
-
-        <section class="home-section">
-          <div class="section-head"><h2>Your subjects</h2>${gradeSwitch()}<a class="link" href="#/progress">See progress ${icon('fa-arrow-right')}</a></div>
-          ${gradeGrid(subs, (s) => {
-            const p = EF.store.progress(s.id);
-            return `<a class="subject-card tint" href="#/s/${s.id}" style="--c:${s.color}">
-              <div class="subject-card-top"><span class="subject-emoji" ${vt('icon-' + s.id)}>${EF.subjectIcon(s.id)}</span>${EF.ring(p.pct, 48, 5)}</div>
-              <h3><span ${vt('title-' + s.id)}>${esc(s.name)}</span></h3>
-              <p>${esc(s.tagline)}</p>
-              <div class="subject-card-meta"><span>${icon('fa-book-open')} ${p.visited}/${p.total} topics</span><span>${icon('fa-bolt')} ${p.attempts ? 'Best ' + p.best + '%' : s.quiz.length + ' Qs'}</span></div>
-            </a>`;
-          })}
-        </section>
-
-        <section class="home-section">
-          <div class="section-head"><h2>Study your way</h2></div>
-          <div class="tools">
-            <a class="tool" href="#/s/chemistry/atom-model"><span class="tool-ic" style="--c:#14b8c4">${icon('fa-cube')}</span><h3>3D models</h3><p>Spin atoms 1–20 on a mini periodic table and click through a full 3D skeleton.</p></a>
-            <a class="tool" href="#/cards"><span class="tool-ic" style="--c:#9b6bff">${icon('fa-brain')}</span><h3>Smart flashcards</h3><p>Spaced repetition: cards you miss come back sooner, cards you know level up.</p></a>
-            <a class="tool" href="#/quiz"><span class="tool-ic" style="--c:#2fbf71">${icon('fa-check-double')}</span><h3>Quizzes that teach</h3><p>Instant feedback, an explanation for every answer, and a “fix my mistakes” mode.</p></a>
-          </div>
-        </section>
+          ${jumpBack(subs, last, lastTopic)}
+          ${EF.cloud.enabled ? '<section class="home-section home-social" data-home-social></section>' : ''}
+          <section class="home-section">
+            <div class="section-head"><h2>Your subjects</h2>${gradeSwitch()}</div>
+            ${gradeGrid(subs, deckTile)}
+          </section>
+          <section class="home-section rail-inline">${rail()}</section>
+        </div>
+        <aside class="rail" aria-label="Your stats">${rail()}</aside>
       </div>`;
   };
 
@@ -161,7 +176,7 @@
         <header class="subject-hero">
           <div class="crumb-row"><a class="crumb" href="#/">${icon('fa-arrow-left')} All subjects</a>${EF.multiGrade() ? `<span class="pill pill-c">Grade ${EF.gradeOf(s)}</span>` : ''}</div>
           <div class="subject-hero-row">
-            <span class="subject-emoji subject-emoji-lg" ${vt('icon-' + s.id)}>${EF.subjectIcon(s.id)}</span>
+            <span class="subject-emoji subject-emoji-lg" ${vt('icon-' + s.id)}>${EF.subject3d(s.id, 72)}</span>
             <div class="subject-hero-text"><h1><span ${vt('title-' + s.id)}>${esc(s.name)}</span></h1><p>${esc(s.intro)}</p></div>
             ${EF.ring(p.pct, 84, 8)}
           </div>
@@ -219,12 +234,12 @@
         <header class="page-head"><span class="eyebrow">${icon('fa-bolt')} Quiz Arena</span><h1>Test yourself</h1><p>Every question explains the answer. Get one wrong and it’s saved so you can fix it later.</p>${gradeSwitch()}</header>
         <div class="arena-top">
           <a class="arena-card arena-exam" href="#/quiz/${examId}">
-            <span class="arena-ic" ${vt('icon-exam')}>${icon('fa-fire-flame-curved')}</span>
+            <span class="arena-ic" ${vt('icon-exam')}>${EF.img3d('fire', 40)}</span>
             <div><h2>${g === 'all' ? '' : 'Grade ' + g + ' '}Exam Mode</h2><p>20 random questions from all ${subs.length} ${g === 'all' ? '' : 'Grade ' + g + ' '}subjects.</p>${exam ? `<span class="pill">${icon('fa-trophy')} Best ${exam.best}%</span>` : ''}</div>
             <span class="btn btn-primary">Start ${icon('fa-arrow-right')}</span>
           </a>
           <a class="arena-card arena-fix${mistakes ? '' : ' is-empty'}" href="#/quiz/mistakes">
-            <span class="arena-ic">${icon('fa-bandage')}</span>
+            <span class="arena-ic">${EF.img3d(mistakes ? 'target' : 'check', 40)}</span>
             <div><h2>Fix my mistakes</h2><p>${mistakes ? `${mistakes} question${mistakes === 1 ? '' : 's'} waiting. Get them right to clear them.` : 'No saved mistakes yet — nice.'}</p></div>
             <span class="btn">${mistakes ? 'Practise' : 'Empty'} ${icon('fa-arrow-right')}</span>
           </a>
@@ -286,7 +301,8 @@
   /* A study set's home: all the ways to study it */
   pages.set = (s) => {
     const n = s.flashcards.length, m = EF.store.mastered(s.id), due = EF.store.due(s.id).length, best = EF.store.bestMatch(s.id), q = EF.store.quiz(s.id);
-    const mode = (href, ic, title, sub, extra) => `<a class="mode-card" href="${href}"><span class="mode-ic">${icon(ic)}</span><div><strong>${title}</strong><span>${sub}</span></div>${extra ? `<span class="mode-extra">${extra}</span>` : ''}${icon('fa-chevron-right', 'mode-go')}</a>`;
+    const PIC = { 'fa-graduation-cap': 'grad', 'fa-clone': 'cards', 'fa-shapes': 'puzzle', 'fa-bolt': 'bolt', 'fa-book-open': 'book' };
+    const mode = (href, ic, title, sub, extra) => `<a class="mode-card" href="${href}"><span class="mode-ic">${EF.img3d(PIC[ic] || 'star', 34)}</span><div><strong>${title}</strong><span>${sub}</span></div>${extra ? `<span class="mode-extra">${extra}</span>` : ''}${icon('fa-chevron-right', 'mode-go')}</a>`;
     return `<div class="page narrow tint" style="--c:${s.color}">
       <a class="crumb" href="#/cards">${icon('fa-arrow-left')} Study sets</a>
       <header class="page-head page-head-sm quiz-page-head"><span class="quiz-page-ic" ${vt('icon-' + s.id)}>${EF.subjectIcon(s.id)}</span><div><span class="eyebrow">${s.custom ? 'My set' : 'Grade ' + EF.gradeOf(s) + ' subject'} · ${n} cards</span><h1>${esc(s.name)}</h1></div></header>
@@ -330,6 +346,8 @@
   pages.league = () => cloudPage('league', null, `<header class="page-head"><span class="eyebrow">${icon('fa-trophy')} Weekly leagues</span><h1>Leagues</h1><p>Earn XP by studying anything. Every Monday the top players in each league move up and the bottom ones move down. Your XP also pushes your school up the rankings.</p></header>`);
   pages.join = (mode) => cloudPage('join', mode || '', `<a class="crumb" href="#/league">${icon('fa-arrow-left')} Leagues</a><header class="page-head page-head-sm"><span class="eyebrow">${icon('fa-fire')} Join</span><h1>${mode === 'code' ? 'Welcome back' : 'Join the league'}</h1></header>`);
   pages.account = () => cloudPage('account', null, `<a class="crumb" href="#/league">${icon('fa-arrow-left')} Leagues</a><header class="page-head page-head-sm"><span class="eyebrow">${icon('fa-user')} Account</span><h1>Your account</h1></header>`);
+  pages.me = () => cloudPage('me', null, '');
+  pages.user = (name) => cloudPage('user', name, `<a class="crumb" href="javascript:history.back()">${icon('fa-arrow-left')} Back</a>`);
   pages.school = (id) => cloudPage('school', id, `<a class="crumb" href="#/league">${icon('fa-arrow-left')} Leagues</a>`);
   pages.shared = (id) => cloudPage('shared', id, `<a class="crumb" href="javascript:history.back()">${icon('fa-arrow-left')} Back</a>`);
 
@@ -340,7 +358,7 @@
       <a class="crumb" href="#/set/${esc(s.id)}">${icon('fa-arrow-left')} ${esc(s.name)}</a>
       <header class="page-head page-head-sm tint quiz-page-head" style="--c:${s.color}"><span class="quiz-page-ic" ${vt('icon-' + s.id)}>${EF.subjectIcon(s.id)}</span><div><span class="eyebrow">Flashcards</span><h1>${esc(s.name)}</h1></div></header>
       <div class="cards-host" data-cards="${s.id}"></div>
-      <p class="muted small center">Shortcuts: <kbd>space</kbd> flip · <kbd>1</kbd> again · <kbd>2</kbd> got it</p>
+      <p class="muted small center kbd-hint">Shortcuts: <kbd>space</kbd> flip · <kbd>1</kbd> again · <kbd>2</kbd> got it</p>
     </div>`;
 
   pages.progress = () => {
@@ -350,9 +368,10 @@
       <div class="page">
         <header class="page-head"><span class="eyebrow">${icon('fa-chart-simple')} Saved on this device</span><h1>My progress</h1><p>Progress = 40% topics read + 40% best quiz score + 20% flashcards mastered.</p></header>
         <div class="progress-top">
-          <div class="card progress-overall">${EF.ring(EF.store.overall(), 120, 10)}<div><h3>Overall</h3><p class="muted">${st.answered} questions answered${st.answered ? ` · ${Math.round((st.correct / st.answered) * 100)}% correct` : ''}</p></div></div>
+          <div class="card progress-overall">${EF.ring(EF.store.overall(), 120, 10)}<div><h3>Overall</h3><p class="muted">${st.answered} questions answered${st.answered ? ` · ${Math.round((st.correct / st.answered) * 100)}% correct` : ''}</p></div>${EF.mascot ? `<span class="progress-mascot">${EF.mascot(EF.store.overall() >= 70 ? 'cheer' : EF.store.streak() ? 'read' : 'sleep', 96)}</span>` : ''}</div>
           <div class="card">
-            <h3>${icon('fa-fire')} ${EF.store.streak()}-day streak</h3>
+            <h3>${EF.img3d ? EF.img3d('fire', 26) : icon('fa-fire')} ${EF.store.streak()}-day streak</h3>
+            <div class="cal-days" aria-hidden="true">${days.slice(-7).map((d) => `<span>${d.toLocaleDateString(undefined, { weekday: 'narrow' })}</span>`).join('')}</div>
             <div class="cal" aria-label="Study days, last 5 weeks">${days.map((d) => `<i class="${EF.store.studiedOn(d) ? 'on' : ''}${EF.dayKey(d) === EF.dayKey() ? ' today' : ''}" title="${d.toDateString()}"></i>`).join('')}</div>
             <p class="muted small">Each square is a day. Study anything to light it up.</p>
           </div>
@@ -375,7 +394,7 @@
       </div>`;
   };
 
-  pages.notFound = () => `<div class="page narrow center"><h1>Page not found</h1><p class="muted">That link doesn’t go anywhere.</p><a class="btn btn-primary" href="#/">${icon('fa-house')} Go home</a></div>`;
+  pages.notFound = () => `<div class="page narrow center not-found">${EF.mascot ? EF.mascot('think', 150) : ''}<h1>Page not found</h1><p class="muted">That link doesn’t go anywhere.</p><a class="btn btn-primary" href="#/">${icon('fa-house')} Go home</a></div>`;
 
   /* ================= ROUTER ================= */
   function parts() { return location.hash.replace(/^#\/?/, '').split('/').filter(Boolean).map(decodeURIComponent); }
@@ -415,12 +434,13 @@
     $$('[data-match]', main).forEach((el) => cleanup.push(EF.mountMatch(el, el.dataset.match)));
     $$('[data-make]', main).forEach((el) => cleanup.push(EF.mountMake(el, el.dataset.make || null)));
     $$('[data-import]', main).forEach((el) => cleanup.push(EF.mountImport(el, el.dataset.import)));
-    const CLOUD = { league: EF.mountLeague, join: EF.mountJoin, account: EF.mountAccount, school: EF.mountSchool, shared: EF.mountShared };
+    const CLOUD = { league: EF.mountLeague, join: EF.mountJoin, account: EF.mountAccount, school: EF.mountSchool, shared: EF.mountShared, me: EF.mountMe, user: EF.mountUser };
     $$('[data-cloud]', main).forEach((el) => { const fn = CLOUD[el.dataset.cloud]; if (fn) cleanup.push(fn(el, el.dataset.arg)); });
     const lc = $('[data-league-cta]', main); if (lc) EF.paintLeagueCta(lc);
+    const hs = $('[data-home-social]', main); if (hs) EF.paintHomeSocial(hs);
     renderSidebar();
     closeDrawer();
-    const tab = { set: 'cards', learn: 'cards', match: 'cards', sets: 'cards', make: 'cards', import: 'cards', join: 'league', account: 'league', school: 'league', shared: 'league' }[key.split(':')[0]] || key.split(':')[0];
+    const tab = { set: 'cards', learn: 'cards', match: 'cards', sets: 'cards', make: 'cards', import: 'cards', join: 'league', account: 'league', school: 'league', shared: 'league', me: 'league', u: 'league' }[key.split(':')[0]] || key.split(':')[0];
     document.body.dataset.view = tab;
     if (after) after(); else window.scrollTo(0, 0);
     EF.countUp(main);
@@ -472,6 +492,8 @@
     if (a === 'league') return show('league', pages.league(), 'Leagues');
     if (a === 'join') return show('join' + (b ? ':' + b : ''), pages.join(b), 'Join the league');
     if (a === 'account') return show('account', pages.account(), 'Account');
+    if (a === 'me') return show('me', pages.me(), 'Profile');
+    if (a === 'u' && b) return show('u:' + b.toLowerCase(), pages.user(b), b);
     if (a === 'school' && /^\d+$/.test(b || '')) return show('school:' + b, pages.school(b), 'School');
     if (a === 'shared' && /^[0-9a-f-]{36}$/.test(b || '')) return show('shared:' + b, pages.shared(b), 'Shared set');
     if (a === 'make') { if (b && !EF.sets.raw(b)) return show('404', pages.notFound(), 'Not found'); return show('make' + (b ? ':' + b : ''), pages.make(b), b ? 'Edit set' : 'Make a set'); }
@@ -658,6 +680,14 @@
     if (pb) { EF.cloud.publish(pb.dataset.publish).then((r) => { EF.toast(r.updated ? 'Updated in your school library' : 'Shared with your school library!', 'fa-school'); EF.haptic('success'); if (!r.updated) EF.store.addXP(10); route(); }).catch((er) => EF.toast(er.message, 'fa-circle-exclamation')); return; }
     const upb = t.closest('[data-unpublish]');
     if (upb) { EF.cloud.unpublish(upb.dataset.unpublish).then(() => { EF.toast('Removed from your school library', 'fa-eye-slash'); route(); }).catch((er) => EF.toast(er.message, 'fa-circle-exclamation')); return; }
+    if (t.closest('[data-invite]')) {
+      const url = location.href.split('#')[0];
+      const done = (how) => EF.toast(how === 'copied' ? 'Link copied: send it to your friends!' : 'Thanks for sharing!', 'fa-user-plus');
+      if (navigator.share) navigator.share({ title: 'ExamForge', text: 'Study with me on ExamForge: notes, quizzes, flashcards and school leagues', url }).then(() => done('shared')).catch(() => {});
+      else if (navigator.clipboard) navigator.clipboard.writeText(url).then(() => done('copied')).catch(() => window.prompt('Copy this link:', url));
+      else window.prompt('Copy this link:', url);
+      return;
+    }
     const sh = t.closest('[data-share]');
     if (sh) { const set = EF.sets.raw(sh.dataset.share); if (set) EF.sets.share(set).then((r) => { if (r === 'copied') EF.toast('Link copied: send it to your friends!', 'fa-link'); else if (r === 'shared') EF.toast('Shared!', 'fa-share-nodes'); }); return; }
     const wk = t.closest('[data-worked]');
@@ -693,10 +723,11 @@
   window.addEventListener('beforeprint', () => { reopened = $$('details:not([open])', main); reopened.forEach((d) => d.setAttribute('open', '')); });
   window.addEventListener('afterprint', () => { reopened.forEach((d) => d.removeAttribute('open')); reopened = []; });
 
-  EF.on('theme', (t) => { $$('[data-theme-toggle]').forEach((b) => { b.innerHTML = icon(t === 'dark' ? 'fa-sun' : 'fa-moon'); b.setAttribute('aria-label', t === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'); }); });
-  const paintStreak = () => { const n = EF.store.streak(); $$('.streak-chip').forEach((el) => { el.innerHTML = `${icon('fa-fire')}<strong>${n}</strong>`; el.title = n + '-day study streak'; el.classList.toggle('is-hot', n > 0); }); };
+  EF.on('theme', (t) => { $$('[data-theme-toggle]').forEach((b) => { b.innerHTML = EF.img3d(t === 'dark' ? 'sun' : 'moon', 24); b.setAttribute('aria-label', t === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'); }); const m = document.querySelector('meta[name=theme-color]'); if (m) m.content = t === 'dark' ? '#0f1220' : '#f5f6fa'; });
+  const paintStreak = () => { const n = EF.store.streak(); $$('.streak-chip').forEach((el) => { el.innerHTML = `${EF.img3d('fire', 24)}<strong>${n}</strong>`; el.title = n + '-day study streak'; el.classList.toggle('is-hot', n > 0); }); };
   EF.on('streak', () => { paintStreak(); EF.paintGoal(); });
   EF.on('sets', () => { clearTimeout(sideTimer); sideTimer = setTimeout(renderSidebar, 50); });
+  EF.on('cloud', () => { clearTimeout(sideTimer); sideTimer = setTimeout(renderSidebar, 60); });
   let sideTimer = null;
   EF.on('progress', () => { clearTimeout(sideTimer); sideTimer = setTimeout(renderSidebar, 200); });
 
@@ -725,12 +756,13 @@
     window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
   }
 
-  window.addEventListener('hashchange', route);
+  window.addEventListener('hashchange', () => { closeSearch(); route(); });
 
   /* ================= BOOT ================= */
   EF.emit('theme', EF.theme.get());
   paintStreak();
   EF.paintGoal();
+  EF.paintTopMe();
   route();
   document.documentElement.classList.add('is-ready');
 })();

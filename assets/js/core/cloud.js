@@ -130,16 +130,16 @@
     },
     cachedMe: () => me,
     usernameFree: (n) => rpc('ef_username_free', { p_username: n }),
-    async join({ username, schoolId, grade }) {
+    async join({ username, schoolId, grade, avatar }) {
       await ensureUser();
-      me = await rpc('ef_save_profile', { p_username: username, p_school: schoolId || null, p_grade: grade || null });
+      me = await rpc('ef_save_profile', { p_username: username, p_school: schoolId || null, p_grade: grade || null, p_avatar: avatar || null });
       ls.set(JOINED, '1'); ls.set(XPQ, '0');
       pushSave();
       EF.emit('cloud', { kind: 'joined' });
       return me;
     },
-    async updateProfile({ username, schoolId, grade }) {
-      me = await rpc('ef_save_profile', { p_username: username, p_school: schoolId || null, p_grade: grade || null });
+    async updateProfile({ username, schoolId, grade, avatar }) {
+      me = await rpc('ef_save_profile', { p_username: username, p_school: schoolId || null, p_grade: grade || null, p_avatar: avatar || null });
       EF.emit('cloud', { kind: 'profile' });
       return me;
     },
@@ -147,7 +147,8 @@
     searchMap,
     async addSchool(s) { await ensureUser(); return rpc('ef_add_school', { p_name: s.name, p_country: s.country || 'JM', p_region: s.region || null, p_kind: s.kind || null, p_osm: s.osm || null, p_lat: s.lat == null ? null : s.lat, p_lon: s.lon == null ? null : s.lon }); },
     leagueBoard: () => rpc('ef_league_board'),
-    schoolBoard: (id) => rpc('ef_school_board', { p_school: +id }),
+    schoolBoard: (id, period) => rpc('ef_school_board', { p_school: +id, p_period: period || 'week' }),
+    profile: (name) => rpc('ef_profile', { p_username: name }),
     schoolsBoard: (country) => rpc('ef_schools_board', { p_country: country || null }),
     friendsBoard: () => rpc('ef_friends_board'),
     follow: (name) => rpc('ef_follow', { p_username: name }),
@@ -218,8 +219,11 @@
   const badge = (n, size) => { const [name, col] = EF.cloud.league(n); return `<span class="league-badge${size ? ' is-' + size : ''}" style="--lc:${col}" title="${name} League" role="img" aria-label="${name} League"><i class="fa-solid fa-fire" aria-hidden="true"></i><b aria-hidden="true">${n}</b></span>`; };
   const loadingRows = (n) => `<div class="lb-loading">${Array.from({ length: n || 5 }, () => '<span></span>').join('')}</div>`;
   const errBox = (e) => `<div class="cloud-msg is-err">${icon('fa-triangle-exclamation')} ${esc(e.message || String(e))}</div>`;
-  const offBox = () => `<div class="cloud-off card"><span class="cloud-off-ic">${icon('fa-trophy')}</span><h2>Leagues are coming soon</h2><p class="muted">School leagues, friends and cloud saves aren’t switched on for this copy of ExamForge yet. Everything else works offline.</p></div>`;
-  const row = (r, extra) => `<li class="lb-row${r.me ? ' is-me' : ''}${extra || ''}"><span class="lb-rank">${r.rank}</span><span class="lb-name"><strong>${esc(r.username || r.name)}</strong>${r.school ? `<small>${esc(r.school)}</small>` : r.region ? `<small>${esc(r.region)}</small>` : ''}</span>${r.league ? badge(r.league, 'xs') : ''}<span class="lb-xp">${(r.xp || 0).toLocaleString()} XP</span></li>`;
+  const offBox = () => `<div class="cloud-off card">${EF.mascot ? EF.mascot('sleep', 120) : `<span class="cloud-off-ic">${icon('fa-trophy')}</span>`}<h2>Leagues are coming soon</h2><p class="muted">School leagues, friends and cloud saves aren’t switched on for this copy of ExamForge yet. Everything else works offline.</p></div>`;
+  const fmtXP = (n) => { n = +n || 0; return n >= 10000 ? Math.round(n / 1000) + 'k' : n >= 1000 ? Math.round(n / 100) / 10 + 'k' : String(n); };
+  const medal = (rank) => (rank <= 3 ? `<span class="lb-medal">${EF.img3d(['gold', 'silver', 'bronze'][rank - 1], 32, 'Rank ' + rank)}</span>` : `<span class="lb-num">${rank}</span>`);
+  const row = (r, extra) => `<li class="lb-row${r.me ? ' is-me' : ''}${extra || ''}">${medal(r.rank)}${EF.avatar(r.avatar, r.username, 40)}<a class="lb-name" href="#/u/${encodeURIComponent(r.username)}"><strong>${esc(r.username)}</strong>${r.school ? `<small>${esc(r.school)}</small>` : r.grade ? `<small>Grade ${esc(r.grade)}</small>` : ''}</a>${r.friend ? `<span class="lb-friend" title="Friend">${icon('fa-user-check')}</span>` : ''}${r.league ? badge(r.league, 'xs') : ''}<span class="xp-pill${r.xp ? '' : ' is-zero'}">${fmtXP(r.xp)} XP</span></li>`;
+  const schoolRow = (s, mine) => `<li class="lb-row is-link${mine ? ' is-me' : ''}"><a href="#/school/${s.id}">${medal(s.rank)}${EF.crest(s.name, 38)}<span class="lb-name"><strong>${esc(s.name)}</strong><small>${s.members} student${s.members === 1 ? '' : 's'}${s.region ? ' · ' + esc(s.region) : ''}</small></span><span class="xp-pill${+s.xp ? '' : ' is-zero'}">${fmtXP(s.xp)} XP</span></a></li>`;
 
   function lastResultBanner(p) {
     const lr = p && p.last_result;
@@ -266,7 +270,7 @@
       try {
         const r = await EF.cloud.schoolsBoard(country);
         if (!alive || !board()) return;
-        board().innerHTML = r.rows.length ? `<ol class="lb">${r.rows.map((s) => `<li class="lb-row is-link"><a href="#/school/${s.id}"><span class="lb-rank">${s.rank}</span><span class="lb-name"><strong>${esc(s.name)}</strong><small>${s.members} student${s.members === 1 ? '' : 's'}${s.region ? ' · ' + esc(s.region) : ''}</small></span><span class="lb-xp">${(+s.xp).toLocaleString()} XP</span></a></li>`).join('')}</ol>` : `<p class="muted center lb-empty">No schools here yet. Be the first to put yours on the board!</p>`;
+        board().innerHTML = r.rows.length ? `<ol class="lb">${r.rows.map((s) => schoolRow(s)).join('')}</ol>` : `<p class="muted center lb-empty">No schools here yet. Be the first to put yours on the board!</p>`;
       } catch (e) { if (board()) board().innerHTML = errBox(e); }
     }
     async function loadTab(p) {
@@ -294,13 +298,13 @@
           if (!p.school) { board().innerHTML = `<div class="cloud-msg">${icon('fa-school')} Pick your school in <a href="#/account">your account</a> to see your school’s board.</div>`; return; }
           const r = await EF.cloud.schoolBoard(p.school.id);
           if (!alive || !board()) return;
-          board().innerHTML = `<a class="school-strip" href="#/school/${r.school.id}"><span class="school-ic">${icon('fa-school')}</span><span><strong>${esc(r.school.name)}</strong><small>${r.school.members} student${r.school.members === 1 ? '' : 's'} · ${(+r.school.xp_week).toLocaleString()} XP this week</small></span><span class="link">Library ${icon('fa-arrow-right')}</span></a><ol class="lb">${r.rows.map((x) => row(x)).join('')}</ol>`;
+          board().innerHTML = `<a class="school-strip" href="#/school/${r.school.id}">${EF.crest(r.school.name, 40)}<span><strong>${esc(r.school.name)}</strong><small>${r.school.members} student${r.school.members === 1 ? '' : 's'} · ${(+r.school.xp_week).toLocaleString()} XP this week</small></span><span class="link">Library ${icon('fa-arrow-right')}</span></a><ol class="lb">${r.rows.map((x) => row(x)).join('')}</ol>`;
         } else if (tab === 'schools') {
           board().innerHTML = `<div class="lb-tools">${countrySel()}</div><div data-schools>${loadingRows(6)}</div>`;
           const r = await EF.cloud.schoolsBoard(country);
           if (!alive || !board()) return;
           const t = board().querySelector('[data-schools]');
-          t.innerHTML = r.rows.length ? `<ol class="lb">${r.rows.map((s) => `<li class="lb-row is-link${p.school && p.school.id === s.id ? ' is-me' : ''}"><a href="#/school/${s.id}"><span class="lb-rank">${s.rank}</span><span class="lb-name"><strong>${esc(s.name)}</strong><small>${s.members} student${s.members === 1 ? '' : 's'}${s.region ? ' · ' + esc(s.region) : ''}</small></span><span class="lb-xp">${(+s.xp).toLocaleString()} XP</span></a></li>`).join('')}</ol>` : `<p class="muted center lb-empty">No schools from here yet.</p>`;
+          t.innerHTML = r.rows.length ? `<ol class="lb">${r.rows.map((s) => schoolRow(s, p.school && p.school.id === s.id)).join('')}</ol>` : `<p class="muted center lb-empty">No schools from here yet.</p>`;
         } else {
           const r = await EF.cloud.friendsBoard();
           if (!alive || !board()) return;
@@ -334,7 +338,7 @@
   function schoolPicker(host, onPick, initial) {
     let country = ls.get('ef2:country') || 'JM', timer = 0, seq = 0, picked = initial || null;
     host.innerHTML = `<div class="sp">
-      <div class="sp-picked"${picked ? '' : ' hidden'}><span class="school-ic">${icon('fa-school')}</span><span class="sp-picked-name">${picked ? esc(picked.name) : ''}</span><button type="button" class="link" data-sp-change>Change</button></div>
+      <div class="sp-picked"${picked ? '' : ' hidden'}><span class="sp-crest">${picked ? EF.crest(picked.name, 34) : ''}</span><span class="sp-picked-name">${picked ? esc(picked.name) : ''}</span><button type="button" class="link" data-sp-change>Change</button></div>
       <div class="sp-search"${picked ? ' hidden' : ''}>
         <div class="sp-row"><input type="search" class="sp-q" placeholder="Start typing your school’s name" autocomplete="off" aria-label="Search for your school"><select class="country-sel sp-country" aria-label="Country">${COUNTRIES.map(([c, n]) => `<option value="${c}"${c === country ? ' selected' : ''}>${esc(n)}</option>`).join('')}</select></div>
         <ul class="sp-results" role="listbox" aria-label="Schools"></ul>
@@ -345,9 +349,9 @@
     </div>`;
     const $ = (s) => host.querySelector(s);
     const list = $('.sp-results');
-    const pick = (s) => { picked = s; $('.sp-picked-name').textContent = s.name; $('.sp-picked').hidden = false; $('.sp-search').hidden = true; onPick(s); EF.haptic(); };
+    const pick = (s) => { picked = s; $('.sp-picked-name').textContent = s.name; $('.sp-crest').innerHTML = EF.crest(s.name, 34); $('.sp-picked').hidden = false; $('.sp-search').hidden = true; onPick(s); EF.haptic(); };
     const show = (items, from) => {
-      list.innerHTML = items.map((s, i) => `<li><button type="button" class="sp-item" data-sp-i="${i}" data-from="${from}">${icon(from === 'map' ? 'fa-map-pin' : 'fa-school')}<span><strong>${esc(s.name)}</strong><small>${[s.region, from === 'db' && s.members ? `${s.members} on ExamForge` : from === 'map' ? 'from the world map' : ''].filter(Boolean).map(esc).join(' · ')}</small></span></button></li>`).join('');
+      list.innerHTML = items.map((s, i) => `<li><button type="button" class="sp-item" data-sp-i="${i}" data-from="${from}">${EF.crest(s.name, 34)}<span><strong>${esc(s.name)}</strong><small>${[s.region, from === 'db' && s.members ? `${s.members} on ExamForge` : from === 'map' ? 'from the world map' : ''].filter(Boolean).map(esc).join(' · ')}</small></span></button></li>`).join('');
       list._items = items;
     };
     async function search() {
@@ -396,16 +400,20 @@
     return { get: () => picked };
   }
 
+  const avatarPicker = (cur) => `<div class="ava-pick" role="radiogroup" aria-label="Avatar">${EF.AVATARS.map((k) => `<button type="button" role="radio" class="ava-opt" data-ava="${k}" aria-checked="${k === cur}" aria-label="${k}">${EF.avatar(k, k, 46)}</button>`).join('')}</div>`;
+
   /* ---------------- #/join ---------------- */
   EF.mountJoin = (el, mode) => {
     if (!enabled) { el.innerHTML = offBox(); return () => {}; }
     if (joined()) { el.innerHTML = `<div class="cloud-msg">${icon('fa-circle-check')} You’ve already joined on this device. <a href="#/league">Go to your league</a>.</div>`; return () => {}; }
-    let grade = 10, school = null, nameOk = false, timer = 0;
-    el.innerHTML = `<form class="join-form card" novalidate${mode === 'code' ? ' hidden' : ''}>
+    let grade = 10, school = null, nameOk = false, timer = 0, avatar = EF.AVATARS[Math.floor(Math.random() * EF.AVATARS.length)];
+    el.innerHTML = `<div class="join-hero">${EF.mascot('wave', 120)}<p>Pick a nickname, an avatar and your school. That’s it: no email, no password.</p></div>
+      <form class="join-form card" novalidate${mode === 'code' ? ' hidden' : ''}>
         <label class="make-field"><span>1 · Pick a username</span><div class="join-name"><input name="u" maxlength="20" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="e.g. jay_studies" aria-describedby="join-name-hint"><span class="join-check" aria-live="polite"></span></div>
           <small id="join-name-hint" class="muted">3–20 letters, numbers or _. Use a nickname, <strong>not your real full name</strong>.</small></label>
-        <div class="make-field"><span>2 · Your grade</span><div class="seg" role="radiogroup" aria-label="Grade">${[9, 10, 11, 12].map((g) => `<button type="button" role="radio" data-grade="${g}" aria-pressed="${g === grade}">Grade ${g}</button>`).join('')}</div></div>
-        <div class="make-field"><span>3 · Your school</span><div data-picker></div></div>
+        <div class="make-field"><span>2 · Your avatar</span>${avatarPicker(avatar)}</div>
+        <div class="make-field"><span>3 · Your grade</span><div class="seg" role="radiogroup" aria-label="Grade">${[9, 10, 11, 12].map((g) => `<button type="button" role="radio" data-grade="${g}" aria-pressed="${g === grade}">Grade ${g}</button>`).join('')}</div></div>
+        <div class="make-field"><span>4 · Your school</span><div data-picker></div></div>
         <p class="muted small">${icon('fa-shield-halved')} Only your username, school, grade and XP are shown to others. No email or password needed.</p>
         <div class="btn-row"><button class="btn btn-primary" type="submit">${icon('fa-fire')} Join the league</button><button type="button" class="btn btn-ghost" data-show-code>${icon('fa-key')} I have a transfer code</button></div>
       </form>
@@ -431,6 +439,8 @@
     const onClick = (e) => {
       const g = e.target.closest('[data-grade]');
       if (g) { grade = +g.dataset.grade; el.querySelectorAll('[data-grade]').forEach((b) => b.setAttribute('aria-pressed', b === g)); return; }
+      const av = e.target.closest('[data-ava]');
+      if (av) { avatar = av.dataset.ava; el.querySelectorAll('[data-ava]').forEach((b) => b.setAttribute('aria-checked', b === av)); EF.haptic(); return; }
       if (e.target.closest('[data-show-code]')) { el.querySelector('.join-form').hidden = true; el.querySelector('.code-form').hidden = false; el.querySelector('.code-input').focus(); return; }
       if (e.target.closest('[data-show-join]')) { el.querySelector('.join-form').hidden = false; el.querySelector('.code-form').hidden = true; }
     };
@@ -442,7 +452,7 @@
         if (!/^[A-Za-z0-9_]{3,20}$/.test(u)) { EF.toast('Pick a username first', 'fa-circle-exclamation'); e.target.u.focus(); return; }
         if (!school) { EF.toast('Pick your school', 'fa-school'); return; }
         btn.disabled = true;
-        try { await EF.cloud.join({ username: u, schoolId: school.id, grade }); EF.confetti(); EF.toast(`Welcome to the league, ${u}!`, 'fa-fire'); location.hash = '#/league'; }
+        try { await EF.cloud.join({ username: u, schoolId: school.id, grade, avatar }); EF.confetti(); EF.toast(`Welcome to the league, ${u}!`, 'fa-fire'); location.hash = '#/league'; }
         catch (er) { EF.toast(er.message, 'fa-circle-exclamation'); EF.haptic('error'); btn.disabled = false; }
       } else {
         const c = e.target.c.value.trim();
@@ -461,16 +471,17 @@
   EF.mountAccount = (el) => {
     if (!enabled) { el.innerHTML = offBox(); return () => {}; }
     if (!joined()) { el.innerHTML = `<div class="cloud-msg">${icon('fa-user')} You haven’t joined yet. <a href="#/join">Join the league</a> or <a href="#/join/code">use a transfer code</a>.</div>`; return () => {}; }
-    let alive = true, school = null, grade = null;
+    let alive = true, school = null, grade = null, avatar = null;
     el.innerHTML = loadingRows(4);
     EF.cloud.me(true).then((p) => {
       if (!alive) return;
       if (!p) { el.innerHTML = `<div class="cloud-msg">${icon('fa-user')} This device isn’t signed in any more. <a href="#/join">Join again</a>.</div>`; return; }
-      school = p.school; grade = p.grade;
+      school = p.school; grade = p.grade; avatar = EF.avatarKey(p.avatar, p.username);
       const [lname] = EF.cloud.league(p.league);
       el.innerHTML = `<section class="card acct-card">
-          <div class="acct-top">${badge(p.league, 'lg')}<div><h2>${esc(p.username)}</h2><p class="muted">${lname} League · ${p.xp_total.toLocaleString()} XP all time${p.school ? ' · ' + esc(p.school.name) : ''}</p></div></div>
+          <div class="acct-top">${EF.avatar(p.avatar, p.username, 64)}<div><h2>${esc(p.username)}</h2><p class="muted">${lname} League · ${p.xp_total.toLocaleString()} XP all time${p.school ? ' · ' + esc(p.school.name) : ''}</p></div></div>
           <form class="acct-form" novalidate>
+            <div class="make-field"><span>Avatar</span>${avatarPicker(avatar)}</div>
             <label class="make-field"><span>Username</span><input name="u" value="${esc(p.username)}" maxlength="20" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
             <div class="make-field"><span>Grade</span><div class="seg" role="radiogroup" aria-label="Grade">${[9, 10, 11, 12].map((g) => `<button type="button" role="radio" data-grade="${g}" aria-pressed="${g === p.grade}">Grade ${g}</button>`).join('')}</div></div>
             <div class="make-field"><span>School</span><div data-picker></div></div>
@@ -498,6 +509,8 @@
     const onClick = async (e) => {
       const g = e.target.closest('[data-grade]');
       if (g) { grade = +g.dataset.grade; el.querySelectorAll('[data-grade]').forEach((b) => b.setAttribute('aria-pressed', b === g)); return; }
+      const av = e.target.closest('[data-ava]');
+      if (av) { avatar = av.dataset.ava; el.querySelectorAll('[data-ava]').forEach((b) => b.setAttribute('aria-checked', b === av)); EF.haptic(); return; }
       if (e.target.closest('[data-code]')) {
         try { const r = await EF.cloud.transferCode(); const box = el.querySelector('.code-out'); box.hidden = false; box.innerHTML = `<code class="code-big">${esc(r.code)}</code><button type="button" class="btn btn-sm" data-copy="${esc(r.code)}">${icon('fa-copy')} Copy</button><p class="muted small">Works once. Making a new code cancels the old one.</p>`; }
         catch (er) { EF.toast(er.message, 'fa-circle-exclamation'); }
@@ -515,40 +528,160 @@
     const onSubmit = async (e) => {
       if (!e.target.classList.contains('acct-form')) return;
       e.preventDefault();
-      try { await EF.cloud.updateProfile({ username: e.target.u.value.trim(), schoolId: school && school.id, grade }); EF.toast('Saved', 'fa-circle-check'); EF.haptic('success'); }
+      try { await EF.cloud.updateProfile({ username: e.target.u.value.trim(), schoolId: school && school.id, grade, avatar }); EF.toast('Saved', 'fa-circle-check'); EF.haptic('success'); EF.emit('cloud', { kind: 'profile' }); }
       catch (er) { EF.toast(er.message, 'fa-circle-exclamation'); }
     };
     el.addEventListener('click', onClick); el.addEventListener('submit', onSubmit);
     return () => { alive = false; el.removeEventListener('click', onClick); el.removeEventListener('submit', onSubmit); };
   };
 
-  /* ---------------- #/school/:id: board + the school's shared sets ---------------- */
+  /* ---------------- #/school/:id: the school's leaderboard + its shared sets ---------------- */
   EF.mountSchool = (el, id) => {
     if (!enabled) { el.innerHTML = offBox(); return () => {}; }
-    let alive = true;
+    let alive = true, tab = 'all', period = 'week', data = null, sets = [], me = null;
     el.innerHTML = loadingRows(6);
-    const reload = () => Promise.all([EF.cloud.schoolBoard(id), EF.cloud.schoolSets(id), joined() ? EF.cloud.me().catch(() => null) : null]).then(([b, sets, p]) => {
+    function draw() {
+      const b = data, mineHere = me && me.school && me.school.id === b.school.id, myLocal = EF.sets.list();
+      const rows = b.rows.filter((r) => tab === 'all' || r.friend || r.me);
+      el.innerHTML = `<section class="school-board">
+          <header class="sb-head">${EF.crest(b.school.name, 58)}<div><span class="sb-name">${esc(b.school.name)}${b.school.region ? ' · ' + esc(b.school.region) : ''}</span><h1>${b.school.members} classmate${b.school.members === 1 ? '' : 's'} on ExamForge</h1></div></header>
+          <div class="sb-tools">
+            <div class="pill-tabs" role="tablist" aria-label="Who"><button type="button" role="tab" data-sbtab="all" aria-selected="${tab === 'all'}">All (${b.school.members})</button><button type="button" role="tab" data-sbtab="friends" aria-selected="${tab === 'friends'}">Friends (${b.school.friends || 0})</button></div>
+            <label class="pill-select">${icon('fa-calendar')}<select data-period aria-label="Time period"><option value="week"${period === 'week' ? ' selected' : ''}>Week</option><option value="all"${period === 'all' ? ' selected' : ''}>All time</option></select></label>
+          </div>
+          <ol class="lb lb-big">${rows.length ? rows.map((r) => row(r)).join('') : `<li class="lb-empty-row">${tab === 'friends' ? 'No friends from this school yet. Add some in <a href="#/league" data-goto-friends>Leagues → Friends</a>.' : 'Nobody has joined from here yet.'}</li>`}</ol>
+          ${period === 'week' ? `<p class="muted small sb-foot">${icon('fa-clock')} This week’s board resets ${countdown(b.week_ends).replace(' left', '')} from now</p>` : ''}
+        </section>
+        <section class="home-section"><div class="section-head"><h2>${EF.img3d('books', 30)} School library</h2></div>
+          ${mineHere && myLocal.length ? `<div class="share-row"><select data-share-pick aria-label="Choose one of your sets">${myLocal.map((s) => `<option value="${esc(s.id)}">${esc(s.name)} (${s.cards.length})</option>`).join('')}</select><button type="button" class="btn btn-ink btn-sm" data-share-school>${icon('fa-share-nodes')} Share with ${esc(b.school.name)}</button></div>` : mineHere ? `<p class="muted small">${icon('fa-lightbulb')} <a href="#/make">Make a set</a> and share it here so everyone at your school can study it.</p>` : ''}
+          ${sets.length ? `<div class="deck-grid">${sets.map((s) => `<a class="deck-tile tint" href="#/shared/${esc(s.id)}" style="--c:${esc(s.color)}"><span class="deck-band"><span class="deck-3d">${EF.img3d('cards', 56)}</span></span><span class="deck-body"><strong>${esc(s.name)}</strong><small>${s.card_count} cards · by ${esc(s.author || 'someone')}</small></span>${s.saves ? `<span class="deck-prog"><span class="xp-pill">${icon('fa-bookmark')} ${s.saves}</span></span>` : ''}</a>`).join('')}</div>` : `<p class="muted lb-empty">No shared sets yet.${mineHere ? ' Be the first!' : ''}</p>`}
+        </section>`;
+    }
+    const load = () => Promise.all([EF.cloud.schoolBoard(id, period), EF.cloud.schoolSets(id), joined() ? EF.cloud.me().catch(() => null) : null]).then(([b, s, m]) => {
       if (!alive) return;
       if (!b) { el.innerHTML = `<div class="cloud-msg">${icon('fa-school')} School not found.</div>`; return; }
-      const mineHere = p && p.school && p.school.id === b.school.id;
-      const myLocal = EF.sets.list();
-      el.innerHTML = `<header class="page-head page-head-sm school-head"><span class="quiz-page-ic school-ic-lg">${icon('fa-school')}</span><div><span class="eyebrow">${esc([b.school.region, (EF.cloud.COUNTRIES.find((c) => c[0] === b.school.country) || [])[1]].filter(Boolean).join(' · '))}</span><h1>${esc(b.school.name)}</h1><p class="muted">${b.school.members} student${b.school.members === 1 ? '' : 's'} · ${(+b.school.xp_week).toLocaleString()} XP this week · ${countdown(b.week_ends)}</p></div></header>
-        <section class="home-section"><div class="section-head"><h2>${icon('fa-book-bookmark')} School library</h2></div>
-          ${mineHere && myLocal.length ? `<div class="share-row"><select data-share-pick aria-label="Choose one of your sets">${myLocal.map((s) => `<option value="${esc(s.id)}">${esc(s.name)} (${s.cards.length})</option>`).join('')}</select><button type="button" class="btn btn-c btn-sm" data-share-school>${icon('fa-share-nodes')} Share with ${esc(b.school.name)}</button></div>` : mineHere ? `<p class="muted small">${icon('fa-lightbulb')} <a href="#/make">Make a set</a> and share it here so everyone at your school can study it.</p>` : ''}
-          ${sets.length ? `<div class="grid cols-3">${sets.map((s) => `<a class="subject-card tint lib-card" href="#/shared/${esc(s.id)}" style="--c:${esc(s.color)}"><div class="subject-card-top"><span class="subject-emoji">${EF.subjectIcon('study')}</span>${s.saves ? `<span class="due-badge">${icon('fa-bookmark')} ${s.saves}</span>` : ''}</div><h3>${esc(s.name)}</h3><p>${s.card_count} cards · by ${esc(s.author || 'someone')}</p></a>`).join('')}</div>` : `<p class="muted lb-empty">No shared sets yet.${mineHere ? ' Be the first!' : ''}</p>`}
-        </section>
-        <section class="home-section"><div class="section-head"><h2>${icon('fa-ranking-star')} This week’s top students</h2></div><ol class="lb">${b.rows.map((x) => row(x)).join('')}</ol></section>`;
+      data = b; sets = s; me = m; draw();
     }).catch((e) => { if (alive) el.innerHTML = errBox(e); });
-    reload();
     const onClick = async (e) => {
+      const t = e.target.closest('[data-sbtab]');
+      if (t) { tab = t.dataset.sbtab; draw(); return; }
       if (!e.target.closest('[data-share-school]')) return;
       const sel = el.querySelector('[data-share-pick]');
-      try { const r = await EF.cloud.publish(sel.value); EF.toast(r.updated ? 'Updated in your school library' : 'Shared with your school!', 'fa-share-nodes'); EF.haptic('success'); EF.store.addXP(10); reload(); }
+      try { const r = await EF.cloud.publish(sel.value); EF.toast(r.updated ? 'Updated in your school library' : 'Shared with your school!', 'fa-share-nodes'); EF.haptic('success'); if (!r.updated) EF.store.addXP(10); load(); }
+      catch (er) { EF.toast(er.message, 'fa-circle-exclamation'); }
+    };
+    const onChange = (e) => { if (e.target.closest('[data-period]')) { period = e.target.value; el.querySelector('.lb').classList.add('is-loading'); load(); } };
+    el.addEventListener('click', onClick); el.addEventListener('change', onChange);
+    load();
+    return () => { alive = false; el.removeEventListener('click', onClick); el.removeEventListener('change', onChange); };
+  };
+
+  /* ---------------- profiles: #/me (yours) and #/u/:name (anyone's) ---------------- */
+  const joinPitch = (title) => `<section class="social-card">${EF.mascot('wave', 120)}<div><h2>${title || 'Race your school'}</h2><p class="muted">Join with a nickname and your school. Everything you study earns XP, and every Monday the top players move up a league.</p><div class="btn-row"><a class="btn btn-ink" href="#/join">${EF.img3d('trophy', 22)} Join the league</a><a class="btn" href="#/join/code">${icon('fa-key')} I have a code</a></div></div></section>`;
+  const profileHead = (p, actions) => `<section class="profile-head">
+      <div class="profile-ava">${EF.avatar(p.avatar, p.username, 116)}${p.league ? `<span class="profile-league">${badge(p.league)}</span>` : ''}</div>
+      <div class="profile-info">
+        <h1>${esc(p.username)}</h1>
+        <p class="profile-sub">${p.school ? `<a href="#/school/${p.school.id}">${EF.crest(p.school.name, 22)} ${esc(p.school.name)}</a>` : 'No school yet'}${p.grade ? ` · Grade ${esc(p.grade)}` : ''}</p>
+        <p class="profile-follow"><strong>${p.followers || 0}</strong> follower${p.followers === 1 ? '' : 's'} · <strong>${p.following || 0}</strong> following</p>
+        <div class="btn-row">${actions}</div>
+      </div>
+    </section>`;
+  const statTiles = (list) => `<div class="stat-tiles">${list.map(([img, v, l]) => `<div class="stat-tile">${EF.img3d(img, 44)}<b>${v}</b><small>${l}</small></div>`).join('')}</div>`;
+
+  EF.mountMe = (el) => {
+    if (!enabled) { el.innerHTML = offBox(); return () => {}; }
+    if (!joined()) { el.innerHTML = joinPitch('Make your profile'); return () => {}; }
+    let alive = true, tab = ls.get('ef2:meTab') || 'overview', p = null;
+    el.innerHTML = loadingRows(4);
+    function body() {
+      const [lname] = EF.cloud.league(p.league), st = EF.store.state();
+      if (tab === 'stats') return statTiles([['star', fmtXP(p.xp_total), 'XP all time'], ['bolt', fmtXP(p.xp_week), 'XP this week'], ['fire', EF.store.streak(), 'day streak'], ['trophy', lname, 'league'], ['gem', EF.subjects.reduce((n, s) => n + EF.store.mastered(s.id), 0), 'cards mastered'], ['target', st.answered, 'questions answered']]);
+      if (tab === 'sets') {
+        const mine = EF.sets.list();
+        return mine.length ? `<div class="deck-grid">${mine.map((x) => `<a class="deck-tile tint" href="#/set/${esc(x.id)}" style="--c:${esc(x.color)}"><span class="deck-band"><span class="deck-3d">${EF.img3d('cards', 56)}</span></span><span class="deck-body"><strong>${esc(x.name)}</strong><small>${x.cards.length} cards${EF.cloud.published(x.id) ? ' · shared with school' : ''}</small></span></a>`).join('')}</div>`
+          : `<div class="cloud-msg">${EF.img3d('memo', 28)} No sets yet. <a href="#/make">Make one from your notes</a>.</div>`;
+      }
+      return `<div class="lb-links">
+          <a class="lb-link" href="#/league" data-goto-friends>${EF.img3d('heart', 40)}<span><strong>My friends</strong><small>${p.friends_rank ? '#' + p.friends_rank + ' position' : 'Add friends to race them'}</small></span>${icon('fa-chevron-right')}</a>
+          ${p.school ? `<a class="lb-link" href="#/school/${p.school.id}">${EF.crest(p.school.name, 40)}<span><strong>${esc(p.school.name)}</strong><small>#${p.school_rank || '–'} position this week</small></span>${icon('fa-chevron-right')}</a>` : ''}
+          <a class="lb-link" href="#/league">${badge(p.league)}<span><strong>${lname} League</strong><small>${countdown(p.week_ends)} · ${fmtXP(p.xp_week)} XP this week</small></span>${icon('fa-chevron-right')}</a>
+        </div>`;
+    }
+    function draw() {
+      el.innerHTML = profileHead(p, `<a class="btn btn-ink" href="#/league" data-goto-friends>${icon('fa-user-plus')} Find friends</a><a class="icon-btn" href="#/account" aria-label="Edit profile">${icon('fa-pen')}</a><button type="button" class="icon-btn" data-share-profile="${esc(p.username)}" aria-label="Share your profile">${icon('fa-arrow-up-from-bracket')}</button>`)
+        + `<div class="pill-tabs profile-tabs" role="tablist">${[['overview', 'Leaderboards'], ['stats', 'Stats'], ['sets', 'Sets']].map(([k, l]) => `<button type="button" role="tab" data-ptab="${k}" aria-selected="${tab === k}">${l}</button>`).join('')}</div>
+        <div class="profile-body">${body()}</div>`;
+    }
+    EF.cloud.me(true).then((r) => { if (!alive) return; if (!r) { el.innerHTML = joinPitch('Make your profile'); return; } p = r; draw(); }).catch((e) => { if (alive) el.innerHTML = errBox(e); });
+    const onClick = (e) => { const t = e.target.closest('[data-ptab]'); if (t) { tab = t.dataset.ptab; ls.set('ef2:meTab', tab); draw(); } };
+    el.addEventListener('click', onClick);
+    return () => { alive = false; el.removeEventListener('click', onClick); };
+  };
+
+  EF.mountUser = (el, name) => {
+    if (!enabled) { el.innerHTML = offBox(); return () => {}; }
+    let alive = true, p = null;
+    el.innerHTML = loadingRows(3);
+    function draw() {
+      const act = p.me ? `<a class="btn btn-ink" href="#/me">${icon('fa-user')} This is you</a>`
+        : joined() ? `<button type="button" class="btn ${p.i_follow ? '' : 'btn-ink'}" data-follow>${icon(p.i_follow ? 'fa-user-check' : 'fa-user-plus')} ${p.i_follow ? 'Following' : 'Follow'}</button>`
+          : `<a class="btn btn-ink" href="#/join">${icon('fa-user-plus')} Join to follow</a>`;
+      const [lname] = EF.cloud.league(p.league);
+      el.innerHTML = profileHead(p, act) + statTiles([['star', fmtXP(p.xp_total), 'XP all time'], ['bolt', fmtXP(p.xp_week), 'XP this week'], ['trophy', lname, 'league'], ['medal', p.school_rank ? '#' + p.school_rank : '–', 'at school']]);
+    }
+    EF.cloud.profile(name).then((r) => {
+      if (!alive) return;
+      if (!r) { el.innerHTML = `<div class="empty-state">${EF.mascot('think', 120)}<h2>Nobody called “${esc(name)}”</h2><p class="muted">Check the spelling, or they may have changed their name.</p></div>`; return; }
+      p = r; draw();
+    }).catch((e) => { if (alive) el.innerHTML = errBox(e); });
+    const onClick = async (e) => {
+      if (!e.target.closest('[data-follow]') || !p) return;
+      try { if (p.i_follow) await EF.cloud.unfollow(p.username); else await EF.cloud.follow(p.username); p.i_follow = !p.i_follow; p.followers += p.i_follow ? 1 : -1; EF.haptic('success'); draw(); }
       catch (er) { EF.toast(er.message, 'fa-circle-exclamation'); }
     };
     el.addEventListener('click', onClick);
     return () => { alive = false; el.removeEventListener('click', onClick); };
   };
+
+  /* top-right: your avatar (or a Join button) */
+  EF.paintTopMe = () => {
+    document.querySelectorAll('[data-top-me]').forEach((a) => {
+      if (!enabled) { a.hidden = true; return; }
+      a.hidden = false;
+      if (joined()) { a.href = '#/me'; a.className = 'top-me'; a.innerHTML = EF.avatar(me && me.avatar, me ? me.username : 'me', 38); a.setAttribute('aria-label', 'Your profile' + (me ? ': ' + me.username : '')); }
+      else { a.href = '#/join'; a.className = 'top-me top-join'; a.innerHTML = `${EF.img3d('trophy', 22)}<span>Join</span>`; a.setAttribute('aria-label', 'Join the league'); }
+    });
+  };
+  EF.on('cloud', () => EF.paintTopMe());
+
+  /* home: "Challenge friends" (or an invitation to join) */
+  EF.paintHomeSocial = async (el) => {
+    if (!el) return;
+    if (!enabled) { el.remove(); return; }
+    if (!joined()) { el.innerHTML = joinPitch(); return; }
+    const head = `<div class="section-head"><h2>Challenge friends</h2><a class="link" href="#/league">Leagues ${icon('fa-arrow-right')}</a></div>`;
+    el.innerHTML = head + loadingRows(1);
+    try {
+      const [fr, lb] = await Promise.all([EF.cloud.friendsBoard(), EF.cloud.leagueBoard()]);
+      if (!el.isConnected || !lb) return;
+      const friends = fr.rows.filter((r) => !r.me).slice(0, 3), [lname, lcol] = EF.cloud.league(lb.league);
+      el.innerHTML = head + `<div class="challenge-row">
+          <a class="challenge-card is-league" href="#/league" style="--lc:${lcol}"><span class="ch-tag">This week</span>${badge(lb.league, 'lg')}<strong>${lname} League</strong><small>#${lb.my_rank || '–'} of ${lb.total} · ${countdown(lb.week_ends)}</small></a>
+          ${friends.map((f) => `<a class="challenge-card" href="#/u/${encodeURIComponent(f.username)}"><span class="ch-tag is-purple">Challenger</span>${EF.avatar(f.avatar, f.username, 58)}<strong>${esc(f.username)}</strong><small>${fmtXP(f.xp)} XP this week</small></a>`).join('')}
+          ${friends.length < 3 ? `<a class="challenge-card is-add" href="#/league" data-goto-friends>${EF.img3d('people', 52)}<strong>Add friends</strong><small>Race them every week</small></a>` : ''}
+        </div>`;
+    } catch (e) { el.innerHTML = ''; }
+  };
+  document.addEventListener('click', (e) => {
+    if (e.target.closest && e.target.closest('[data-goto-friends]')) ls.set('ef2:leagueTab', 'friends');
+    const sp = e.target.closest && e.target.closest('[data-share-profile]');
+    if (sp) {
+      const url = location.href.split('#')[0] + '#/u/' + encodeURIComponent(sp.dataset.shareProfile);
+      if (navigator.share) navigator.share({ title: 'ExamForge', text: 'Follow me on ExamForge', url }).catch(() => {});
+      else if (navigator.clipboard) navigator.clipboard.writeText(url).then(() => EF.toast('Profile link copied', 'fa-link')).catch(() => {});
+    }
+  });
 
   /* ---------------- #/shared/:id: a set from a school library ---------------- */
   EF.mountShared = (el, id) => {

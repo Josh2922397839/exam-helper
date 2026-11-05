@@ -206,7 +206,7 @@
       const pct = tries ? Math.round((correct / tries) * 100) : 0;
       if (!out && total) { EF.store.addXP(10); if (pct >= 80) EF.confetti(); }
       el.innerHTML = `<div class="learn-card learn-done is-in">
-        <span class="learn-done-ic${out ? ' is-out' : ''}">${icon(out ? 'fa-heart-crack' : 'fa-trophy')}</span>
+        ${EF.mascot ? EF.mascot(out ? 'sad' : 'cheer', 120) : `<span class="learn-done-ic${out ? ' is-out' : ''}">${icon(out ? 'fa-heart-crack' : 'fa-trophy')}</span>`}
         <h2>${out ? 'Out of lives!' : 'Round complete!'}</h2>
         <p class="muted">${out ? 'No stress: the cards you missed come first next time.' : `You learned ${done} card${done === 1 ? '' : 's'}.`}</p>
         <div class="learn-stats"><span><strong>${done}/${total}</strong>learned</span><span><strong>${pct}%</strong>accuracy</span><span><strong>${best}</strong>best streak</span></div>
@@ -273,7 +273,7 @@
       EF.store.addXP(15); EF.haptic('success');
       if (record) EF.confetti();
       setTimeout(() => {
-        el.querySelector('.match-grid').outerHTML = `<div class="learn-card learn-done is-in"><span class="learn-done-ic">${icon(record ? 'fa-trophy' : 'fa-flag-checkered')}</span><h2>${fmt(ms)}</h2><p class="muted">${record ? 'New personal best!' : `Your best is ${fmt(EF.store.bestMatch(sid))}.`}${penalty ? ` Includes ${penalty / 1000}s penalty for wrong pairs.` : ''}</p><div class="btn-row center"><button type="button" class="btn btn-c" data-mrestart>${icon('fa-rotate-right')} Play again</button><a class="btn" href="#/set/${esc(sid)}">${icon('fa-layer-group')} Other modes</a></div></div>`;
+        el.querySelector('.match-grid').outerHTML = `<div class="learn-card learn-done is-in">${EF.mascot ? EF.mascot(record ? 'cheer' : 'wave', 120) : `<span class="learn-done-ic">${icon(record ? 'fa-trophy' : 'fa-flag-checkered')}</span>`}<h2>${fmt(ms)}</h2><p class="muted">${record ? 'New personal best!' : `Your best is ${fmt(EF.store.bestMatch(sid))}.`}${penalty ? ` Includes ${penalty / 1000}s penalty for wrong pairs.` : ''}</p><div class="btn-row center"><button type="button" class="btn btn-c" data-mrestart>${icon('fa-rotate-right')} Play again</button><a class="btn" href="#/set/${esc(sid)}">${icon('fa-layer-group')} Other modes</a></div></div>`;
       }, 450);
     }
     const onClick = (e) => {
@@ -348,7 +348,7 @@
       if (!alive) return;
       set = s;
       el.innerHTML = `<div class="learn-card import-card is-in tint" style="--c:${set.color}">
-        <span class="learn-done-ic">${icon('fa-gift')}</span>
+        <span class="learn-done-ic">${EF.img3d ? EF.img3d('gift', 40) : icon('fa-gift')}</span>
         <h2>${esc(set.name)}</h2>
         <p class="muted">A friend shared ${set.cards.length} cards with you.</p>
         <ol class="make-cards">${set.cards.slice(0, 5).map((c) => `<li><strong>${esc(c[0])}</strong><span>${esc(c[1])}</span></li>`).join('')}${set.cards.length > 5 ? `<li class="muted">+ ${set.cards.length - 5} more</li>` : ''}</ol>

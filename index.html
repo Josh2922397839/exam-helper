@@ -1,11 +1,11 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en" data-theme="light">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>ExamForge — Grade 9 & 10 Exam Prep</title>
 <meta name="description" content="ExamForge: free Grade 9 and Grade 10 exam prep. Study guides, Learn mode, Match, spaced-repetition flashcards, quizzes that explain every answer, interactive tools, and study sets you can make and share with friends.">
-<meta name="theme-color" content="#0c0d11">
+<meta name="theme-color" content="#f5f6fa">
 <meta property="og:title" content="ExamForge — Grade 9 & 10 Exam Prep">
 <meta property="og:description" content="3D models, smart flashcards and practice quizzes for 7 subjects. Master every subject. Crush every exam.">
 <meta property="og:type" content="website">
@@ -15,7 +15,7 @@
   (function () {
     var t = null;
     try { t = localStorage.getItem('ef2:theme'); if (!t && localStorage.getItem('ef-dark') === 'false') t = 'light'; } catch (e) {}
-    if (!t) t = window.matchMedia && matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+    if (!t) t = 'light'; // light by default; the moon button switches to dark and remembers it
     document.documentElement.setAttribute('data-theme', t);
   })();
 </script>
@@ -25,34 +25,36 @@
 <meta name="apple-mobile-web-app-title" content="ExamForge">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;600;700;800;900&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <link rel="stylesheet" href="assets/css/app.css">
+<link rel="stylesheet" href="assets/css/skin.css">
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
 
-<header class="topbar">
-  <button type="button" class="icon-btn menu-btn" aria-label="Open menu" aria-expanded="false" aria-controls="sidebar"><i class="fa-solid fa-bars" aria-hidden="true"></i></button>
-  <a class="brand" href="#/" aria-label="ExamForge home">
-    <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18"><path d="M13.5 2 5 13.5h5.5L9 22l9.5-12.5H13z" fill="currentColor"/></svg></span>
-    <span class="brand-name">Exam<b>Forge</b></span>
-  </a>
-  <div class="top-title" aria-hidden="true"><strong></strong><small></small></div>
-  <button type="button" class="search-trigger" data-search-open aria-label="Search all subjects">
-    <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><span>Search notes, terms, people…</span><kbd>/</kbd>
-  </button>
-  <div class="top-actions">
-    <button type="button" class="icon-btn search-mobile" data-search-open aria-label="Search"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i></button>
-    <a class="streak-chip" href="#/progress" aria-label="Study streak"></a>
-    <button type="button" class="icon-btn" data-theme-toggle aria-label="Toggle theme"></button>
-  </div>
-  <div class="read-bar" aria-hidden="true"><span></span></div>
-</header>
 
 <div class="shell">
   <aside class="sidebar" id="sidebar" aria-label="Main navigation"></aside>
   <div class="content">
+  <header class="topbar">
+    <button type="button" class="icon-btn menu-btn" aria-label="Open menu" aria-expanded="false" aria-controls="sidebar"><i class="fa-solid fa-bars" aria-hidden="true"></i></button>
+    <a class="brand" href="#/" aria-label="ExamForge home">
+      <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18"><path d="M13.5 2 5 13.5h5.5L9 22l9.5-12.5H13z" fill="currentColor"/></svg></span>
+      <span class="brand-name">Exam<b>Forge</b></span>
+    </a>
+    <div class="top-title" aria-hidden="true"><strong></strong><small></small></div>
+    <button type="button" class="search-trigger" data-search-open aria-label="Search all subjects">
+      <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><span>Search notes, terms, people…</span><kbd>/</kbd>
+    </button>
+    <div class="top-actions">
+      <button type="button" class="icon-btn search-mobile" data-search-open aria-label="Search"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i></button>
+      <a class="streak-chip" href="#/progress" aria-label="Study streak"></a>
+      <button type="button" class="icon-btn" data-theme-toggle aria-label="Toggle theme"></button>
+      <a class="top-me" href="#/me" aria-label="Your profile" data-top-me></a>
+    </div>
+    <div class="read-bar" aria-hidden="true"><span></span></div>
+  </header>
     <main id="main" tabindex="-1">
       <noscript><div class="page narrow"><h1>ExamForge needs JavaScript</h1><p>Turn on JavaScript to use the study tools, quizzes and 3D models.</p></div></noscript>
     </main>
@@ -66,11 +68,11 @@
 <div class="scrim" aria-hidden="true"></div>
 
 <nav class="tabbar" aria-label="Quick navigation">
-  <a href="#/" data-tab="home"><i class="fa-solid fa-house" aria-hidden="true"></i><span>Home</span></a>
-  <button type="button" data-tab="s" data-open-subjects><i class="fa-solid fa-book-open" aria-hidden="true"></i><span>Subjects</span></button>
-  <a href="#/quiz" data-tab="quiz"><i class="fa-solid fa-bolt" aria-hidden="true"></i><span>Quiz</span></a>
-  <a href="#/cards" data-tab="cards"><i class="fa-solid fa-clone" aria-hidden="true"></i><span>Cards</span></a>
-  <a href="#/league" data-tab="league"><i class="fa-solid fa-trophy" aria-hidden="true"></i><span>League</span></a>
+  <a href="#/" data-tab="home"><img class="i3d" src="assets/img/3d/home.webp" width="26" height="26" alt="" aria-hidden="true"><span>Home</span></a>
+  <button type="button" data-tab="s" data-open-subjects><img class="i3d" src="assets/img/3d/books.webp" width="26" height="26" alt="" aria-hidden="true"><span>Subjects</span></button>
+  <a href="#/quiz" data-tab="quiz"><img class="i3d" src="assets/img/3d/bolt.webp" width="26" height="26" alt="" aria-hidden="true"><span>Quiz</span></a>
+  <a href="#/cards" data-tab="cards"><img class="i3d" src="assets/img/3d/cards.webp" width="26" height="26" alt="" aria-hidden="true"><span>Sets</span></a>
+  <a href="#/league" data-tab="league"><img class="i3d" src="assets/img/3d/trophy.webp" width="26" height="26" alt="" aria-hidden="true"><span>League</span></a>
 </nav>
 
 <dialog id="keys" class="keys" aria-labelledby="keys-title">
@@ -119,6 +121,7 @@
 <script src="assets/js/content/g10-pob.js"></script>
 <!-- Engine -->
 <script src="assets/js/core/ui.js"></script>
+<script src="assets/js/core/look.js"></script>
 <script src="assets/js/core/blocks.js"></script>
 <script src="assets/js/core/three-scenes.js"></script>
 <script src="assets/js/core/skeleton.js"></script>

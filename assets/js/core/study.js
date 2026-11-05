@@ -96,6 +96,7 @@
       const msg = pct === 100 ? 'Perfect score. You’re cooking! 🔥' : pct >= 80 ? 'Great work — exam ready.' : pct >= 50 ? 'Solid start. Review the misses below.' : 'Keep going — every attempt makes it stick.';
       el.innerHTML = `
         <div class="quiz-done">
+          ${EF.mascot ? `<span class="quiz-done-emby">${EF.mascot(pct >= 80 ? 'cheer' : pct >= 50 ? 'read' : 'sad', 110)}</span>` : ''}
           ${EF.ring(pct, 120, 10)}
           <div>
             <h3>${esc(msg)}</h3>

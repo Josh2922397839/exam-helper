@@ -250,7 +250,7 @@
 
   /* ---------- theme ---------- */
   EF.theme = {
-    get: () => document.documentElement.getAttribute('data-theme') || 'dark',
+    get: () => document.documentElement.getAttribute('data-theme') || 'light',
     set(t) {
       document.documentElement.setAttribute('data-theme', t);
       ls.set('ef2:theme', t);
