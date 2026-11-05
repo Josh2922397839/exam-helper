@@ -40,6 +40,7 @@ EF.subjects = EF.subjects || [];
     id: 'pe',
     name: 'Physical Education',
     short: 'PE',
+    grade: 9,
     icon: 'fa-person-running',
     emoji: '🏃',
     color: '#f0506e',

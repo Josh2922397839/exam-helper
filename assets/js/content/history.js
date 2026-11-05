@@ -6,6 +6,7 @@ EF.subjects.push({
   id: 'history',
   name: 'History',
   short: 'History',
+  grade: 9,
   icon: 'fa-landmark',
   emoji: '🏛️',
   color: '#9b6bff',

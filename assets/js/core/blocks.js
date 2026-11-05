@@ -169,6 +169,27 @@
         </div>`).join('')}</div>`;
     },
 
+    /* ExploreLearning Gizmo write-up: question, variables, steps, data, conclusion, vocab, self-test questions */
+    gizmo: (b, s) => {
+      const V = [['independent', 'You change', 'fa-sliders'], ['dependent', 'You measure', 'fa-ruler-combined'], ['controlled', 'Kept the same', 'fa-lock']];
+      return `<article class="gizmo">
+        <header class="gizmo-head">
+          <span class="gizmo-ic">${icon('fa-flask-vial')}</span>
+          <div class="gizmo-title"><span class="gizmo-badge">Gizmo lab</span><h3>${esc(b.name)}</h3>${b.topic ? `<p>${esc(b.topic)}</p>` : ''}</div>
+          ${b.url ? `<a class="btn btn-sm" href="${esc(b.url)}" target="_blank" rel="noopener">${icon('fa-arrow-up-right-from-square')} Open Gizmo</a>` : ''}
+        </header>
+        ${b.goal ? `<div class="gizmo-goal"><span>${icon('fa-circle-question')} Question</span><p>${b.goal}</p></div>` : ''}
+        ${b.variables ? `<div class="vars">${V.filter((v) => b.variables[v[0]]).map((v) => `<div class="var var-${v[0]}"><span class="var-k">${icon(v[2])} ${v[1]}</span><strong>${b.variables[v[0]]}</strong><small>${v[0]} variable</small></div>`).join('')}</div>` : ''}
+        ${b.steps ? `<div class="gizmo-sec"><h4>What you do</h4><ol class="gizmo-steps">${b.steps.map((x) => `<li>${x}</li>`).join('')}</ol></div>` : ''}
+        ${b.data ? `<div class="gizmo-sec">${R.table({ title: b.data.title || 'Data & results', head: b.data.head, rows: b.data.rows, align: b.data.align })}</div>` : ''}
+        ${b.conclusion ? `<div class="gizmo-conc"><span>${icon('fa-lightbulb')} What it shows</span><p>${b.conclusion}</p></div>` : ''}
+        ${b.vocab ? `<div class="gizmo-sec">${R.terms({ title: 'Vocabulary', items: b.vocab }, s)}</div>` : ''}
+        ${b.questions ? `<div class="gizmo-sec"><h4>Test yourself</h4><div class="gizmo-qs">${b.questions.map((q, i) => `
+          <details class="gq"><summary><span class="gq-n">${i + 1}</span><span class="gq-q">${q.q}</span><span class="gq-show">Show answer ${icon('fa-chevron-down')}</span></summary>
+          <div class="gq-a"><strong>${q.a}</strong>${q.why ? `<p>${q.why}</p>` : ''}</div></details>`).join('')}</div></div>` : ''}
+      </article>`;
+    },
+
     widget: (b, s) => `<div class="widget" data-widget="${esc(b.name)}" data-subject="${esc(s.id)}"><div class="widget-loading">${icon('fa-spinner', 'fa-spin')} Loading…</div></div>`
   };
 
@@ -183,7 +204,12 @@
   EF.blockText = (b) => {
     const parts = [];
     const add = (x) => { if (x) parts.push(EF.strip(x)); };
-    ['html', 'text', 'title', 'sub', 'more'].forEach((k) => add(b[k]));
+    ['html', 'text', 'title', 'sub', 'more', 'name', 'topic', 'goal', 'conclusion'].forEach((k) => add(b[k]));
+    if (b.variables) Object.keys(b.variables).forEach((k) => add(k + ' variable: ' + b.variables[k]));
+    (b.steps || []).forEach(add);
+    (b.vocab || []).forEach((v) => add(v.join(' ')));
+    (b.questions || []).forEach((q) => add(q.q + ' ' + q.a));
+    if (b.data && b.data.rows) b.data.rows.forEach((r) => add(r.join(' ')));
     (b.items || []).forEach((it) => {
       if (Array.isArray(it)) it.forEach((x) => typeof x === 'string' && add(x));
       else if (it && typeof it === 'object') {

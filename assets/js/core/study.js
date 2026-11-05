@@ -8,7 +8,8 @@
 
   /* ================= QUIZ ================= */
   EF.quizMeta = (id) => {
-    if (id === 'exam') return { id, title: 'Exam Mode', sub: '20 mixed questions from every subject', color: '#ff6a2b', icon: 'fa-fire-flame-curved' };
+    const ex = /^exam(\d*)$/.exec(id);
+    if (ex) return { id, title: ex[1] ? `Grade ${ex[1]} Exam Mode` : 'Exam Mode', sub: `20 mixed questions from every${ex[1] ? ' Grade ' + ex[1] : ''} subject`, color: '#ff6a2b', icon: 'fa-fire-flame-curved' };
     if (id === 'mistakes') return { id, title: 'Fix My Mistakes', sub: 'Questions you got wrong before', color: '#f0506e', icon: 'fa-bandage' };
     const s = EF.subject(id);
     return s ? { id, title: s.name + ' Quiz', sub: s.quiz.length + ' questions', color: s.color, icon: s.icon } : null;
@@ -18,7 +19,8 @@
     const all = [];
     EF.subjects.forEach((s) => s.quiz.forEach((q, i) => all.push(Object.assign({ key: s.id + ':' + i, sid: s.id }, q))));
     let list;
-    if (id === 'exam') list = EF.shuffle(all).slice(0, 20);
+    const ex = /^exam(\d*)$/.exec(id);
+    if (ex) list = EF.shuffle(ex[1] ? all.filter((q) => EF.gradeOf(EF.subject(q.sid)) === +ex[1]) : all).slice(0, 20);
     else if (id === 'mistakes') { const m = EF.store.state().mistakes; list = EF.shuffle(all.filter((q) => m.includes(q.key))); }
     else list = EF.shuffle(all.filter((q) => q.sid === id));
     // Shuffle answer order too, remembering where the right one went
@@ -59,17 +61,17 @@
       }
       if (phase === 'done') return results();
       const q = qs[i];
-      const subj = id === 'exam' || id === 'mistakes' ? EF.subject(q.sid) : null;
+      const subj = /^exam/.test(id) || id === 'mistakes' ? EF.subject(q.sid) : null;
       el.innerHTML = `
         <div class="quiz-top">
           <span class="quiz-count">Question <strong>${i + 1}</strong> of ${qs.length}</span>
           ${subj ? `<span class="pill tint" style="--c:${subj.color}">${EF.subjectIcon(subj.id)} ${esc(subj.short)}</span>` : ''}
-          <span class="quiz-score">${icon('fa-check')} ${right}</span>
+          <span class="quiz-score${picked != null && picked === q.answer ? ' bump' : ''}">${icon('fa-check')} ${right}</span>
         </div>
         <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="${qs.length}" aria-valuenow="${i}"><span style="width:${barFrom}%"></span></div>
         <h3 class="quiz-q" id="qq-${esc(id)}">${q.q}</h3>
         <div class="quiz-opts" role="group" aria-labelledby="qq-${esc(id)}">
-          ${q.options.map((o, oi) => `<button type="button" class="opt${picked == null ? '' : oi === q.answer ? ' is-right' : oi === picked ? ' is-wrong' : ' is-dim'}" data-opt="${oi}" ${picked == null ? '' : 'disabled'}><span class="opt-key">${'ABCD'[oi]}</span><span>${o}</span>${picked != null && oi === q.answer ? icon('fa-circle-check', 'opt-mark') : picked === oi ? icon('fa-circle-xmark', 'opt-mark') : ''}</button>`).join('')}
+          ${q.options.map((o, oi) => `<button type="button" class="opt${picked == null ? '' : oi === q.answer ? ' is-right' : oi === picked ? ' is-wrong' : ' is-dim'}${picked === oi ? ' is-picked' : ''}" data-opt="${oi}" ${picked == null ? '' : 'disabled'}><span class="opt-key">${'ABCD'[oi]}</span><span>${o}</span>${picked != null && oi === q.answer ? icon('fa-circle-check', 'opt-mark') : picked === oi ? icon('fa-circle-xmark', 'opt-mark') : ''}</button>`).join('')}
         </div>
         ${picked == null ? `<p class="quiz-hint muted">Press <kbd>1</kbd>–<kbd>4</kbd> or tap an answer</p>` : `
         <div class="quiz-fb ${picked === q.answer ? 'is-right' : 'is-wrong'}" role="status">
@@ -112,6 +114,7 @@
       const ok = oi === q.answer;
       if (ok) right++; else wrong.push(Object.assign({ picked: oi }, q));
       EF.store.answer(q.key, ok);
+      EF.haptic(ok ? 'success' : 'error');
       render();
     }
     function next() {
@@ -194,12 +197,12 @@
       const b = box(c);
       el.innerHTML = header() + `
         <div class="cards-meta"><span>Card <strong>${i + 1}</strong> of ${deck.length}</span>${c.cat ? `<span class="pill">${esc(c.cat)}</span>` : ''}<span class="boxes" title="Memory level ${b} of 5" aria-label="Memory level ${b} of 5">${[1, 2, 3, 4, 5].map((n) => `<i class="${n <= b ? 'on' : ''}"></i>`).join('')}</span></div>
-        <div class="bigcard${flipped ? ' is-flipped' : ' is-new'}" role="button" tabindex="0" aria-pressed="${flipped}" data-flipcard aria-label="${flipped ? 'Answer: ' + esc(c.back) : esc(c.front) + ' — press to reveal'}">
+        <div class="deck" data-left="${Math.min(2, deck.length - i - 1)}"><div class="bigcard${flipped ? ' is-flipped' : ' is-new'}" role="button" tabindex="0" aria-pressed="${flipped}" data-flipcard aria-label="${flipped ? 'Answer: ' + esc(c.back) : esc(c.front) + ' — press to reveal'}">
           <div class="flip-inner">
             <div class="flip-face bigcard-front"><span class="bigcard-tag">Question</span><p${s.lang ? ' lang="fr"' : ''}>${esc(c.front)}</p>${s.lang ? `<button type="button" class="speak" data-speak="${esc(c.front)}" aria-label="Hear it">${icon('fa-volume-high')}</button>` : ''}<span class="flip-hint">${icon('fa-rotate')} Tap or press space</span></div>
             <div class="flip-face bigcard-back"><span class="bigcard-tag">Answer</span><p>${esc(c.back)}</p></div>
           </div>
-        </div>
+        </div></div>
         <div class="cards-actions">${actions()}</div>`;
     }
     const actions = () => flipped ? `
@@ -234,11 +237,14 @@
     const onDown = (e) => {
       const card = e.target.closest('[data-flipcard]');
       if (!card || e.target.closest('.speak') || (e.pointerType === 'mouse' && e.button !== 0)) return;
-      drag = { card, x: e.clientX, y: e.clientY, dx: 0, id: e.pointerId, moved: false };
+      drag = { card, x: e.clientX, y: e.clientY, dx: 0, id: e.pointerId, moved: false, v: 0, lx: e.clientX, lt: performance.now() };
     };
     const onMove = (e) => {
       if (!drag || e.pointerId !== drag.id) return;
       drag.dx = e.clientX - drag.x;
+      const now = performance.now();
+      drag.v = drag.v * 0.4 + ((e.clientX - drag.lx) / Math.max(1, now - drag.lt)) * 0.6;
+      drag.lx = e.clientX; drag.lt = now;
       const dy = e.clientY - drag.y;
       if (!drag.moved && Math.abs(drag.dx) > 8 && Math.abs(drag.dx) > Math.abs(dy)) { drag.moved = true; drag.card.classList.add('is-dragging'); try { drag.card.setPointerCapture(drag.id); } catch (err) { /* ignore */ } }
       if (!drag.moved) return;
@@ -252,11 +258,21 @@
       if (!d.moved) return;
       justDragged = true; setTimeout(() => { justDragged = false; }, 50);
       d.card.classList.remove('is-dragging');
-      if (flipped && Math.abs(d.dx) > 90) {
-        const ok = d.dx > 0;
-        d.card.classList.add(ok ? 'fly-right' : 'fly-left');
-        setTimeout(() => grade(ok), 220);
-      } else { d.card.style.transform = ''; d.card.dataset.swipe = ''; }
+      // far enough, or flicked fast enough → it flies off in that direction, at the speed you threw it
+      const flick = Math.abs(d.v) > 0.55 && Math.abs(d.dx) > 30 && Math.sign(d.v) === Math.sign(d.dx);
+      if (flipped && (Math.abs(d.dx) > 90 || flick)) {
+        const ok = d.dx > 0, speed = Math.max(0.9, Math.abs(d.v));
+        const ms = Math.round(Math.max(160, Math.min(320, 380 / speed)));
+        d.card.style.transition = `transform ${ms}ms cubic-bezier(.2,.6,.4,1), opacity ${ms}ms ease-in`;
+        d.card.style.transform = `translateX(${ok ? '' : '-'}${Math.round(innerWidth * 0.9)}px) rotate(${ok ? 18 : -18}deg)`;
+        d.card.style.opacity = '0';
+        EF.haptic(ok ? 'success' : 'error');
+        setTimeout(() => grade(ok), ms - 40);
+      } else {
+        d.card.style.transition = 'transform .55s var(--spring)';
+        d.card.style.transform = ''; d.card.dataset.swipe = '';
+        setTimeout(() => { d.card.style.transition = ''; }, 560);
+      }
     };
     el.addEventListener('pointerdown', onDown);
     window.addEventListener('pointermove', onMove);

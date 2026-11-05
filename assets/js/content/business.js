@@ -6,6 +6,7 @@ EF.subjects.push({
   id: 'business',
   name: 'Business Basics',
   short: 'Business',
+  grade: 9,
   icon: 'fa-briefcase',
   emoji: '💼',
   color: '#d946ef',

@@ -28,9 +28,24 @@
     biology: '<path d="M7 2.5c0 4.7 10 4.8 10 9.5S7 16.8 7 21.5M17 2.5c0 4.7-10 4.8-10 9.5s10 4.8 10 9.5"/><path d="M8.4 5.6h7.2M10.2 8.6h3.6M10.2 15.4h3.6M8.4 18.4h7.2"/>',
     pe: '<circle class="s" cx="15.4" cy="4.4" r="2.1"/><path d="M14.2 8.2 11 13.1l3.2 2.5-1.4 5.6M11 13.1l-2.5 3.5-3.9-.2M13.8 8.9l3.2 2.4 2.7-1.2M13.6 8.6l-3.8-.2-2.1 2.4"/>',
     business: '<path d="M3 20.6h18"/><path class="f" d="M5 20.6v-4.8h3.2v4.8M10.4 20.6v-7.8h3.2v7.8M15.8 20.6V9.6H19v11"/><path d="M5 20.6v-4.8h3.2v4.8M10.4 20.6v-7.8h3.2v7.8M15.8 20.6V9.6H19v11"/><path d="M3.6 11.6 9 6.4l3.2 2.8 6.6-6.4M15.6 2.8h3.2V6"/>',
-    history: '<path class="f" d="M2.8 9.2 12 3.6l9.2 5.6Z"/><path d="M2.8 9.2 12 3.6l9.2 5.6ZM4.4 11h15.2"/><path d="M6.4 11v6.4M10.1 11v6.4M13.9 11v6.4M17.6 11v6.4"/><path d="M4.4 17.8h15.2M3 20.6h18"/>'
+    history: '<path class="f" d="M2.8 9.2 12 3.6l9.2 5.6Z"/><path d="M2.8 9.2 12 3.6l9.2 5.6ZM4.4 11h15.2"/><path d="M6.4 11v6.4M10.1 11v6.4M13.9 11v6.4M17.6 11v6.4"/><path d="M4.4 17.8h15.2M3 20.6h18"/>',
+    // extra icons for new subjects (Grade 10 and beyond)
+    physics: '<path class="f" d="M13 2.5 5 13.5h6l-1 8 8-11h-6Z"/><path d="M13 2.5 5 13.5h6l-1 8 8-11h-6Z"/>',
+    science: '<path class="f" d="M10.4 3v5.6L4.8 18.4A1.8 1.8 0 0 0 6.4 21h11.2a1.8 1.8 0 0 0 1.6-2.6l-5.6-9.8V3Z"/><path d="M9.5 3h5M10.4 3v5.6L4.8 18.4A1.8 1.8 0 0 0 6.4 21h11.2a1.8 1.8 0 0 0 1.6-2.6l-5.6-9.8V3M7.4 14.4h9.2"/>',
+    math: '<path d="M4 7.6c2-1.6 4-1.6 6-1.3l9.6-.4"/><path d="M9.2 6.4 7.6 19.6M15.4 6.2c-.6 5.2-.2 10 2.4 13.2"/>',
+    english: '<path class="f" d="M20 3.5C12 4 6.6 9.6 5.6 18.4l1.2.8C9 16 12.6 13 20 3.5Z"/><path d="M20 3.5C12 4 6.6 9.6 5.6 18.4M4 20.5l2.6-2.6M10 13.6l3.2.2"/>',
+    geography: '<circle class="f" cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.6 2.6 3.8 5.6 3.8 9s-1.2 6.4-3.8 9c-2.6-2.6-3.8-5.6-3.8-9S9.4 5.6 12 3Z"/>',
+    it: '<rect class="f" x="4.5" y="5" width="15" height="10.5" rx="1.5"/><rect x="4.5" y="5" width="15" height="10.5" rx="1.5"/><path d="M2.5 19h19M9.6 8.8l-2 1.6 2 1.6M14.4 8.8l2 1.6-2 1.6"/>',
+    art: '<path class="f" d="M12 3a9 9 0 1 0 0 18c1.4 0 1.8-1 1.4-2-.5-1.2.1-2.4 1.6-2.4H17a4 4 0 0 0 4-4C21 7 17 3 12 3Z"/><path d="M12 3a9 9 0 1 0 0 18c1.4 0 1.8-1 1.4-2-.5-1.2.1-2.4 1.6-2.4H17a4 4 0 0 0 4-4C21 7 17 3 12 3Z"/><circle class="s" cx="7.6" cy="11" r="1.2"/><circle class="s" cx="10.4" cy="7.2" r="1.2"/><circle class="s" cx="15" cy="7.6" r="1.2"/>',
+    study: '<path class="f" d="M2.5 9 12 4.5 21.5 9 12 13.5Z"/><path d="M2.5 9 12 4.5 21.5 9 12 13.5ZM6.5 11v4.6c3.3 2.4 7.7 2.4 11 0V11M21.5 9v5.5"/>'
   };
-  EF.subjectIcon = (id, cls) => `<svg class="sicon${cls ? ' ' + cls : ''}" viewBox="0 0 24 24" aria-hidden="true" focusable="false">${SUBJECT_ICONS[id] || SUBJECT_ICONS.history}</svg>`;
+  // a subject can pick an icon with `iconKey`; "chemistry-g10" falls back to the chemistry icon
+  const iconKey = (id) => {
+    const s = EF.subject(id);
+    const base = String(id).replace(/[-_](g|grade)?\d+$/i, '');
+    return [s && s.iconKey, id, base].find((k) => k && SUBJECT_ICONS[k]) || 'study';
+  };
+  EF.subjectIcon = (id, cls) => `<svg class="sicon${cls ? ' ' + cls : ''}" viewBox="0 0 24 24" aria-hidden="true" focusable="false">${SUBJECT_ICONS[iconKey(id)]}</svg>`;
 
   /* Progress ring as inline SVG (pct 0–100) */
   EF.ring = (pct, size = 56, stroke = 6, label) => {
@@ -161,6 +176,16 @@
   };
   EF.store = store;
   EF.dayKey = dayKey;
+
+  /* ---------- grades (Grade 9, Grade 10 …) ----------
+     Each subject has `grade`. The grade switch only appears once there's more than one grade. */
+  EF.gradeOf = (s) => s.grade || 9;
+  EF.grades = () => Array.from(new Set(EF.subjects.map(EF.gradeOf))).sort((a, b) => b - a); // newest first
+  EF.multiGrade = () => EF.grades().length > 1;
+  EF.grade = () => { const g = ls.get('ef2:grade'); return g && g !== 'all' && EF.grades().includes(+g) ? +g : 'all'; };
+  EF.setGrade = (g) => { ls.set('ef2:grade', String(g)); EF.emit('grade', g); };
+  EF.inGrade = (g) => EF.subjects.filter((s) => g === 'all' || EF.gradeOf(s) === +g);
+  EF.gradeLabel = () => { const gs = EF.grades().slice().reverse(); return 'Grade ' + (gs.length > 1 ? gs.slice(0, -1).join(', ') + ' & ' + gs[gs.length - 1] : gs[0]); };
 
   /* ---------- theme ---------- */
   EF.theme = {

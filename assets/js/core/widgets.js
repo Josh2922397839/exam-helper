@@ -68,6 +68,7 @@
         btns.forEach((b, i) => { b.disabled = true; if (q.opts[i] === q.ans) b.classList.add('is-right'); });
         if (!ok) t.classList.add('is-wrong');
         if (ok) { score++; streak++; } else streak = 0;
+        EF.haptic(ok ? 'success' : 'error');
         el.querySelector('.practice-fb').innerHTML = ok ? `${icon('fa-circle-check')} Correct!` : `${icon('fa-circle-xmark')} It means “${esc(q.ans[1])}”.`;
         EF.store.touchDay();
         setTimeout(() => next(el.querySelector('.w-body')), ok ? 900 : 1800);
@@ -378,6 +379,7 @@
       if (!g || g.busy || g.i >= g.order.length || !name) return;
       const want = g.order[g.i];
       g.busy = true;
+      EF.haptic(name === want ? 'success' : 'error');
       if (name === want) {
         g.score++;
         scene.flash(name, 'good');

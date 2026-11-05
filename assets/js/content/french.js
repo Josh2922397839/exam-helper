@@ -83,6 +83,7 @@ EF.subjects = EF.subjects || [];
     id: 'french',
     name: 'French',
     short: 'French',
+    grade: 9,
     icon: 'fa-language',
     emoji: '🇫🇷',
     color: '#4f7cff',

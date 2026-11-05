@@ -31,6 +31,7 @@ EF.subjects = EF.subjects || [];
     id: 'biology',
     name: 'Biology',
     short: 'Biology',
+    grade: 9,
     icon: 'fa-dna',
     emoji: '🧬',
     color: '#2fbf71',

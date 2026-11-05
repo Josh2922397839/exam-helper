@@ -31,6 +31,7 @@ EF.subjects = EF.subjects || [];
     id: 'chemistry',
     name: 'Chemistry',
     short: 'Chemistry',
+    grade: 9,
     icon: 'fa-atom',
     emoji: '⚛️',
     color: '#14b8c4',

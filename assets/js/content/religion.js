@@ -7,6 +7,7 @@ EF.subjects.push({
   id: 'religion',
   name: 'Religious Education',
   short: 'Religion',
+  grade: 9,
   icon: 'fa-hands-praying',
   emoji: '🙏',
   color: '#e8a317',
