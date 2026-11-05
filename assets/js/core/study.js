@@ -1,0 +1,235 @@
+/* ExamForge core — quiz runner and spaced-repetition flashcards */
+(function () {
+  'use strict';
+  const EF = window.EF;
+  const esc = EF.esc, icon = EF.icon;
+  const typing = (e) => e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName);
+  const inView = (el) => { const r = el.getBoundingClientRect(); return r.bottom > 80 && r.top < innerHeight - 40; };
+
+  /* ================= QUIZ ================= */
+  EF.quizMeta = (id) => {
+    if (id === 'exam') return { id, title: 'Exam Mode', sub: '20 mixed questions from every subject', color: '#ff6a2b', icon: 'fa-fire-flame-curved' };
+    if (id === 'mistakes') return { id, title: 'Fix My Mistakes', sub: 'Questions you got wrong before', color: '#f0506e', icon: 'fa-bandage' };
+    const s = EF.subject(id);
+    return s ? { id, title: s.name + ' Quiz', sub: s.quiz.length + ' questions', color: s.color, icon: s.icon } : null;
+  };
+
+  EF.buildQuiz = (id) => {
+    const all = [];
+    EF.subjects.forEach((s) => s.quiz.forEach((q, i) => all.push(Object.assign({ key: s.id + ':' + i, sid: s.id }, q))));
+    let list;
+    if (id === 'exam') list = EF.shuffle(all).slice(0, 20);
+    else if (id === 'mistakes') { const m = EF.store.state().mistakes; list = EF.shuffle(all.filter((q) => m.includes(q.key))); }
+    else list = EF.shuffle(all.filter((q) => q.sid === id));
+    // Shuffle answer order too, remembering where the right one went
+    return list.map((q) => {
+      const order = EF.shuffle(q.options.map((_, i) => i));
+      return Object.assign({}, q, { options: order.map((i) => q.options[i]), answer: order.indexOf(q.answer) });
+    });
+  };
+
+  EF.mountQuiz = (el, id, opts = {}) => {
+    const meta = EF.quizMeta(id);
+    let qs = [], i = 0, picked = null, right = 0, wrong = [], phase = 'start';
+    el.classList.add('quiz', 'tint');
+    el.style.setProperty('--c', meta.color);
+
+    const start = (list) => {
+      qs = list || EF.buildQuiz(id);
+      i = 0; picked = null; right = 0; wrong = []; phase = qs.length ? 'q' : 'empty';
+      render();
+      if (opts.inline) el.scrollIntoView({ behavior: EF.reducedMotion() ? 'auto' : 'smooth', block: 'start' });
+    };
+
+    function render() {
+      if (phase === 'start') {
+        const best = EF.store.quiz(id);
+        el.innerHTML = `
+          <div class="quiz-start">
+            <span class="quiz-icon">${icon(meta.icon)}</span>
+            <div><h3>${esc(meta.title)}</h3><p class="muted">${esc(meta.sub)} · instant feedback · explanations</p>
+            ${best ? `<p class="quiz-best">${icon('fa-trophy')} Best ${best.best}% · ${best.attempts} attempt${best.attempts === 1 ? '' : 's'}</p>` : ''}</div>
+            <button type="button" class="btn btn-c btn-lg" data-start>${icon('fa-play')} Start quiz</button>
+          </div>`;
+        return;
+      }
+      if (phase === 'empty') {
+        el.innerHTML = `<div class="quiz-start"><span class="quiz-icon">${icon('fa-circle-check')}</span><div><h3>Nothing to fix!</h3><p class="muted">You have no saved mistakes. Take a quiz and any question you miss will show up here.</p></div><a class="btn btn-c" href="#/quiz">${icon('fa-arrow-left')} Quiz Arena</a></div>`;
+        return;
+      }
+      if (phase === 'done') return results();
+      const q = qs[i];
+      const subj = id === 'exam' || id === 'mistakes' ? EF.subject(q.sid) : null;
+      el.innerHTML = `
+        <div class="quiz-top">
+          <span class="quiz-count">Question <strong>${i + 1}</strong> of ${qs.length}</span>
+          ${subj ? `<span class="pill tint" style="--c:${subj.color}">${subj.emoji} ${esc(subj.short)}</span>` : ''}
+          <span class="quiz-score">${icon('fa-check')} ${right}</span>
+        </div>
+        <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="${qs.length}" aria-valuenow="${i}"><span style="width:${(i / qs.length) * 100}%"></span></div>
+        <h3 class="quiz-q" id="qq-${esc(id)}">${q.q}</h3>
+        <div class="quiz-opts" role="group" aria-labelledby="qq-${esc(id)}">
+          ${q.options.map((o, oi) => `<button type="button" class="opt${picked == null ? '' : oi === q.answer ? ' is-right' : oi === picked ? ' is-wrong' : ' is-dim'}" data-opt="${oi}" ${picked == null ? '' : 'disabled'}><span class="opt-key">${'ABCD'[oi]}</span><span>${o}</span>${picked != null && oi === q.answer ? icon('fa-circle-check', 'opt-mark') : picked === oi ? icon('fa-circle-xmark', 'opt-mark') : ''}</button>`).join('')}
+        </div>
+        ${picked == null ? `<p class="quiz-hint muted">Press <kbd>1</kbd>–<kbd>4</kbd> or tap an answer</p>` : `
+        <div class="quiz-fb ${picked === q.answer ? 'is-right' : 'is-wrong'}" role="status">
+          <strong>${picked === q.answer ? icon('fa-circle-check') + ' Correct!' : icon('fa-circle-xmark') + ' Not quite.'}</strong>
+          ${q.why ? `<p>${q.why}</p>` : ''}
+        </div>
+        <div class="quiz-next"><button type="button" class="btn btn-c" data-next>${i + 1 < qs.length ? 'Next question ' + icon('fa-arrow-right') : 'See results ' + icon('fa-flag-checkered')}</button></div>`}`;
+      const nb = el.querySelector('[data-next]');
+      if (nb) nb.focus({ preventScroll: true });
+    }
+
+    function results() {
+      const pct = Math.round((right / qs.length) * 100);
+      const msg = pct === 100 ? 'Perfect score. You’re cooking! 🔥' : pct >= 80 ? 'Great work — exam ready.' : pct >= 50 ? 'Solid start. Review the misses below.' : 'Keep going — every attempt makes it stick.';
+      el.innerHTML = `
+        <div class="quiz-done">
+          ${EF.ring(pct, 120, 10)}
+          <div>
+            <h3>${esc(msg)}</h3>
+            <p class="muted">${right} of ${qs.length} correct${id !== 'mistakes' && EF.store.quiz(id) ? ` · best ${EF.store.quiz(id).best}%` : ''}</p>
+            <div class="btn-row">
+              <button type="button" class="btn btn-c" data-retry>${icon('fa-rotate-right')} Try again</button>
+              ${wrong.length ? `<button type="button" class="btn" data-retry-wrong>${icon('fa-bandage')} Redo the ${wrong.length} I missed</button>` : ''}
+              ${opts.inline ? '' : `<a class="btn btn-ghost" href="#/quiz">${icon('fa-arrow-left')} Quiz Arena</a>`}
+            </div>
+          </div>
+        </div>
+        ${wrong.length ? `<h4 class="sub-heading">Review</h4><ol class="review">${wrong.map((q) => `<li><p class="review-q">${q.q}</p><p class="review-a">${icon('fa-xmark')} You said: ${q.options[q.picked]}</p><p class="review-c">${icon('fa-check')} Answer: ${q.options[q.answer]}</p>${q.why ? `<p class="muted">${q.why}</p>` : ''}</li>`).join('')}</ol>` : ''}`;
+    }
+
+    function choose(oi) {
+      if (phase !== 'q' || picked != null) return;
+      const q = qs[i];
+      picked = oi;
+      const ok = oi === q.answer;
+      if (ok) right++; else wrong.push(Object.assign({ picked: oi }, q));
+      EF.store.answer(q.key, ok);
+      render();
+    }
+    function next() {
+      if (picked == null) return;
+      if (i + 1 < qs.length) { i++; picked = null; render(); const t = el.querySelector('.quiz-q'); if (t && !inView(t)) el.scrollIntoView({ block: 'start' }); return; }
+      phase = 'done';
+      const pct = Math.round((right / qs.length) * 100);
+      if (id !== 'mistakes') EF.store.recordQuiz(id, pct);
+      if (pct >= 80) EF.confetti();
+      render();
+    }
+
+    const onClick = (e) => {
+      const t = e.target.closest('button');
+      if (!t || !el.contains(t)) return;
+      if (t.hasAttribute('data-start') || t.hasAttribute('data-retry')) start();
+      else if (t.hasAttribute('data-retry-wrong')) start(EF.shuffle(wrong.map((q) => Object.assign({}, q))));
+      else if (t.dataset.opt != null) choose(+t.dataset.opt);
+      else if (t.hasAttribute('data-next')) next();
+    };
+    const onKey = (e) => {
+      if (typing(e) || e.metaKey || e.ctrlKey || e.altKey || phase !== 'q' || !inView(el)) return;
+      const k = e.key.toLowerCase();
+      const n = '1234'.indexOf(k) >= 0 ? '1234'.indexOf(k) : 'abcd'.indexOf(k);
+      if (n >= 0 && picked == null && n < qs[i].options.length) { e.preventDefault(); choose(n); }
+      else if ((k === 'enter' || k === 'arrowright') && picked != null) { e.preventDefault(); next(); }
+    };
+    el.addEventListener('click', onClick);
+    document.addEventListener('keydown', onKey);
+    if (opts.autostart) start(); else render();
+    return () => { el.removeEventListener('click', onClick); document.removeEventListener('keydown', onKey); };
+  };
+
+  /* ================= FLASHCARDS (Leitner boxes 0–5, mastered at 3+) ================= */
+  EF.mountCards = (el, sid) => {
+    const s = EF.subject(sid);
+    const all = s.flashcards.map((c) => ({ front: c[0], back: c[1], cat: c[2] || '' }));
+    const cats = Array.from(new Set(all.map((c) => c.cat).filter(Boolean)));
+    let cat = '', deck = [], i = 0, flipped = false, got = 0, again = 0, mode = 'due';
+    el.classList.add('cards', 'tint');
+    el.style.setProperty('--c', s.color);
+    const box = (c) => EF.store.cardBox(sid, c.front);
+    const pool = () => all.filter((c) => !cat || c.cat === cat);
+
+    function newSession(m) {
+      mode = m || mode;
+      const p = pool();
+      let list = mode === 'all' ? EF.shuffle(p) : EF.shuffle(p.filter((c) => box(c) < 3)).sort((a, b) => box(a) - box(b));
+      deck = list.slice(0, 15); i = 0; flipped = false; got = 0; again = 0;
+      render();
+    }
+
+    function header() {
+      const p = pool();
+      const m = p.filter((c) => box(c) >= 3).length;
+      return `
+        <div class="cards-head">
+          <div class="cards-mastery"><span>${icon('fa-medal')} <strong>${m}</strong> / ${p.length} mastered</span><div class="bar"><span style="width:${p.length ? (m / p.length) * 100 : 0}%"></span></div></div>
+          ${cats.length ? `<div class="seg seg-sm seg-scroll" role="tablist" aria-label="Category"><button type="button" role="tab" data-cat="" aria-selected="${!cat}">All</button>${cats.map((c) => `<button type="button" role="tab" data-cat="${esc(c)}" aria-selected="${cat === c}">${esc(c)}</button>`).join('')}</div>` : ''}
+        </div>`;
+    }
+
+    function render() {
+      if (!deck.length || i >= deck.length) {
+        const done = deck.length && i >= deck.length;
+        const left = pool().filter((c) => box(c) < 3).length;
+        el.innerHTML = header() + `
+          <div class="cards-done">
+            <span class="quiz-icon">${icon(done ? 'fa-flag-checkered' : 'fa-medal')}</span>
+            <h3>${done ? 'Session complete!' : 'Everything here is mastered 🎉'}</h3>
+            <p class="muted">${done ? `${got} got it · ${again} to review again` : 'You’ve mastered every card in this deck. Review them all anyway to keep them fresh.'}</p>
+            <div class="btn-row">
+              ${left ? `<button type="button" class="btn btn-c" data-session="due">${icon('fa-forward')} Next session (${Math.min(left, 15)} cards)</button>` : ''}
+              <button type="button" class="btn${left ? '' : ' btn-c'}" data-session="all">${icon('fa-shuffle')} Review all</button>
+            </div>
+          </div>`;
+        return;
+      }
+      const c = deck[i];
+      const b = box(c);
+      el.innerHTML = header() + `
+        <div class="cards-meta"><span>Card <strong>${i + 1}</strong> of ${deck.length}</span>${c.cat ? `<span class="pill">${esc(c.cat)}</span>` : ''}<span class="boxes" title="Memory level ${b} of 5" aria-label="Memory level ${b} of 5">${[1, 2, 3, 4, 5].map((n) => `<i class="${n <= b ? 'on' : ''}"></i>`).join('')}</span></div>
+        <div class="bigcard${flipped ? ' is-flipped' : ''}" role="button" tabindex="0" aria-pressed="${flipped}" data-flipcard aria-label="${flipped ? 'Answer: ' + esc(c.back) : esc(c.front) + ' — press to reveal'}">
+          <div class="flip-inner">
+            <div class="flip-face bigcard-front"><span class="bigcard-tag">Question</span><p${s.lang ? ' lang="fr"' : ''}>${esc(c.front)}</p>${s.lang ? `<button type="button" class="speak" data-speak="${esc(c.front)}" aria-label="Hear it">${icon('fa-volume-high')}</button>` : ''}<span class="flip-hint">${icon('fa-rotate')} Tap or press space</span></div>
+            <div class="flip-face bigcard-back"><span class="bigcard-tag">Answer</span><p>${esc(c.back)}</p></div>
+          </div>
+        </div>
+        <div class="cards-actions">
+          ${flipped ? `
+            <button type="button" class="btn btn-again" data-grade="0">${icon('fa-rotate-left')} Again <kbd>1</kbd></button>
+            <button type="button" class="btn btn-got" data-grade="1">${icon('fa-check')} Got it <kbd>2</kbd></button>` : `
+            <button type="button" class="btn btn-c btn-lg" data-reveal>${icon('fa-eye')} Show answer <kbd>space</kbd></button>`}
+        </div>`;
+    }
+
+    function grade(ok) {
+      const c = deck[i];
+      const b = box(c);
+      EF.store.setCardBox(sid, c.front, ok ? Math.min(5, b + 1) : 1);
+      if (ok) got++; else { again++; if (deck.length < 25) deck.push(c); } // missed cards come back later in the session
+      i++; flipped = false; render();
+    }
+    const flip = () => { flipped = !flipped; render(); const card = el.querySelector('[data-flipcard]'); if (card) card.focus({ preventScroll: true }); };
+
+    const onClick = (e) => {
+      if (e.target.closest('.speak')) return;
+      const t = e.target.closest('button,[data-flipcard]');
+      if (!t || !el.contains(t)) return;
+      if (t.hasAttribute('data-flipcard') || t.hasAttribute('data-reveal')) flip();
+      else if (t.dataset.grade != null) grade(t.dataset.grade === '1');
+      else if (t.dataset.session) newSession(t.dataset.session);
+      else if (t.dataset.cat != null) { cat = t.dataset.cat; newSession('due'); }
+    };
+    const onKey = (e) => {
+      if (typing(e) || e.metaKey || e.ctrlKey || e.altKey || !deck.length || i >= deck.length || !inView(el)) return;
+      if (e.key === ' ' || e.key === 'Enter') { if (e.target.closest && e.target.closest('button, a')) return; e.preventDefault(); flip(); }
+      else if (flipped && e.key === '1') grade(false);
+      else if (flipped && e.key === '2') grade(true);
+    };
+    el.addEventListener('click', onClick);
+    document.addEventListener('keydown', onKey);
+    newSession('due');
+    return () => { el.removeEventListener('click', onClick); document.removeEventListener('keydown', onKey); };
+  };
+})();

@@ -1,0 +1,538 @@
+/* ExamForge core — app shell, router, pages, search and keyboard shortcuts */
+(function () {
+  'use strict';
+  const EF = window.EF;
+  const esc = EF.esc, icon = EF.icon, $ = EF.$, $$ = EF.$$;
+  const main = $('#main');
+  const sidebar = $('#sidebar');
+  let cleanup = [];       // functions to run when leaving the current page
+  let viewKey = '';       // e.g. "home", "s:chemistry", "quiz:exam"
+  let spy = null;
+
+  const totals = () => ({
+    questions: EF.subjects.reduce((n, s) => n + s.quiz.length, 0),
+    cards: EF.subjects.reduce((n, s) => n + (s.flashcards || []).length, 0),
+    topics: EF.subjects.reduce((n, s) => n + s.topics.length, 0)
+  });
+  const topicLabel = (t) => t.nav || t.title;
+
+  /* ================= SIDEBAR ================= */
+  function renderSidebar() {
+    const [a, sid] = parts();
+    const here = a === 's' ? sid : null;
+    const navItem = (href, ic, label, key, extra) => `<a class="side-link${current(key) ? ' is-active' : ''}" href="${href}" ${current(key) ? 'aria-current="page"' : ''}>${icon(ic)}<span>${label}</span>${extra || ''}</a>`;
+    const mistakes = EF.store.state().mistakes.length;
+    sidebar.innerHTML = `
+      <nav class="side-nav" aria-label="Study tools">
+        ${navItem('#/', 'fa-house', 'Home', 'home')}
+        ${navItem('#/quiz', 'fa-bolt', 'Quiz Arena', 'quiz', mistakes ? `<span class="side-badge" title="Saved mistakes">${mistakes}</span>` : '')}
+        ${navItem('#/cards', 'fa-clone', 'Flashcards', 'cards')}
+        ${navItem('#/progress', 'fa-chart-simple', 'My Progress', 'progress')}
+      </nav>
+      <p class="side-label">Subjects</p>
+      <ul class="side-subjects">
+        ${EF.subjects.map((s) => {
+          const on = here === s.id;
+          const p = EF.store.progress(s.id);
+          const seen = EF.store.state().visited[s.id] || [];
+          return `<li class="side-subject tint${on ? ' is-open' : ''}" style="--c:${s.color}">
+            <a class="side-link" href="#/s/${s.id}" ${on ? 'aria-current="page"' : ''}><span class="side-emoji" aria-hidden="true">${s.emoji}</span><span>${esc(s.name)}</span><span class="side-pct" title="${p.pct}% complete">${p.pct}%</span></a>
+            ${on ? `<ul class="side-topics">${s.topics.map((t) => `<li><a href="#/s/${s.id}/${t.id}" data-topic="${t.id}">${seen.includes(t.id) ? icon('fa-circle-check', 'seen') : '<i class="dot-o" aria-hidden="true"></i>'}${esc(topicLabel(t))}</a></li>`).join('')}
+              <li><a href="#/s/${s.id}/quiz" data-topic="quiz">${icon('fa-bolt')}Quiz</a></li>
+              <li><a href="#/cards/${s.id}">${icon('fa-clone')}Flashcards</a></li></ul>` : ''}
+          </li>`;
+        }).join('')}
+      </ul>
+      <div class="side-foot">
+        <span><kbd>/</kbd> search</span><span><kbd>D</kbd> theme</span>
+      </div>`;
+    if (here && spy && spy.active) markTopic(spy.active);
+  }
+  function current(key) { return viewKey === key || viewKey.split(':')[0] === key; }
+
+  /* ================= PAGES ================= */
+  const pages = {};
+
+  pages.home = () => {
+    const st = EF.store.state();
+    const last = st.last && EF.subject(st.last.s);
+    const lastTopic = last && last.topics.find((t) => t.id === st.last.t);
+    const tot = totals();
+    const streak = EF.store.streak();
+    const acc = st.answered ? Math.round((st.correct / st.answered) * 100) : 0;
+    const mastered = EF.subjects.reduce((n, s) => n + EF.store.mastered(s.id), 0);
+    const week = Array.from({ length: 7 }, (_, i) => { const d = new Date(); d.setDate(d.getDate() - (6 - i)); return d; });
+    const stickers = EF.subjects.map((s, i) => `<a class="sticker tint" href="#/s/${s.id}" style="--c:${s.color};--i:${i}" tabindex="-1"><span>${s.emoji}</span><b>${esc(s.short)}</b></a>`).join('');
+
+    return `
+      <div class="page home">
+        <section class="hero">
+          <div class="hero-copy">
+            <span class="eyebrow">${icon('fa-graduation-cap')} Grade 9 exam prep</span>
+            <h1>Master every subject.<br><span class="hl">Crush every exam.</span></h1>
+            <p class="hero-sub">Interactive 3D models, flashcards that remember what you struggle with, and practice quizzes that explain every answer — for all ${EF.subjects.length} of your subjects.</p>
+            <div class="btn-row">
+              ${last ? `<a class="btn btn-primary btn-lg" href="#/s/${last.id}${lastTopic ? '/' + lastTopic.id : ''}">${icon('fa-play')} Continue ${esc(last.short)}${lastTopic ? ` <small>· ${esc(topicLabel(lastTopic))}</small>` : ''}</a>`
+                : `<a class="btn btn-primary btn-lg" href="#/s/${EF.subjects[0].id}">${icon('fa-play')} Start studying</a>`}
+              <a class="btn btn-lg" href="#/quiz/exam">${icon('fa-fire-flame-curved')} Exam mode</a>
+            </div>
+            <ul class="hero-facts">
+              <li><strong>${EF.subjects.length}</strong> subjects</li>
+              <li><strong>${tot.topics}</strong> topics</li>
+              <li><strong>${tot.questions}</strong> quiz questions</li>
+              <li><strong>${tot.cards}</strong> flashcards</li>
+            </ul>
+          </div>
+          <div class="hero-art" aria-hidden="true">
+            <div class="orbit"><span></span><span></span><span></span></div>
+            ${stickers}
+            <span class="sticker sticker-grade">A+</span>
+          </div>
+        </section>
+
+        <section class="dash" aria-label="Your stats">
+          <div class="dash-tile">
+            <span class="dash-ic dash-fire">${icon('fa-fire')}</span>
+            <div><strong class="dash-v">${streak}</strong><span class="dash-l">day streak</span></div>
+            <div class="week" aria-label="Last 7 days">${week.map((d) => `<i class="${EF.store.studiedOn(d) ? 'on' : ''}" title="${d.toLocaleDateString(undefined, { weekday: 'short' })}">${d.toLocaleDateString(undefined, { weekday: 'narrow' })}</i>`).join('')}</div>
+          </div>
+          <div class="dash-tile">${EF.ring(EF.store.overall(), 64, 7)}<div><strong class="dash-v">Overall</strong><span class="dash-l">progress</span></div></div>
+          <div class="dash-tile"><span class="dash-ic">${icon('fa-bullseye')}</span><div><strong class="dash-v">${st.answered}</strong><span class="dash-l">questions answered${st.answered ? ` · ${acc}% right` : ''}</span></div></div>
+          <div class="dash-tile"><span class="dash-ic">${icon('fa-medal')}</span><div><strong class="dash-v">${mastered}</strong><span class="dash-l">of ${tot.cards} cards mastered</span></div></div>
+        </section>
+
+        <section class="home-section">
+          <div class="section-head"><h2>Your subjects</h2><a class="link" href="#/progress">See progress ${icon('fa-arrow-right')}</a></div>
+          <div class="subject-grid">
+            ${EF.subjects.map((s) => {
+              const p = EF.store.progress(s.id);
+              return `<a class="subject-card tint" href="#/s/${s.id}" style="--c:${s.color}">
+                <div class="subject-card-top"><span class="subject-emoji" aria-hidden="true">${s.emoji}</span>${EF.ring(p.pct, 48, 5)}</div>
+                <h3>${esc(s.name)}</h3>
+                <p>${esc(s.tagline)}</p>
+                <div class="subject-card-meta"><span>${icon('fa-book-open')} ${p.visited}/${p.total} topics</span><span>${icon('fa-bolt')} ${p.attempts ? 'Best ' + p.best + '%' : s.quiz.length + ' Qs'}</span></div>
+              </a>`;
+            }).join('')}
+          </div>
+        </section>
+
+        <section class="home-section">
+          <div class="section-head"><h2>Study your way</h2></div>
+          <div class="tools">
+            <a class="tool" href="#/s/chemistry/atom-model"><span class="tool-ic" style="--c:#14b8c4">${icon('fa-cube')}</span><h3>3D models</h3><p>Spin atoms 1–20 on a mini periodic table and click through a full 3D skeleton.</p></a>
+            <a class="tool" href="#/cards"><span class="tool-ic" style="--c:#9b6bff">${icon('fa-brain')}</span><h3>Smart flashcards</h3><p>Spaced repetition: cards you miss come back sooner, cards you know level up.</p></a>
+            <a class="tool" href="#/quiz"><span class="tool-ic" style="--c:#2fbf71">${icon('fa-check-double')}</span><h3>Quizzes that teach</h3><p>Instant feedback, an explanation for every answer, and a “fix my mistakes” mode.</p></a>
+          </div>
+        </section>
+      </div>`;
+  };
+
+  pages.subject = (s) => {
+    const p = EF.store.progress(s.id);
+    const seen = EF.store.state().visited[s.id] || [];
+    const idx = EF.subjects.indexOf(s);
+    const prev = EF.subjects[(idx - 1 + EF.subjects.length) % EF.subjects.length];
+    const next = EF.subjects[(idx + 1) % EF.subjects.length];
+    return `
+      <div class="page subject tint" style="--c:${s.color}">
+        <header class="subject-hero">
+          <a class="crumb" href="#/">${icon('fa-arrow-left')} All subjects</a>
+          <div class="subject-hero-row">
+            <span class="subject-emoji subject-emoji-lg" aria-hidden="true">${s.emoji}</span>
+            <div class="subject-hero-text"><h1>${esc(s.name)}</h1><p>${esc(s.intro)}</p></div>
+            ${EF.ring(p.pct, 84, 8)}
+          </div>
+          <div class="subject-stats">
+            <span>${icon('fa-book-open')} <strong>${p.visited}/${p.total}</strong> topics read</span>
+            <span>${icon('fa-trophy')} <strong>${p.attempts ? p.best + '%' : '—'}</strong> best quiz</span>
+            <span>${icon('fa-medal')} <strong>${p.mastered}/${p.cards}</strong> cards mastered</span>
+          </div>
+          <div class="btn-row">
+            <a class="btn btn-c" href="#/s/${s.id}/quiz">${icon('fa-bolt')} Take the quiz</a>
+            <a class="btn" href="#/cards/${s.id}">${icon('fa-clone')} Flashcards</a>
+            <button type="button" class="btn btn-ghost" data-print>${icon('fa-print')} Print notes</button>
+          </div>
+        </header>
+
+        <nav class="topic-chips" aria-label="Topics in ${esc(s.name)}">
+          ${s.topics.map((t) => `<a class="chip-link" href="#/s/${s.id}/${t.id}" data-topic="${t.id}">${esc(topicLabel(t))}</a>`).join('')}
+          <a class="chip-link chip-quiz" href="#/s/${s.id}/quiz" data-topic="quiz">${icon('fa-bolt')} Quiz</a>
+        </nav>
+
+        ${s.topics.map((t, i) => `
+          <section class="topic" id="t-${t.id}" data-topic="${t.id}" aria-labelledby="h-${t.id}">
+            <header class="topic-head">
+              <span class="topic-icon">${icon(t.icon || 'fa-bookmark')}</span>
+              <div><span class="topic-num">Topic ${i + 1} of ${s.topics.length}</span><h2 id="h-${t.id}">${esc(t.title)}</h2></div>
+              <span class="topic-seen${seen.includes(t.id) ? ' is-on' : ''}" title="Read">${icon('fa-circle-check')}<span class="sr-only">Read</span></span>
+            </header>
+            ${EF.renderBlocks(t.blocks, s)}
+          </section>`).join('')}
+
+        <section class="topic topic-quiz" id="t-quiz" data-topic="quiz" aria-labelledby="h-quiz">
+          <header class="topic-head">
+            <span class="topic-icon">${icon('fa-bolt')}</span>
+            <div><span class="topic-num">Test yourself</span><h2 id="h-quiz">${esc(s.short)} Quiz</h2></div>
+          </header>
+          <div class="quiz-host" data-quiz="${s.id}"></div>
+          <a class="cta-card" href="#/cards/${s.id}">${icon('fa-clone')}<div><strong>Lock it in with flashcards</strong><span>${(s.flashcards || []).length} cards · spaced repetition</span></div>${icon('fa-arrow-right')}</a>
+        </section>
+
+        <nav class="pager" aria-label="Other subjects">
+          <a href="#/s/${prev.id}" class="pager-link"><small>${icon('fa-arrow-left')} Previous</small><span>${prev.emoji} ${esc(prev.name)}</span></a>
+          <a href="#/s/${next.id}" class="pager-link pager-next"><small>Next ${icon('fa-arrow-right')}</small><span>${next.emoji} ${esc(next.name)}</span></a>
+        </nav>
+      </div>`;
+  };
+
+  pages.arena = () => {
+    const mistakes = EF.store.state().mistakes.length;
+    const exam = EF.store.quiz('exam');
+    return `
+      <div class="page">
+        <header class="page-head"><span class="eyebrow">${icon('fa-bolt')} Quiz Arena</span><h1>Test yourself</h1><p>Every question explains the answer. Get one wrong and it’s saved so you can fix it later.</p></header>
+        <div class="arena-top">
+          <a class="arena-card arena-exam" href="#/quiz/exam">
+            <span class="arena-ic">${icon('fa-fire-flame-curved')}</span>
+            <div><h2>Exam Mode</h2><p>20 random questions from all ${EF.subjects.length} subjects.</p>${exam ? `<span class="pill">${icon('fa-trophy')} Best ${exam.best}%</span>` : ''}</div>
+            <span class="btn btn-primary">Start ${icon('fa-arrow-right')}</span>
+          </a>
+          <a class="arena-card arena-fix${mistakes ? '' : ' is-empty'}" href="#/quiz/mistakes">
+            <span class="arena-ic">${icon('fa-bandage')}</span>
+            <div><h2>Fix my mistakes</h2><p>${mistakes ? `${mistakes} question${mistakes === 1 ? '' : 's'} waiting. Get them right to clear them.` : 'No saved mistakes yet — nice.'}</p></div>
+            <span class="btn">${mistakes ? 'Practise' : 'Empty'} ${icon('fa-arrow-right')}</span>
+          </a>
+        </div>
+        <h2 class="sub-heading">By subject</h2>
+        <div class="subject-grid">
+          ${EF.subjects.map((s) => {
+            const q = EF.store.quiz(s.id);
+            return `<a class="subject-card tint" href="#/quiz/${s.id}" style="--c:${s.color}">
+              <div class="subject-card-top"><span class="subject-emoji" aria-hidden="true">${s.emoji}</span>${q ? EF.ring(q.best, 48, 5) : `<span class="pill">${s.quiz.length} Qs</span>`}</div>
+              <h3>${esc(s.name)}</h3>
+              <p>${q ? `Best ${q.best}% · last ${q.last}% · ${q.attempts} attempt${q.attempts === 1 ? '' : 's'}` : 'Not attempted yet'}</p>
+              <div class="subject-card-meta"><span>${icon('fa-play')} Start quiz</span></div>
+            </a>`;
+          }).join('')}
+        </div>
+      </div>`;
+  };
+
+  pages.quiz = (id) => {
+    const meta = EF.quizMeta(id);
+    return `<div class="page narrow">
+      <a class="crumb" href="#/quiz">${icon('fa-arrow-left')} Quiz Arena</a>
+      <header class="page-head page-head-sm tint" style="--c:${meta.color}"><span class="eyebrow">${icon(meta.icon)} ${esc(meta.sub)}</span><h1>${esc(meta.title)}</h1></header>
+      <div class="quiz-host" data-quiz="${esc(id)}" data-autostart></div>
+    </div>`;
+  };
+
+  pages.cardsHub = () => `
+    <div class="page">
+      <header class="page-head"><span class="eyebrow">${icon('fa-brain')} Spaced repetition</span><h1>Flashcards</h1><p>Flip a card, then be honest: <strong>Got it</strong> moves it up a level, <strong>Again</strong> sends it back. Cards at level 3+ count as mastered.</p></header>
+      <div class="subject-grid">
+        ${EF.subjects.map((s) => {
+          const n = (s.flashcards || []).length, m = EF.store.mastered(s.id);
+          return `<a class="subject-card tint" href="#/cards/${s.id}" style="--c:${s.color}">
+            <div class="subject-card-top"><span class="subject-emoji" aria-hidden="true">${s.emoji}</span>${EF.ring(n ? (m / n) * 100 : 0, 48, 5)}</div>
+            <h3>${esc(s.name)}</h3>
+            <p>${m} of ${n} cards mastered</p>
+            <div class="subject-card-meta"><span>${icon('fa-clone')} Study deck</span></div>
+          </a>`;
+        }).join('')}
+      </div>
+    </div>`;
+
+  pages.cards = (s) => `
+    <div class="page narrow">
+      <a class="crumb" href="#/cards">${icon('fa-arrow-left')} All decks</a>
+      <header class="page-head page-head-sm tint" style="--c:${s.color}"><span class="eyebrow">${s.emoji} Flashcards</span><h1>${esc(s.name)}</h1></header>
+      <div class="cards-host" data-cards="${s.id}"></div>
+      <p class="muted small center">Shortcuts: <kbd>space</kbd> flip · <kbd>1</kbd> again · <kbd>2</kbd> got it</p>
+    </div>`;
+
+  pages.progress = () => {
+    const st = EF.store.state();
+    const days = Array.from({ length: 35 }, (_, i) => { const d = new Date(); d.setDate(d.getDate() - (34 - i)); return d; });
+    return `
+      <div class="page">
+        <header class="page-head"><span class="eyebrow">${icon('fa-chart-simple')} Saved on this device</span><h1>My progress</h1><p>Progress = 40% topics read + 40% best quiz score + 20% flashcards mastered.</p></header>
+        <div class="progress-top">
+          <div class="card progress-overall">${EF.ring(EF.store.overall(), 120, 10)}<div><h3>Overall</h3><p class="muted">${st.answered} questions answered${st.answered ? ` · ${Math.round((st.correct / st.answered) * 100)}% correct` : ''}</p></div></div>
+          <div class="card">
+            <h3>${icon('fa-fire')} ${EF.store.streak()}-day streak</h3>
+            <div class="cal" aria-label="Study days, last 5 weeks">${days.map((d) => `<i class="${EF.store.studiedOn(d) ? 'on' : ''}${EF.dayKey(d) === EF.dayKey() ? ' today' : ''}" title="${d.toDateString()}"></i>`).join('')}</div>
+            <p class="muted small">Each square is a day. Study anything to light it up.</p>
+          </div>
+        </div>
+        <div class="table-wrap"><table class="table progress-table">
+          <thead><tr><th scope="col">Subject</th><th scope="col">Topics read</th><th scope="col">Best quiz</th><th scope="col">Cards mastered</th><th scope="col" class="r">Progress</th></tr></thead>
+          <tbody>${EF.subjects.map((s) => {
+            const p = EF.store.progress(s.id);
+            return `<tr class="tint" style="--c:${s.color}">
+              <th scope="row"><a href="#/s/${s.id}">${s.emoji} ${esc(s.name)}</a></th>
+              <td>${p.visited}/${p.total}</td>
+              <td>${p.attempts ? p.best + '%' : '—'}</td>
+              <td>${p.mastered}/${p.cards}</td>
+              <td class="r"><div class="bar bar-inline"><span style="width:${p.pct}%"></span></div> ${p.pct}%</td>
+            </tr>`;
+          }).join('')}</tbody>
+        </table></div>
+        <div class="danger-zone"><div><h3>Start fresh</h3><p class="muted">Clears your streak, quiz scores, flashcard levels and reading progress on this device.</p></div><button type="button" class="btn btn-danger" data-reset>${icon('fa-trash-can')} Reset progress</button></div>
+      </div>`;
+  };
+
+  pages.notFound = () => `<div class="page narrow center"><h1>Page not found</h1><p class="muted">That link doesn’t go anywhere.</p><a class="btn btn-primary" href="#/">${icon('fa-house')} Go home</a></div>`;
+
+  /* ================= ROUTER ================= */
+  function parts() { return location.hash.replace(/^#\/?/, '').split('/').filter(Boolean).map(decodeURIComponent); }
+
+  function teardown() {
+    cleanup.forEach((fn) => { try { fn(); } catch (e) { console.error(e); } });
+    cleanup = [];
+    if (spy) { spy.io.disconnect(); spy = null; }
+    EF.stopSpeaking();
+  }
+
+  function show(key, html, title, after) {
+    teardown();
+    viewKey = key;
+    main.innerHTML = html;
+    document.title = title ? title + ' · ExamForge' : 'ExamForge — Grade 9 Exam Prep';
+    cleanup.push(EF.mountWidgets(main));
+    $$('[data-quiz]', main).forEach((el) => cleanup.push(EF.mountQuiz(el, el.dataset.quiz, { inline: !el.hasAttribute('data-autostart'), autostart: el.hasAttribute('data-autostart') })));
+    $$('[data-cards]', main).forEach((el) => cleanup.push(EF.mountCards(el, el.dataset.cards)));
+    renderSidebar();
+    closeDrawer();
+    if (after) after(); else window.scrollTo(0, 0);
+  }
+
+  function scrollToTopic(tid, smooth) {
+    const el = document.getElementById('t-' + tid);
+    if (!el) { window.scrollTo(0, 0); return; }
+    el.scrollIntoView({ behavior: smooth && !EF.reducedMotion() ? 'smooth' : 'auto', block: 'start' });
+    el.classList.remove('is-flash'); void el.offsetWidth; el.classList.add('is-flash');
+  }
+
+  function route() {
+    const p = parts();
+    const [a, b, c] = p;
+    if (!a) return show('home', pages.home(), '');
+    if (a === 's') {
+      const s = EF.subject(b);
+      if (!s) return show('404', pages.notFound(), 'Not found');
+      if (viewKey === 's:' + s.id) { if (c) scrollToTopic(c, true); else window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+      return show('s:' + s.id, pages.subject(s), s.name, () => {
+        startSpy(s);
+        if (c) requestAnimationFrame(() => scrollToTopic(c, false)); else window.scrollTo(0, 0);
+      });
+    }
+    if (a === 'quiz') {
+      if (!b) return show('quiz', pages.arena(), 'Quiz Arena');
+      if (!EF.quizMeta(b)) return show('404', pages.notFound(), 'Not found');
+      return show('quiz:' + b, pages.quiz(b), EF.quizMeta(b).title);
+    }
+    if (a === 'cards') {
+      if (!b) return show('cards', pages.cardsHub(), 'Flashcards');
+      const s = EF.subject(b);
+      if (!s) return show('404', pages.notFound(), 'Not found');
+      return show('cards:' + s.id, pages.cards(s), s.short + ' Flashcards');
+    }
+    if (a === 'progress') return show('progress', pages.progress(), 'My Progress');
+    return show('404', pages.notFound(), 'Not found');
+  }
+
+  /* Scroll-spy: highlights the topic you're reading, marks it as read, keeps the URL in sync */
+  function startSpy(s) {
+    const sections = $$('.topic', main);
+    const visible = new Map();
+    let readTimer = null;
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach((e) => visible.set(e.target.dataset.topic, e.isIntersecting ? e.intersectionRect.top : null));
+      const tops = sections.map((sec) => sec.dataset.topic).filter((id) => visible.get(id) != null);
+      const id = tops[0];
+      if (!id || id === spy.active) return;
+      spy.active = id;
+      markTopic(id);
+      const url = '#/s/' + s.id + '/' + id;
+      if (location.hash !== url) history.replaceState(null, '', url);
+      clearTimeout(readTimer);
+      if (id !== 'quiz') {
+        EF.store.setLast(s.id, id);
+        readTimer = setTimeout(() => {
+          EF.store.markVisited(s.id, id);
+          const sec = document.getElementById('t-' + id);
+          if (sec) { const chk = sec.querySelector('.topic-seen'); if (chk) chk.classList.add('is-on'); }
+        }, 2500);
+      }
+    }, { rootMargin: '-30% 0px -55% 0px' });
+    sections.forEach((sec) => io.observe(sec));
+    spy = { io, active: null };
+    cleanup.push(() => clearTimeout(readTimer));
+  }
+  function markTopic(id) {
+    $$('[data-topic]', document).forEach((a) => {
+      if (a.tagName !== 'A') return;
+      const on = a.dataset.topic === id;
+      a.classList.toggle('is-active', on);
+      if (on) a.setAttribute('aria-current', 'location'); else a.removeAttribute('aria-current');
+    });
+    const chip = $('.topic-chips .is-active', main);
+    if (chip) { const bar = chip.parentElement; bar.scrollTo({ left: chip.offsetLeft - bar.clientWidth / 2 + chip.clientWidth / 2, behavior: EF.reducedMotion() ? 'auto' : 'smooth' }); }
+  }
+
+  /* ================= SEARCH ================= */
+  let index = null;
+  const fold = (x) => String(x || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  function buildIndex() {
+    index = [];
+    EF.subjects.forEach((s) => {
+      s.topics.forEach((t) => {
+        const href = '#/s/' + s.id + '/' + t.id;
+        index.push({ s, title: t.title, text: s.name, href, kind: 'Topic' });
+        t.blocks.forEach((b) => {
+          const items = Array.isArray(b.items) ? b.items : null;
+          if (items && items.length && !Array.isArray(items[0]) && typeof items[0] === 'object') {
+            items.forEach((it) => {
+              const sub = Object.assign({}, it); const txt = EF.blockText({ items: [sub] });
+              index.push({ s, title: it.title || it.name || t.title, text: txt, href, kind: t.nav || t.title });
+            });
+          } else if (items && Array.isArray(items[0])) {
+            items.forEach((it) => index.push({ s, title: EF.strip(it[0]), text: it.slice(1).filter((x) => typeof x === 'string').map(EF.strip).join(' — '), href, kind: t.nav || t.title }));
+          } else {
+            const txt = EF.blockText(b);
+            if (txt) index.push({ s, title: t.title, text: txt, href, kind: t.nav || t.title });
+          }
+        });
+      });
+      // Widget data that isn't in blocks
+      if (s.data && s.data.atoms) s.data.atoms.forEach((a) => index.push({ s, title: `${a.name} (${a.symbol})`, text: `Element ${a.z} · ${a.category} · ${a.config} · ${a.desc}`, href: '#/s/' + s.id + '/atom-model', kind: 'Element' }));
+      if (s.data && s.data.vocab) Object.keys(s.data.vocab).forEach((k) => s.data.vocab[k].forEach((w) => index.push({ s, title: w[0], text: w[1], href: '#/s/' + s.id + '/vocabulary', kind: 'Vocab · ' + k })));
+      if (s.data && s.data.verbs) s.data.verbs.forEach((v) => index.push({ s, title: v.name, text: v.meaning + ' · ' + v.type + ' · ' + v.forms.join(', '), href: '#/s/' + s.id + '/conjugation', kind: 'Verb' }));
+      s.quiz.forEach((q) => index.push({ s, title: EF.strip(q.q), text: 'Answer: ' + EF.strip(q.options[q.answer]) + (q.why ? ' — ' + EF.strip(q.why) : ''), href: '#/quiz/' + s.id, kind: 'Quiz question' }));
+    });
+    index.forEach((e) => { e.hay = fold(e.title + ' ' + e.text + ' ' + e.kind); e.ft = fold(e.title); });
+  }
+  function highlight(text, terms) {
+    let out = esc(text);
+    terms.forEach((t) => {
+      if (t.length < 2) return;
+      const re = new RegExp('(' + t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'ig');
+      out = out.replace(re, '<mark>$1</mark>');
+    });
+    return out;
+  }
+  function snippet(text, terms) {
+    const f = fold(text);
+    let at = -1;
+    terms.some((t) => (at = f.indexOf(t)) >= 0);
+    if (at < 0 || text.length < 140) return text.slice(0, 140) + (text.length > 140 ? '…' : '');
+    const start = Math.max(0, at - 50);
+    return (start ? '…' : '') + text.slice(start, start + 140) + (start + 140 < text.length ? '…' : '');
+  }
+  const dlg = $('#search'), input = $('#search-input'), results = $('#search-results');
+  let sel = 0, found = [];
+  function search() {
+    if (!index) buildIndex();
+    const q = fold(input.value.trim());
+    const terms = q.split(/\s+/).filter(Boolean);
+    if (!terms.length) {
+      results.innerHTML = `<div class="search-empty">${icon('fa-wand-magic-sparkles')}<p>Search every subject — try <button type="button" class="link" data-q="ionic">ionic</button>, <button type="button" class="link" data-q="Dessalines">Dessalines</button>, <button type="button" class="link" data-q="femur">femur</button> or <button type="button" class="link" data-q="soixante">soixante</button>.</p></div>`;
+      found = []; return;
+    }
+    found = index.filter((e) => terms.every((t) => e.hay.includes(t)))
+      .map((e) => ({ e, score: terms.reduce((n, t) => n + (e.ft.includes(t) ? 4 : 1) + (e.ft.startsWith(t) ? 3 : 0), 0) + (e.kind === 'Topic' ? 2 : 0) }))
+      .sort((x, y) => y.score - x.score).slice(0, 40).map((x) => x.e);
+    sel = 0;
+    if (!found.length) { results.innerHTML = `<div class="search-empty">${icon('fa-ghost')}<p>No results for “${esc(input.value)}”.</p></div>`; return; }
+    results.innerHTML = found.map((e, i) => `
+      <a class="result tint${i === sel ? ' is-sel' : ''}" href="${e.href}" role="option" aria-selected="${i === sel}" id="res-${i}" style="--c:${e.s.color}">
+        <span class="result-ic" aria-hidden="true">${e.s.emoji}</span>
+        <span class="result-body"><span class="result-kind">${esc(e.s.short)} · ${esc(e.kind)}</span><strong>${highlight(e.title, terms)}</strong><span class="result-text">${highlight(snippet(e.text, terms), terms)}</span></span>
+      </a>`).join('');
+  }
+  function moveSel(d) {
+    if (!found.length) return;
+    sel = (sel + d + found.length) % found.length;
+    $$('.result', results).forEach((r, i) => { r.classList.toggle('is-sel', i === sel); r.setAttribute('aria-selected', i === sel); });
+    const r = $('#res-' + sel); if (r) { r.scrollIntoView({ block: 'nearest' }); input.setAttribute('aria-activedescendant', 'res-' + sel); }
+  }
+  EF.openSearch = (q) => {
+    if (dlg.open) return;
+    if (typeof dlg.showModal === 'function') dlg.showModal(); else dlg.setAttribute('open', '');
+    if (q != null) input.value = q;
+    search();
+    input.focus(); input.select();
+  };
+  const closeSearch = () => { if (dlg.open) dlg.close ? dlg.close() : dlg.removeAttribute('open'); };
+  input.addEventListener('input', search);
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown') { e.preventDefault(); moveSel(1); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); moveSel(-1); }
+    else if (e.key === 'Enter') { e.preventDefault(); const r = found[sel]; if (r) { closeSearch(); go(r.href); } }
+  });
+  results.addEventListener('click', (e) => {
+    const q = e.target.closest('[data-q]');
+    if (q) { input.value = q.dataset.q; search(); input.focus(); return; }
+    const a = e.target.closest('a.result');
+    if (a) { e.preventDefault(); closeSearch(); go(a.getAttribute('href')); }
+  });
+  dlg.addEventListener('click', (e) => { if (e.target === dlg) closeSearch(); });
+
+  function go(href) {
+    if (location.hash === href) route(); else location.hash = href;
+  }
+
+  /* ================= DRAWER (mobile nav) ================= */
+  const openDrawer = () => { document.body.classList.add('nav-open'); $('.menu-btn').setAttribute('aria-expanded', 'true'); const f = $('.side-link', sidebar); if (f) f.focus({ preventScroll: true }); };
+  const closeDrawer = () => { if (!document.body.classList.contains('nav-open')) return; document.body.classList.remove('nav-open'); $('.menu-btn').setAttribute('aria-expanded', 'false'); };
+
+  /* ================= GLOBAL EVENTS ================= */
+  document.addEventListener('click', (e) => {
+    const t = e.target;
+    const flip = t.closest('[data-action="flip"]');
+    if (flip && !t.closest('.speak')) { const on = !flip.classList.contains('is-flipped'); flip.classList.toggle('is-flipped', on); flip.setAttribute('aria-pressed', on); return; }
+    const sp = t.closest('.speak');
+    if (sp) { e.preventDefault(); e.stopPropagation(); EF.speak(sp.dataset.speak, 'fr-FR', sp); return; }
+    if (t.closest('[data-theme-toggle]')) { EF.theme.toggle(); return; }
+    if (t.closest('[data-search-open]')) { EF.openSearch(); return; }
+    if (t.closest('.menu-btn')) { document.body.classList.contains('nav-open') ? closeDrawer() : openDrawer(); return; }
+    if (t.closest('.scrim')) { closeDrawer(); return; }
+    if (t.closest('[data-print]')) { window.print(); return; }
+    if (t.closest('[data-reset]') && viewKey === 'progress') {
+      if (confirm('Reset all your progress on this device? This can’t be undone.')) { EF.store.reset(); route(); EF.toast('Progress reset — fresh start!', 'fa-broom'); }
+      return;
+    }
+    // Clicking a link to the URL we're already on (e.g. same topic) should still scroll there
+    const a = t.closest('a[href^="#/"]');
+    if (a && !e.metaKey && !e.ctrlKey && !e.shiftKey && a.getAttribute('href') === location.hash) { e.preventDefault(); route(); closeDrawer(); }
+  });
+  document.addEventListener('keydown', (e) => {
+    const flip = e.target.closest && e.target.closest('[data-action="flip"]');
+    if (flip && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); flip.click(); return; }
+    const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || e.target.isContentEditable;
+    if ((e.key === 'k' || e.key === 'K') && (e.metaKey || e.ctrlKey)) { e.preventDefault(); EF.openSearch(); return; }
+    if (typing || e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.key === '/') { e.preventDefault(); EF.openSearch(); }
+    else if (e.key === 'd' || e.key === 'D') EF.theme.toggle();
+    else if (e.key === 'Escape') closeDrawer();
+  });
+  // Open every collapsible bit before printing so the printout has all the notes
+  let reopened = [];
+  window.addEventListener('beforeprint', () => { reopened = $$('details:not([open])', main); reopened.forEach((d) => d.setAttribute('open', '')); });
+  window.addEventListener('afterprint', () => { reopened.forEach((d) => d.removeAttribute('open')); reopened = []; });
+
+  EF.on('theme', (t) => { $$('[data-theme-toggle]').forEach((b) => { b.innerHTML = icon(t === 'dark' ? 'fa-sun' : 'fa-moon'); b.setAttribute('aria-label', t === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'); }); });
+  const paintStreak = () => { const n = EF.store.streak(); $$('.streak-chip').forEach((el) => { el.innerHTML = `${icon('fa-fire')}<strong>${n}</strong>`; el.title = n + '-day study streak'; el.classList.toggle('is-hot', n > 0); }); };
+  EF.on('streak', paintStreak);
+  let sideTimer = null;
+  EF.on('progress', () => { clearTimeout(sideTimer); sideTimer = setTimeout(renderSidebar, 200); });
+
+  window.addEventListener('hashchange', route);
+
+  /* ================= BOOT ================= */
+  EF.emit('theme', EF.theme.get());
+  paintStreak();
+  route();
+  document.documentElement.classList.add('is-ready');
+})();

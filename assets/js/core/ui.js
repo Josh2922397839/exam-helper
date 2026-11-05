@@ -1,0 +1,224 @@
+/* ExamForge core — helpers, saved progress, theme, speech, toasts, confetti */
+(function () {
+  'use strict';
+  const EF = (window.EF = window.EF || {});
+  EF.subjects = EF.subjects || [];
+
+  /* ---------- tiny helpers ---------- */
+  const ESC = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+  EF.esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ESC[c]);
+  EF.strip = (html) => String(html || '').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
+  EF.icon = (name, extra) => `<i class="fa-solid ${name}${extra ? ' ' + extra : ''}" aria-hidden="true"></i>`;
+  EF.$ = (sel, root) => (root || document).querySelector(sel);
+  EF.$$ = (sel, root) => Array.from((root || document).querySelectorAll(sel));
+  EF.shuffle = (arr) => {
+    const a = arr.slice();
+    for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+    return a;
+  };
+  EF.subject = (id) => EF.subjects.find((s) => s.id === id);
+  EF.reducedMotion = () => window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* Progress ring as inline SVG (pct 0–100) */
+  EF.ring = (pct, size = 56, stroke = 6, label) => {
+    const p = Math.max(0, Math.min(100, Math.round(pct || 0)));
+    const r = (size - stroke) / 2;
+    return `<span class="ring" style="--size:${size}px" role="img" aria-label="${p}% complete">
+      <svg viewBox="0 0 ${size} ${size}" width="${size}" height="${size}" aria-hidden="true">
+        <circle class="ring-track" cx="${size / 2}" cy="${size / 2}" r="${r}" stroke-width="${stroke}" fill="none"/>
+        <circle class="ring-fill" cx="${size / 2}" cy="${size / 2}" r="${r}" stroke-width="${stroke}" fill="none" pathLength="100" stroke-dasharray="${p} 100" transform="rotate(-90 ${size / 2} ${size / 2})"/>
+      </svg><span class="ring-label">${label != null ? label : p + '%'}</span></span>`;
+  };
+
+  /* ---------- events ---------- */
+  const listeners = {};
+  EF.on = (evt, fn) => { (listeners[evt] = listeners[evt] || []).push(fn); };
+  EF.emit = (evt, data) => { (listeners[evt] || []).forEach((fn) => { try { fn(data); } catch (e) { console.error(e); } }); };
+
+  /* ---------- safe localStorage ---------- */
+  const ls = {
+    get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+    set(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* private mode — ignore */ } },
+    del(k) { try { localStorage.removeItem(k); } catch (e) { /* ignore */ } }
+  };
+  EF.ls = ls;
+
+  /* ---------- saved progress ---------- */
+  const KEY = 'ef2:state';
+  const dayKey = (d) => {
+    const x = d || new Date();
+    return x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0');
+  };
+  const fresh = () => ({ visited: {}, quiz: {}, cards: {}, mistakes: [], days: [], last: null, answered: 0, correct: 0 });
+  let state = fresh();
+  try { state = Object.assign(fresh(), JSON.parse(ls.get(KEY) || '{}')); } catch (e) { state = fresh(); }
+  let saveTimer = null;
+  const save = () => { clearTimeout(saveTimer); saveTimer = setTimeout(() => ls.set(KEY, JSON.stringify(state)), 120); };
+  window.addEventListener('pagehide', () => { clearTimeout(saveTimer); ls.set(KEY, JSON.stringify(state)); });
+
+  const store = {
+    state: () => state,
+    touchDay() {
+      const t = dayKey();
+      if (!state.days.includes(t)) {
+        state.days.push(t);
+        state.days = state.days.slice(-120);
+        save();
+        EF.emit('streak', store.streak());
+      }
+    },
+    streak() {
+      const set = new Set(state.days);
+      const d = new Date();
+      if (!set.has(dayKey(d))) d.setDate(d.getDate() - 1); // still alive if you studied yesterday
+      let n = 0;
+      while (set.has(dayKey(d))) { n++; d.setDate(d.getDate() - 1); }
+      return n;
+    },
+    studiedOn: (d) => state.days.includes(dayKey(d)),
+    markVisited(sid, tid) {
+      const v = (state.visited[sid] = state.visited[sid] || []);
+      if (!v.includes(tid)) { v.push(tid); save(); EF.emit('progress', sid); }
+      store.touchDay();
+    },
+    setLast(sid, tid) { state.last = { s: sid, t: tid, at: Date.now() }; save(); },
+    answer(key, ok) {
+      state.answered++;
+      if (ok) {
+        state.correct++;
+        state.mistakes = state.mistakes.filter((k) => k !== key);
+      } else if (!state.mistakes.includes(key)) {
+        state.mistakes.push(key);
+      }
+      save();
+      store.touchDay();
+    },
+    recordQuiz(id, pct) {
+      const q = (state.quiz[id] = state.quiz[id] || { best: 0, last: 0, attempts: 0 });
+      q.last = pct; q.best = Math.max(q.best, pct); q.attempts++;
+      save(); EF.emit('progress', id);
+      return q;
+    },
+    quiz: (id) => state.quiz[id] || null,
+    cardBox: (sid, key) => ((state.cards[sid] || {})[key] || 0),
+    setCardBox(sid, key, box) {
+      (state.cards[sid] = state.cards[sid] || {})[key] = box;
+      save(); store.touchDay(); EF.emit('progress', sid);
+    },
+    mastered(sid) {
+      const s = EF.subject(sid);
+      if (!s || !s.flashcards) return 0;
+      const boxes = state.cards[sid] || {};
+      return s.flashcards.filter((c) => (boxes[c[0]] || 0) >= 3).length;
+    },
+    progress(sid) {
+      const s = EF.subject(sid);
+      const total = s ? s.topics.length : 0;
+      const ids = s ? s.topics.map((t) => t.id) : [];
+      const visited = (state.visited[sid] || []).filter((t) => ids.includes(t)).length;
+      const best = (state.quiz[sid] || {}).best || 0;
+      const cards = s && s.flashcards ? s.flashcards.length : 0;
+      const mastered = store.mastered(sid);
+      // Reading 40%, best quiz score 40%, flashcards mastered 20%
+      const pct = total ? Math.round((visited / total) * 40 + best * 0.4 + (cards ? (mastered / cards) * 20 : 0)) : 0;
+      return { visited, total, best, cards, mastered, pct, attempts: (state.quiz[sid] || {}).attempts || 0 };
+    },
+    overall() {
+      if (!EF.subjects.length) return 0;
+      return Math.round(EF.subjects.reduce((sum, s) => sum + store.progress(s.id).pct, 0) / EF.subjects.length);
+    },
+    reset() { state = fresh(); ls.set(KEY, JSON.stringify(state)); EF.emit('progress'); EF.emit('streak', 0); }
+  };
+  EF.store = store;
+  EF.dayKey = dayKey;
+
+  /* ---------- theme ---------- */
+  EF.theme = {
+    get: () => document.documentElement.getAttribute('data-theme') || 'dark',
+    set(t) {
+      document.documentElement.setAttribute('data-theme', t);
+      ls.set('ef2:theme', t);
+      const meta = document.querySelector('meta[name="theme-color"]');
+      if (meta) meta.setAttribute('content', t === 'dark' ? '#0c0d11' : '#f6f3ec');
+      EF.emit('theme', t);
+    },
+    toggle() { EF.theme.set(EF.theme.get() === 'dark' ? 'light' : 'dark'); }
+  };
+
+  /* ---------- speech (French TTS with smart voice picking) ---------- */
+  let frVoice = null;
+  const pickVoice = () => {
+    if (!('speechSynthesis' in window)) return null;
+    if (frVoice) return frVoice;
+    const voices = speechSynthesis.getVoices();
+    if (!voices.length) return null;
+    const preferred = ['Google français', 'Microsoft Denise Online', 'Microsoft Paul Online', 'Microsoft Denise', 'Microsoft Paul', 'Amélie', 'Thomas', 'Marie', 'Audrey'];
+    for (const name of preferred) {
+      const v = voices.find((x) => x.name.includes(name) && x.lang.toLowerCase().startsWith('fr'));
+      if (v) return (frVoice = v);
+    }
+    return (frVoice = voices.find((v) => v.lang === 'fr-FR') || voices.find((v) => v.lang.toLowerCase().startsWith('fr')) || null);
+  };
+  if ('speechSynthesis' in window) {
+    speechSynthesis.getVoices();
+    speechSynthesis.addEventListener && speechSynthesis.addEventListener('voiceschanged', () => { frVoice = null; pickVoice(); });
+  }
+  EF.canSpeak = () => 'speechSynthesis' in window;
+  EF.speak = (text, lang = 'fr-FR', el) => {
+    if (!EF.canSpeak()) { EF.toast('Your browser can’t play speech', 'fa-volume-xmark'); return; }
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = lang;
+    if (lang.startsWith('fr')) { const v = pickVoice(); if (v) u.voice = v; u.rate = 0.85; u.pitch = 1.03; } else { u.rate = 0.95; }
+    if (el) {
+      el.classList.add('is-speaking');
+      const done = () => el.classList.remove('is-speaking');
+      u.onend = done; u.onerror = done; setTimeout(done, 4000);
+    }
+    speechSynthesis.speak(u);
+  };
+  EF.stopSpeaking = () => { if (EF.canSpeak()) speechSynthesis.cancel(); };
+
+  /* ---------- toasts ---------- */
+  EF.toast = (msg, icon = 'fa-circle-check') => {
+    const wrap = document.getElementById('toasts');
+    if (!wrap) return;
+    const t = document.createElement('div');
+    t.className = 'toast';
+    t.setAttribute('role', 'status');
+    t.innerHTML = EF.icon(icon) + '<span>' + EF.esc(msg) + '</span>';
+    wrap.appendChild(t);
+    requestAnimationFrame(() => t.classList.add('is-in'));
+    setTimeout(() => { t.classList.remove('is-in'); setTimeout(() => t.remove(), 300); }, 2600);
+  };
+
+  /* ---------- confetti (no library needed) ---------- */
+  EF.confetti = () => {
+    if (EF.reducedMotion()) return;
+    const c = document.createElement('canvas');
+    c.className = 'confetti';
+    c.setAttribute('aria-hidden', 'true');
+    document.body.appendChild(c);
+    const ctx = c.getContext('2d');
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const W = (c.width = innerWidth * dpr), H = (c.height = innerHeight * dpr);
+    const colors = ['#ff6a2b', '#ffb547', '#4f7cff', '#2fbf71', '#e255b4', '#9b6bff', '#14b8c4'];
+    const parts = Array.from({ length: 150 }, () => ({
+      x: W / 2 + (Math.random() - 0.5) * W * 0.3, y: H * 0.65,
+      vx: (Math.random() - 0.5) * 22 * dpr, vy: -(Math.random() * 20 + 12) * dpr,
+      r: (Math.random() * 6 + 4) * dpr, rot: Math.random() * 6, vr: (Math.random() - 0.5) * 0.4,
+      color: colors[(Math.random() * colors.length) | 0], shape: Math.random() > 0.5
+    }));
+    let frame = 0;
+    (function tick() {
+      ctx.clearRect(0, 0, W, H);
+      parts.forEach((p) => {
+        p.vy += 0.55 * dpr; p.vx *= 0.99; p.x += p.vx; p.y += p.vy; p.rot += p.vr;
+        ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot); ctx.fillStyle = p.color;
+        if (p.shape) ctx.fillRect(-p.r / 2, -p.r / 4, p.r, p.r / 2); else { ctx.beginPath(); ctx.arc(0, 0, p.r / 2.4, 0, 7); ctx.fill(); }
+        ctx.restore();
+      });
+      if (++frame < 160) requestAnimationFrame(tick); else c.remove();
+    })();
+  };
+})();
