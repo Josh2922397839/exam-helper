@@ -199,6 +199,14 @@
 
   /* ---------- 6. large title: the subject name tucks into the top bar as you scroll (phones) ---------- */
   const topTitle = document.querySelector('.top-title');
+  // the buttons on the right change (profile button, streak digits), so the title measures them
+  const topBar = document.querySelector('.topbar'), topActs = document.querySelector('.top-actions');
+  if (topTitle && topBar && topActs && 'ResizeObserver' in window) {
+    new ResizeObserver(() => {
+      const gap = topBar.getBoundingClientRect().right - topActs.getBoundingClientRect().left;
+      if (gap > 0) topTitle.style.right = Math.round(gap + 8) + 'px';
+    }).observe(topActs);
+  }
   EF.watchTitle = (h1, title) => {
     if (!topTitle || !h1 || !('IntersectionObserver' in window)) return () => {};
     topTitle.querySelector('strong').textContent = title;

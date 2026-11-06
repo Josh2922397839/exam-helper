@@ -25,7 +25,11 @@
   /* name of the unit a topic opens (subjects made from a study handoff group their topics into units) */
   const unitStart = (s, t) => { const u = (s.units || []).find((x) => x.topics[0] === t.id); return u && s.units.length > 1 ? u.name : ''; };
   const BADGE = { 'Grade 10': 'is-now', 'Grade 9 review': 'is-review', 'Older review': 'is-old' };
-  const topicBadge = (t) => (t.badge ? `<span class="t-badge ${BADGE[t.badge] || ''}"${t.unconfirmed ? ' title="Grade not confirmed yet: check with your teacher"' : ''}>${esc(t.badge)}${t.unconfirmed ? ' ?' : ''}</span>` : '');
+  // an unconfirmed badge is a button, so phones (no hover tooltips) can tap it for the reason
+  const WHY = 'Grade not confirmed yet: check with your teacher';
+  const topicBadge = (t) => (!t.badge ? '' : t.unconfirmed
+    ? `<button type="button" class="t-badge ${BADGE[t.badge] || ''}" data-why="${WHY}" title="${WHY}">${esc(t.badge)} ${icon('fa-circle-question')}</button>`
+    : `<span class="t-badge ${BADGE[t.badge] || ''}">${esc(t.badge)}</span>`);
   /* Exam traps: tips in order, with any table (e.g. past-paper mistakes) where it sits */
   function traps(s) {
     let out = '', run = [];
@@ -63,6 +67,11 @@
 
   /* ================= SIDEBAR ================= */
   let lastSidebar = '';
+  // theme button: the 3D sun/moon in the top bar, sun/moon plus words in the phone menu
+  function themeFace(t, labelled) {
+    const dark = t === 'dark';
+    return labelled ? `${EF.img3d(dark ? 'sun' : 'moon', 30)}<span>${dark ? 'Light mode' : 'Dark mode'}</span>` : EF.img3d(dark ? 'sun' : 'moon', 24);
+  }
   function renderSidebar() {
     const [a, sid] = parts();
     const here = a === 's' ? sid : null;
@@ -82,6 +91,7 @@
         ${navItem('#/sets', 'memo', 'My sets', 'sets')}
         ${navItem('#/progress', 'chart', 'Progress', 'progress')}
         ${me ? link('#/me', EF.myAvatar(me, 30), esc(me.username), 'me') : navItem('#/me', 'wave', 'Profile', 'me')}
+        <button type="button" class="side-link side-theme" data-theme-toggle data-label aria-label="${EF.theme.get() === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}">${themeFace(EF.theme.get(), true)}</button>
       </nav>
       <div class="side-cta">
         <a class="btn btn-ink btn-block side-study" href="${lastS ? '#/learn/' + lastS.id : '#/cards'}">${EF.img3d('game', 26)} Study</a>
@@ -244,7 +254,7 @@
           <div class="btn-row">
             <a class="btn btn-c" href="#/s/${s.id}/quiz">${icon('fa-bolt')} Take the quiz</a>
             <a class="btn" href="#/learn/${s.id}">${icon('fa-graduation-cap')} Learn</a>
-            <a class="btn" href="#/cards/${s.id}">${icon('fa-clone')} Flashcards</a>
+            <a class="btn" href="#/cards/${s.id}">${icon('fa-clone')} <span class="lbl-l">Flashcards</span><span class="lbl-s">Cards</span></a>
             <a class="btn" href="#/set/${s.id}">${icon('fa-shapes')} Games</a>
             <button type="button" class="btn btn-ghost" data-print>${icon('fa-print')} Print notes</button>
           </div>
@@ -252,7 +262,7 @@
 
         ${contents(s, seen)}
 
-        <a class="toc-float" href="#contents" data-toc-float aria-label="Back to contents" hidden>${icon('fa-list-ul')}<span data-toc-now>Contents</span></a>
+        <a class="toc-float tint" style="--c:${esc(s.color)}" href="#contents" data-toc-float aria-label="Back to contents" hidden>${icon('fa-list-ul')}<span data-toc-now>Contents</span></a>
 
         ${s.topics.map((t, i) => `
           ${unitStart(s, t) ? `<div class="unit-break" aria-hidden="true"><span>${esc(unitStart(s, t))}</span></div>` : ''}
@@ -637,6 +647,8 @@
     cleanup.push(() => clearTimeout(readTimer));
     // a small "Contents" pill appears once the contents card has scrolled away
     const toc = $('#contents', main), pill = $('[data-toc-float]', main);
+    // fixed elements inside an animated page get pinned to the page, so the pill lives on <body>
+    if (pill) { document.body.appendChild(pill); cleanup.push(() => pill.remove()); }
     if (toc && pill) {
       const tio = new IntersectionObserver(([e]) => { pill.hidden = e.isIntersecting || e.boundingClientRect.top > 0; });
       tio.observe(toc);
@@ -652,7 +664,7 @@
       a.classList.toggle('is-active', on);
       if (on) a.setAttribute('aria-current', 'location'); else a.removeAttribute('aria-current');
     });
-    const now = $('[data-toc-now]', main);
+    const now = $('[data-toc-now]');
     if (now) { const i = sub && tp ? sub.topics.indexOf(tp) : -1; now.textContent = i >= 0 ? `${i + 1}/${sub.topics.length} · ${topicLabel(tp)}` : id === 'quiz' ? 'Quiz' : id === 'traps' ? 'Exam traps' : 'Contents'; }
     const chip = $('.topic-chips .is-active', main);
     if (chip) { const bar = chip.parentElement; bar.scrollTo({ left: chip.offsetLeft - bar.clientWidth / 2 + chip.clientWidth / 2, behavior: EF.reducedMotion() ? 'auto' : 'smooth' }); }
@@ -808,6 +820,8 @@
     if (sh) { const set = EF.sets.raw(sh.dataset.share); if (set) EF.sets.share(set).then((r) => { if (r === 'copied') EF.toast('Link copied: send it to your friends!', 'fa-link'); else if (r === 'shared') EF.toast('Shared!', 'fa-share-nodes'); }); return; }
     const tv = t.closest('[data-toc-view]');
     if (tv) { try { localStorage.setItem('ef2:tocView', tv.dataset.tocView); } catch (er) { /* */ } const [, sid] = parts(), sub = EF.subject(sid), box = $('#contents', main); if (sub && box) { box.outerHTML = contents(sub, EF.store.state().visited[sub.id] || []); } return; }
+    const why = t.closest('[data-why]');
+    if (why) { EF.toast(why.dataset.why, 'fa-circle-question'); return; }
     if (t.closest('[data-toc-float]')) { e.preventDefault(); const toc = $('#contents', main); if (toc) toc.scrollIntoView({ behavior: EF.reducedMotion() ? 'auto' : 'smooth', block: 'start' }); return; }
     const wk = t.closest('[data-worked]');
     if (wk) { stepWorked(wk.closest('.worked'), wk.dataset.worked); return; }
@@ -834,7 +848,7 @@
     if (typing || e.metaKey || e.ctrlKey || e.altKey) return;
     if (e.key === '/') { e.preventDefault(); EF.openSearch(); }
     else if (e.key === '?') { e.preventDefault(); openKeys(); }
-    else if (e.key === 'd' || e.key === 'D') EF.theme.toggle($('[data-theme-toggle]'));
+    else if (e.key === 'd' || e.key === 'D') EF.theme.toggle($$('[data-theme-toggle]').find((b) => b.getClientRects().length));
     else if (e.key === 'Escape') closeDrawer();
   });
   // Open every collapsible bit before printing so the printout has all the notes
@@ -842,7 +856,12 @@
   window.addEventListener('beforeprint', () => { reopened = $$('details:not([open])', main); reopened.forEach((d) => d.setAttribute('open', '')); });
   window.addEventListener('afterprint', () => { reopened.forEach((d) => d.removeAttribute('open')); reopened = []; });
 
-  EF.on('theme', (t) => { $$('[data-theme-toggle]').forEach((b) => { b.innerHTML = EF.img3d(t === 'dark' ? 'sun' : 'moon', 24); b.setAttribute('aria-label', t === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'); }); const m = document.querySelector('meta[name=theme-color]'); if (m) m.content = t === 'dark' ? '#0f1220' : '#f5f6fa'; });
+  EF.on('theme', (t) => {
+    $$('[data-theme-toggle]').forEach((b) => { b.innerHTML = themeFace(t, b.hasAttribute('data-label')); b.setAttribute('aria-label', t === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'); });
+    // the phone's status bar takes the page colour, so the top of the screen looks like one piece
+    const m = document.querySelector('meta[name=theme-color]'), bg = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim();
+    if (m && bg) m.content = bg;
+  });
   const paintStreak = () => { const n = EF.store.streak(); $$('.streak-chip').forEach((el) => { el.innerHTML = `${EF.img3d('fire', 24)}<strong>${n}</strong>`; el.title = n + '-day study streak' + (EF.store.freezes() ? ` · ${EF.store.freezes()} streak freeze${EF.store.freezes() > 1 ? 's' : ''} ready` : ''); el.classList.toggle('is-hot', n > 0); }); };
   EF.on('streak', () => { paintStreak(); EF.paintGoal(); });
   EF.on('sets', () => { clearTimeout(sideTimer); sideTimer = setTimeout(renderSidebar, 50); });

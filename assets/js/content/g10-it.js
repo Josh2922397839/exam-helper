@@ -1690,7 +1690,7 @@ EF.subjects.push({
       "Good interface design uses readable text, consistent controls, clear feedback, suitable contrast and helpful error messages. These points explain the registered UI-design scope; exact teacher wording remains <span class=\"chk\" title=\"Not confirmed yet: check with your teacher\">check</span>.",
       "A file is a named collection of stored data. A folder/directory organises files and subfolders; a drive is a storage location represented in Windows by a letter such as C:.",
       "A hierarchical file structure has folders within folders. A full path identifies the route to a file, for example C:\\Documents\\IT\\exams\\midyear.docx; each backslash separates a level.",
-      "An extension follows the final dot and indicates a file type:.docx document,.pptx presentation,.xlsx workbook,.html web page. The teacher topic document's “xlxs” is a typo; use.xlsx.",
+      "An extension follows the final dot and indicates a file type: .docx document, .pptx presentation, .xlsx workbook, .html web page. The teacher topic document's “xlxs” is a typo; use .xlsx.",
       "File operations include creating, opening, saving, copying, moving, renaming, searching, deleting and restoring. Copy leaves an original; move changes location. Renaming an extension alone does not convert the file's contents.",
       "Attributes/properties may include name, type, size, location, created/modified dates, read-only and hidden status. Read-only is not encryption; hidden is not secure protection.",
       "Compression reduces the space needed for data. Lossless compression permits exact reconstruction; lossy compression discards some information, commonly for media. A compressed archive can group multiple files for storage/transfer."
@@ -1718,7 +1718,7 @@ EF.subjects.push({
       ],
       [
        "Extension",
-       "filename suffix indicating type, such as.xlsx."
+       "filename suffix indicating type, such as .xlsx."
       ],
       [
        "Compression",
@@ -2637,7 +2637,7 @@ EF.subjects.push({
   ],
   [
    "What do a file path and extension identify?",
-   "The path locates a file through folders; the extension indicates its file type, such as.xlsx. Older review.",
+   "The path locates a file through folders; the extension indicates its file type, such as .xlsx. Older review.",
    "Computer systems"
   ],
   [

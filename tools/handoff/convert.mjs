@@ -29,7 +29,8 @@ function sanitize(t) {
     .replace(/\s*\(?(?:image-)?\d{5,}\.(?:jpe?g|png|heic|webp)\)?/gi, '')
     .replace(/\b(?:class |group )?10 Holding\b/g, 'your class')
     .replace(/(\S) {2,}/g, '$1 ')
-    .replace(/ ([,.;:])/g, '$1');
+    // stray space before punctuation ("word ,"), but leave ".xlsx", ".5" and ratios like "2 : 3" alone
+    .replace(/ ([,.;])(?=\s|$)/gm, '$1');
 }
 
 /* ---------- inline markdown → safe HTML ---------- */

@@ -35,6 +35,17 @@
 
 /* ---------- type: practical body, friendly headings ---------- */
 body { font-family: var(--font-body); font-weight: 450; letter-spacing: -.003em; -webkit-font-smoothing: antialiased; }
+/* long slash-joined words (a/b/c/d) and spreadsheet formulas must wrap, or phones zoom
+   the whole page out. Grid lists need a shrinkable column for that to work. */
+.page { overflow-wrap: break-word; }
+.notes, .rules ul, .src-notes ul, .traps { grid-template-columns: minmax(0, 1fr); }
+/* study modes show card text in tight tiles and buttons (and your own sets can hold anything),
+   so a long formula or link breaks mid-word there instead of pushing the page sideways */
+:is([data-learn], [data-match], [data-speed], [data-gap], [data-quiz], [data-cards], [data-live]) { overflow-wrap: anywhere; }
+/* long set names (yours, or ones other students share) wrap too */
+.page-head > div, .deck-body, .side-link > span { min-width: 0; }
+.crumb { max-width: 100%; overflow-wrap: anywhere; }
+.set-list ol, .make-cards, .set-list li, .make-cards li { grid-template-columns: minmax(0, 1fr); overflow-wrap: anywhere; }
 h1, h2, h3 { font-family: var(--font-display); font-weight: 800; letter-spacing: -.015em; }
 h4 { font-family: var(--font-body); font-weight: 650; letter-spacing: -.01em; }
 .eyebrow { font-weight: 700; letter-spacing: .06em; }
@@ -140,7 +151,13 @@ input, select, textarea { font-family: var(--font-body); }
 .toc-float i { color: var(--c-ink); }
 .toc-float[hidden] { display: none; }
 @keyframes tocIn { from { opacity: 0; translate: -50% -8px; } }
+@keyframes tocUp { from { opacity: 0; translate: -50% 10px; } }
 @media (min-width: 1024px) { .toc-float { left: calc(var(--sidebar-w) + (100vw - var(--sidebar-w)) / 2); } }
+/* phones and tablets: the pill sits by your thumb above the tab bar, not over the line you're reading */
+@media (max-width: 1023px) {
+  .toc-float { top: auto; bottom: calc(78px + env(safe-area-inset-bottom)); animation-name: tocUp; }
+  body:has(.toc-float:not([hidden])) .toasts { bottom: calc(128px + env(safe-area-inset-bottom)); }
+}
 
 .unit-break { display: flex; align-items: center; gap: 12px; margin: 40px 0 -10px; color: var(--text-3); font-size: .72rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
 .unit-break::before, .unit-break::after { content: ''; height: 1px; flex: 1; background: var(--line); }
@@ -157,6 +174,8 @@ input, select, textarea { font-family: var(--font-body); }
 .t-badge.is-old { background: color-mix(in srgb, #f59e0b 14%, transparent); color: color-mix(in srgb, #b45309 85%, var(--text)); border-color: transparent; }
 :root[data-theme="dark"] .t-badge.is-old { color: #fbbf24; }
 :root[data-theme="dark"] .t-badge.is-review { color: #93c5fd; }
+button.t-badge { gap: 4px; font-family: inherit; line-height: inherit; cursor: help; }
+button.t-badge i { font-size: .9em; opacity: .8; }
 .topic > .block + .block { margin-top: 16px; }
 
 /* notes: readable list, one idea per line */
@@ -188,7 +207,7 @@ input, select, textarea { font-family: var(--font-body); }
 /* draw-it diagram brief */
 .draw { display: flex; gap: 14px; margin: 0; padding: 14px 16px; border-radius: 14px; border: 1.5px dashed color-mix(in srgb, var(--c) 40%, var(--line-2)); background: var(--surface); }
 .draw-ic { display: inline-grid; place-items: center; flex: none; width: 38px; height: 38px; border-radius: 11px; background: var(--c-soft); color: var(--c-ink); }
-.draw figcaption { display: grid; gap: 6px; min-width: 0; }
+.draw figcaption { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; min-width: 0; }
 .draw-head { font-size: .72rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--c-ink); }
 .draw-text { line-height: 1.6; color: var(--text); }
 .draw-labels { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -243,8 +262,8 @@ input, select, textarea { font-family: var(--font-body); }
   .subject-hero-row .ring svg { width: 56px; height: 56px; }
   .subject-hero-row p { grid-column: 1 / -1; grid-row: 2; margin-top: 10px; font-size: .93rem; }
   .subject-stats { gap: 6px 16px; margin: 14px 0 14px; font-size: .82rem; }
-  .subject-hero .btn-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-  .subject-hero .btn-row .btn { width: 100%; justify-content: center; }
+  .subject-hero .btn-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .subject-hero .btn-row .btn { width: 100%; justify-content: center; padding: 0 6px; gap: 6px; font-size: .9rem; }
   .subject-hero .btn-row .btn-c { grid-column: 1 / -1; }
   .subject-hero .btn-row [data-print] { display: none; }
   .toc { padding: 14px 14px 12px; }
@@ -255,6 +274,45 @@ input, select, textarea { font-family: var(--font-body); }
   .ask-input { min-height: 60px; padding: 16px 18px; }
   .home-hello h1 { font-size: 1.45rem; }
   .home-sub { font-size: .8rem; }
+  /* progress: the mascot sits in its own corner instead of on top of "Overall" */
+  .progress-overall { gap: 16px; padding-right: 92px; }
+  .progress-overall .ring { --size: 92px !important; }
+  .progress-overall .ring svg { width: 92px; height: 92px; }
+  .progress-overall h3 { font-size: 1.3rem; }
+  .progress-mascot { top: auto; bottom: 10px; right: 10px; }
+  .progress-mascot .mascot { width: 68px; height: 72px; }
+  /* flashcards: "Card 1 of 15" stays on one line, the topic pill gives way
+     (the column must be allowed to shrink, or the one-line row widens the page) */
+  .cards-host, .cards { grid-template-columns: minmax(0, 1fr); }
+  .cards-meta { min-width: 0; }
+  .cards-meta > span:first-child { white-space: nowrap; }
+  .cards-meta .pill { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cards-meta .boxes { flex: none; }
+  /* make a set: all eight colours in one tidy row */
+  .make-colors { display: grid; grid-template-columns: repeat(8, minmax(0, 34px)); gap: 8px; }
+  .make-color { width: 100%; height: auto; aspect-ratio: 1; }
+}
+/* toasts: centred with left:50%, so without this they shrink to half the screen and wrap */
+.toasts { width: max-content; max-width: calc(100vw - 32px); }
+.toast { max-width: min(440px, calc(100vw - 32px)); }
+
+/* phone top bar: fewer buttons, so the subject title has room when it tucks in */
+.side-theme { display: none; width: 100%; border: 0; background: none; font-family: inherit; text-align: left; cursor: pointer; }
+@media (max-width: 720px) {
+  .top-title { left: 62px; }
+  .topbar .brand { transition: opacity .2s ease, transform .45s var(--spring-snappy, ease); }
+  body.title-up .topbar .brand { opacity: 0; transform: translateY(-8px); pointer-events: none; }
+}
+@media (max-width: 440px) {
+  .top-actions [data-theme-toggle] { display: none; }
+  .side-theme { display: flex; }
+}
+/* with the theme button in the menu there's room for the streak even on the smallest phones */
+@media (max-width: 359px) { .streak-chip { display: inline-flex; } }
+.lbl-s { display: none; }
+@media (max-width: 400px) {
+  .subject-hero .lbl-l { display: none; }
+  .subject-hero .lbl-s { display: inline; }
 }
 
 @media print {
