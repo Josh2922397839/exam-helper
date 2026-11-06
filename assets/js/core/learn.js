@@ -131,7 +131,7 @@
   /* ================= LEARN ================= */
   EF.mountLearn = (el, sid) => {
     const s = EF.subject(sid);
-    const all = s.flashcards.map((c) => ({ front: c[0], back: c[1] }));
+    const all = s.flashcards.map((c) => ({ front: c[0], back: c[1], tag: c[2] || '', wrong: Array.isArray(c[3]) && c[3].length >= 3 ? c[3] : null }));
     const MAXH = 3, ROUND = 8;
     let queue = [], done = 0, total = 0, lives = MAXH, cur = null, answered = null, streak = 0, best = 0, correct = 0, tries = 0;
     el.classList.add('learn', 'tint'); el.style.setProperty('--c', s.color);
@@ -149,9 +149,15 @@
       cur = queue.shift();
       render();
     }
+    // the card's own wrong answers if it has them, else answers from the same topic first
     function options(item) {
-      const others = EF.shuffle(all.filter((c) => c.back !== item.c.back)).slice(0, 3).map((c) => c.back);
-      return EF.shuffle([item.c.back].concat(others));
+      const c = item.c;
+      let others = c.wrong ? c.wrong.slice(0, 3) : null;
+      if (!others) {
+        const rest = all.filter((d) => d.back !== c.back), same = c.tag ? EF.shuffle(rest.filter((d) => d.tag === c.tag)) : [];
+        others = same.concat(EF.shuffle(rest.filter((d) => !same.includes(d)))).slice(0, 3).map((d) => d.back);
+      }
+      return EF.shuffle([c.back].concat(others));
     }
     function bar() {
       const p = total ? (done / total) * 100 : 0;

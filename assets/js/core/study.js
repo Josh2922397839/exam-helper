@@ -12,10 +12,12 @@
     if (ex) return { id, title: ex[1] ? `Grade ${ex[1]} Exam Mode` : 'Exam Mode', sub: `20 mixed questions from every${ex[1] ? ' Grade ' + ex[1] : ''} subject`, color: '#ff6a2b', icon: 'fa-fire-flame-curved' };
     if (id === 'mistakes') return { id, title: 'Fix My Mistakes', sub: 'Questions you got wrong before', color: '#f0506e', icon: 'fa-bandage' };
     const s = EF.subject(id);
-    return s ? { id, title: s.name + ' Quiz', sub: s.quiz.length + ' questions', color: s.color, icon: s.icon } : null;
+    return s ? { id, title: s.name + ' Quiz', sub: s.quiz.length > TEST_N && !s.custom ? `${TEST_N} questions picked from ${s.quiz.length}` : s.quiz.length + ' questions', color: s.color, icon: s.icon } : null;
   };
 
-  EF.buildQuiz = (id) => {
+  // a subject test is 20 questions picked from its whole deck; the same seed always picks the same ones (challenge links)
+  const TEST_N = 20;
+  EF.buildQuiz = (id, seed) => {
     const all = [];
     EF.subjects.forEach((s) => s.quiz.forEach((q, i) => all.push(Object.assign({ key: s.id + ':' + i, sid: s.id }, q))));
     let list;
@@ -24,7 +26,7 @@
     const mine = () => EF.sets.list().map((x) => EF.sets.get(x.id)).flatMap((s) => s.quiz.map((q, i) => Object.assign({ key: s.id + ':' + i, sid: s.id }, q)));
     if (ex) list = EF.shuffle(ex[1] ? all.filter((q) => EF.gradeOf(EF.subject(q.sid)) === +ex[1]) : all).slice(0, 20);
     else if (id === 'mistakes') { const m = EF.store.state().mistakes; list = EF.shuffle(all.concat(mine()).filter((q) => m.includes(q.key))); }
-    else if (EF.subjects.some((s) => s.id === id)) list = EF.shuffle(all.filter((q) => q.sid === id));
+    else if (EF.subjects.some((s) => s.id === id)) { const mineOnly = all.filter((q) => q.sid === id); list = (seed ? EF.shuffleWith(mineOnly, EF.rng(seed)) : EF.shuffle(mineOnly)).slice(0, TEST_N); }
     else list = EF.shuffle(mine().filter((q) => q.sid === id));
     // Shuffle answer order too, remembering where the right one went
     return list.map((q) => {
@@ -40,8 +42,10 @@
     el.classList.add('quiz', 'tint');
     el.style.setProperty('--c', meta.color);
 
+    let seed = 0;
     const start = (list) => {
-      qs = list || EF.buildQuiz(id);
+      if (!list) seed = vs ? vs.seed : ((Math.random() * 4294967295) >>> 0) || 1;
+      qs = list || EF.buildQuiz(id, seed);
       i = 0; picked = null; right = 0; wrong = []; phase = qs.length ? 'q' : 'empty'; barFrom = 0; entering = true; removed = -1; row = 0;
       render();
       if (opts.inline) el.scrollIntoView({ behavior: EF.reducedMotion() ? 'auto' : 'smooth', block: 'start' });
@@ -162,7 +166,7 @@
       else if (t.hasAttribute('data-next')) next();
       else if (t.hasAttribute('data-hint')) hint();
       else if (t.hasAttribute('data-to-cards')) toCards();
-      else if (t.hasAttribute('data-challenge')) EF.vs.send({ m: 'quiz', s: id, seed: 0, sc: right, of: qs.length });
+      else if (t.hasAttribute('data-challenge')) EF.vs.send({ m: 'quiz', s: id, seed, sc: right, of: qs.length });
       else if (t.hasAttribute('data-vs-back')) EF.vs.send({ m: 'quiz', s: id, seed: vs.seed, sc: right, of: qs.length });
     };
     const onKey = (e) => {
@@ -182,7 +186,7 @@
   /* ================= FLASHCARDS (Leitner boxes 0–5, mastered at 3+) ================= */
   EF.mountCards = (el, sid) => {
     const s = EF.subject(sid);
-    const all = s.flashcards.map((c) => ({ front: c[0], back: c[1], cat: c[2] || '' }));
+    const all = s.flashcards.map((c) => ({ front: c[0], back: c[1], cat: c[2] || '', why: c[4] || '' }));
     const cats = Array.from(new Set(all.map((c) => c.cat).filter(Boolean)));
     let cat = '', deck = [], i = 0, flipped = false, got = 0, again = 0, unsure = 0, mode = 'due';
     let rev = (() => { try { return localStorage.getItem('ef2:cardsRev') === '1'; } catch (e) { return false; } })();
@@ -237,7 +241,7 @@
         <div class="deck" data-left="${Math.min(2, deck.length - i - 1)}"><div class="bigcard${flipped ? ' is-flipped' : ' is-new'}" role="button" tabindex="0" aria-pressed="${flipped}" data-flipcard aria-label="${flipped ? 'Answer: ' + esc(rev ? c.front : c.back) : esc(rev ? c.back : c.front) + ' — press to reveal'}">
           <div class="flip-inner">
             <div class="flip-face bigcard-front"><span class="bigcard-tag">${rev ? 'Answer' : 'Question'}</span><p${s.lang && !rev ? ' lang="fr"' : ''}>${esc(rev ? c.back : c.front)}</p>${s.lang ? `<button type="button" class="speak" data-speak="${esc(c.front)}" aria-label="Hear it">${icon('fa-volume-high')}</button>` : ''}<span class="flip-hint">${icon('fa-rotate')} Tap or press space</span></div>
-            <div class="flip-face bigcard-back"><span class="bigcard-tag">${rev ? 'Question' : 'Answer'}</span><p${s.lang && rev ? ' lang="fr"' : ''}>${esc(rev ? c.front : c.back)}</p></div>
+            <div class="flip-face bigcard-back"><span class="bigcard-tag">${rev ? 'Question' : 'Answer'}</span><p${s.lang && rev ? ' lang="fr"' : ''}>${esc(rev ? c.front : c.back)}</p>${!rev && c.why ? `<small class="bigcard-why">${esc(c.why)}</small>` : ''}</div>
           </div>
         </div></div>
         <div class="cards-actions">${actions()}</div>`;

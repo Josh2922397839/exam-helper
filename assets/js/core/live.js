@@ -19,6 +19,8 @@
   EF.liveCode = (c) => { const x = String(c || '').toUpperCase(); return /^[A-HJ-NP-Z2-9]{6}$/.test(x) ? x : null; };
   const liveSubjects = () => EF.subjects.filter((s) => !s.custom && EF.questionPool(s, EF.rng(1)).length >= N);
   const gameLink = (code) => location.href.split('#')[0] + '#/live/' + code;
+  // a short fingerprint of the questions, so a player with an older copy of the deck finds out before playing
+  const qsHash = (list) => { let h = 2166136261; const str = list.map((q) => q.q + '\u0001' + q.options.join('\u0002') + '\u0003' + q.answer).join('\u0004'); for (let k = 0; k < str.length; k++) { h ^= str.charCodeAt(k); h = Math.imul(h, 16777619); } return h >>> 0; };
   const fmt = (ms) => (Math.max(0, ms) / 1000).toFixed(1) + 's';
   const pointsFor = (ms) => Math.max(50, Math.round((50 + 50 * (1 - ms / LIMIT)) / 5) * 5);
 
@@ -142,6 +144,8 @@
         if (!s || s.custom) return;
         if (qs.length && seed === (p.seed >>> 0) && phase !== 'end') return;
         sid = s.id; seed = p.seed >>> 0; qs = EF.questionPool(s, EF.rng(seed)).slice(0, Math.min(N, p.n | 0 || N));
+        // everyone builds the questions from the seed; a different copy of the deck would ask different ones
+        if (p.h && p.h !== qsHash(qs)) { qs = []; fail('This game uses a different version of the questions. Refresh the page, then join again.'); return; }
         scores = typeof p.scores === 'object' && p.scores ? p.scores : {}; myRight = 0; awarded = false;
         i = -1; phase = p.late ? 'wait' : 'starting'; render();
       } else if (p.t === 'q') {
@@ -159,7 +163,7 @@
     const sanitizeAns = (ans) => { const out = {}; if (ans && typeof ans === 'object') Object.keys(ans).slice(0, MAX_PLAYERS).forEach((k) => { const a = ans[k]; if (Array.isArray(a)) out[k] = { c: a[0] | 0, ms: +a[1] || 0, xp: a[2] | 0 }; }); return out; };
 
     /* ---------- the host runs the game ---------- */
-    function sendStart(late) { send({ t: 'start', sid, seed, n: qs.length, scores, late: !!late }); }
+    function sendStart(late) { send({ t: 'start', sid, seed, n: qs.length, h: qsHash(qs), scores, late: !!late }); }
     function startGame(practice) {
       if (!isHost) return;
       solo = !!practice;

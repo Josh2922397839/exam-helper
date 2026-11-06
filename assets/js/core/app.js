@@ -395,13 +395,51 @@
         ${mode('#/gap/' + s.id, 'fa-pen', 'Fill the gap', 'Complete the key word in each definition', '')}
         ${mode('#/speed/' + s.id, 'fa-stopwatch', 'Speed run', 'As many as you can in 90 seconds', EF.bestSpeed(s.id) ? 'best ' + EF.bestSpeed(s.id) : '')}
         ${!s.custom && EF.cloud.enabled ? mode('#/live/host/' + s.id, 'fa-tower-broadcast', 'Live with friends', 'Host a game: same questions, same time', '') : ''}
-        ${s.quiz.length ? mode('#/quiz/' + s.id, 'fa-bolt', 'Test', s.quiz.length + ' questions with explanations', q ? q.best + '%' : '') : ''}
+        ${s.quiz.length ? mode('#/quiz/' + s.id, 'fa-bolt', 'Test', (s.custom ? s.quiz.length : Math.min(20, s.quiz.length)) + ' questions with explanations', q ? q.best + '%' : '') : ''}
         ${s.custom ? '' : mode('#/s/' + s.id, 'fa-book-open', 'Study guide', 'Full notes, worked examples and tools', '')}
       </div>
       ${s.custom ? `<div class="btn-row"><button type="button" class="btn btn-primary" data-share="${esc(s.id)}">${icon('fa-link')} Share by link</button>${EF.cloud.joined() ? `<button type="button" class="btn" data-publish="${esc(s.id)}">${icon(EF.cloud.published(s.id) ? 'fa-rotate' : 'fa-school')} ${EF.cloud.published(s.id) ? 'Update in school library' : 'Share with my school'}</button>${EF.cloud.published(s.id) ? `<button type="button" class="btn btn-ghost" data-unpublish="${esc(s.id)}">${icon('fa-eye-slash')} Remove from library</button>` : ''}` : ''}<a class="btn" href="#/make/${esc(s.id)}">${icon('fa-pen')} Edit</a></div>` : ''}
-      <details class="card set-list"><summary>${icon('fa-list')} See all ${n} cards</summary><ol>${s.flashcards.map((c) => `<li><strong>${esc(c[0])}</strong><span>${esc(c[1])}</span></li>`).join('')}</ol></details>
+      ${deckView(s)}
     </div>`;
   };
+
+  /* every card in the deck, Gizmo style: tap a card to flip it; filter by topic */
+  const DECK_FIRST = 12;
+  function deckView(s) {
+    const tags = EF.deckTags ? EF.deckTags(s) : [];
+    const card = (c, k) => `<li class="dcard-wrap"${c[2] ? ` data-tag="${esc(c[2])}"` : ''}${k >= DECK_FIRST ? ' data-more' : ''}>
+        <button type="button" class="dcard" aria-pressed="false" data-dcard>
+          <span class="dcard-face dcard-front">${c[2] ? `<small class="dcard-tag">${esc(c[2])}</small>` : ''}<strong>${esc(c[0])}</strong><span class="dcard-hint">${icon('fa-rotate')} Tap to flip</span></span>
+          <span class="dcard-face dcard-back" aria-hidden="true"><small class="dcard-tag">Answer</small><strong>${esc(c[1])}</strong>${c[4] ? `<span class="dcard-why">${esc(c[4])}</span>` : ''}</span>
+        </button></li>`;
+    return `<section class="deck-view" data-deck-view aria-labelledby="deck-h">
+        <div class="deck-view-head"><h2 id="deck-h">${icon('fa-clone')} All ${s.flashcards.length} cards</h2><p class="muted">Tap a card to see the answer${s.flashcards.some((c) => c[4]) ? ' and why' : ''}.</p></div>
+        ${tags.length > 1 ? `<div class="seg seg-sm seg-scroll deck-tags" role="toolbar" aria-label="Show cards on one topic"><button type="button" data-dtag="" aria-pressed="true">All</button>${tags.map((t) => `<button type="button" data-dtag="${esc(t)}" aria-pressed="false">${esc(t)}</button>`).join('')}</div>` : ''}
+        <ul class="dcard-grid">${s.flashcards.map(card).join('')}</ul>
+        ${s.flashcards.length > DECK_FIRST ? `<div class="center"><button type="button" class="btn" data-deck-all>${icon('fa-layer-group')} Show all ${s.flashcards.length} cards</button></div>` : ''}
+      </section>`;
+  }
+  document.addEventListener('click', (e) => {
+    const flip = e.target.closest('[data-dcard]');
+    if (flip) {
+      const on = flip.getAttribute('aria-pressed') !== 'true';
+      flip.setAttribute('aria-pressed', String(on));
+      flip.querySelector('.dcard-front').setAttribute('aria-hidden', String(on));
+      flip.querySelector('.dcard-back').setAttribute('aria-hidden', String(!on));
+      return;
+    }
+    const view = e.target.closest('[data-deck-view]');
+    if (!view) return;
+    const more = e.target.closest('[data-deck-all]');
+    if (more) { view.classList.add('is-all'); more.parentElement.remove(); return; }
+    const tagBtn = e.target.closest('[data-dtag]');
+    if (tagBtn) {
+      const t = tagBtn.dataset.dtag;
+      view.querySelectorAll('[data-dtag]').forEach((b) => b.setAttribute('aria-pressed', String(b === tagBtn)));
+      view.classList.toggle('is-filtered', !!t);
+      view.querySelectorAll('.dcard-wrap').forEach((li) => { li.hidden = !!t && li.dataset.tag !== t; });
+    }
+  });
   const modePage = (s, kind, label, ic) => `<div class="page narrow">
       <a class="crumb" href="#/set/${esc(s.id)}">${icon('fa-arrow-left')} ${esc(s.name)}</a>
       <header class="page-head page-head-sm tint quiz-page-head" style="--c:${s.color}"><span class="quiz-page-ic" ${vt('icon-' + s.id)}>${EF.subjectIcon(s.id)}</span><div><span class="eyebrow">${icon(ic)} ${label}</span><h1>${esc(s.name)}</h1></div></header>

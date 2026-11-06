@@ -161,16 +161,26 @@
     }
   };
 
-  /* ================= QUESTION POOL (Speed run) =================
-     the subject's quiz questions plus a question made from each flashcard */
+  /* ================= QUESTION POOL (Speed run and Live) =================
+     every card in the subject's deck, asked once: quiz questions as they are, other cards as
+     multiple choice. A card's own wrong answers come first; otherwise wrong answers come from
+     cards on the same topic, then from answers of a similar length, so they look believable. */
+  const qKey = (t) => String(t).replace(/<[^>]+>/g, '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
   function pool(s, rnd) {
-    const out = [];
-    (s.quiz || []).forEach((q) => out.push({ q: q.q, ctx: q.ctx, options: q.options.slice(), answer: q.answer }));
+    const out = [], asked = new Set();
+    (s.quiz || []).forEach((q) => { asked.add(qKey(q.q)); out.push({ q: q.q, ctx: q.ctx, options: q.options.slice(), answer: q.answer }); });
     const cards = (s.flashcards || []).filter((c) => c[1].length <= 110);
-    cards.forEach((c, i) => {
-      const others = EF.shuffleWith(cards.filter((d, j) => j !== i && d[1] !== c[1]), rnd).slice(0, 3).map((d) => esc(d[1]));
-      if (others.length < 3) return;
-      const opts = EF.shuffleWith([esc(c[1])].concat(others), rnd);
+    cards.forEach((c) => {
+      if (c[5] === 'quiz' || asked.has(qKey(esc(c[0])))) return;
+      let wrong = Array.isArray(c[3]) && c[3].length >= 3 ? c[3].slice(0, 3) : null;
+      if (!wrong) {
+        const others = cards.filter((d) => d !== c && d[1] !== c[1]);
+        const near = (list) => EF.shuffleWith(list, rnd).sort((a, b) => Math.abs(a[1].length - c[1].length) - Math.abs(b[1].length - c[1].length));
+        const same = c[2] ? near(others.filter((d) => d[2] === c[2])) : [];
+        wrong = same.concat(near(others.filter((d) => !same.includes(d)))).slice(0, 3).map((d) => d[1]);
+      }
+      if (wrong.length < 3) return;
+      const opts = EF.shuffleWith([c[1]].concat(wrong), rnd).map(esc);
       out.push({ q: esc(c[0]), options: opts, answer: opts.indexOf(esc(c[1])) });
     });
     // passages make a sprint too slow: leave those questions out
