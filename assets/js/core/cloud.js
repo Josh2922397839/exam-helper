@@ -466,24 +466,29 @@
 
   const avatarPicker = (cur) => `<div class="ava-pick" role="radiogroup" aria-label="Avatar">${EF.AVATARS.map((k) => `<button type="button" role="radio" class="ava-opt" data-ava="${k}" aria-checked="${k === cur}" aria-label="${k}">${EF.avatar(k, k, 46)}</button>`).join('')}</div>`;
 
-  const authPanel = () => `<section class="profile-auth" aria-label="Sign-in options" data-auth-panel><h2>Keep your account with you</h2><p>Connect a sign-in to return to your profile on another device.</p><div class="auth-options">${['google', 'apple'].map((provider) => `<button type="button" class="auth-provider" data-social-login="${provider}"><i class="fa-brands fa-${provider}" aria-hidden="true"></i><span>Continue with ${provider === 'google' ? 'Google' : 'Apple'}</span></button>`).join('')}</div><p class="auth-status" role="status">Checking sign-in options…</p></section>`;
+  const authPanel = () => `<section class="profile-auth" aria-label="Sign-in options" data-auth-panel hidden><h2>Keep your account with you</h2><p>Connect a sign-in to return to your profile on another device.</p><div class="auth-options">${['google', 'apple'].map((provider) => `<button type="button" class="auth-provider" data-social-login="${provider}"><i class="fa-brands fa-${provider}" aria-hidden="true"></i><span>Continue with ${provider === 'google' ? 'Google' : 'Apple'}</span></button>`).join('')}</div><p class="auth-status" role="status">Checking sign-in options…</p></section>`;
   const restoreBox = () => `<section class="profile-auth" role="status"><h2>Let’s get your profile back</h2><p>We couldn’t finish downloading your account. Your cloud backup is safe. Check your connection, then try again.</p><button type="button" class="btn btn-primary" data-retry-restore>Try again</button></section>`;
   function paintAuthPanel(el) {
     const box = el.querySelector('[data-auth-panel]');
     if (!box || !EF.accountAuth) return;
+    // The card stays hidden until a sign-in is switched on in Supabase, and only working buttons show: no dead ends.
     EF.accountAuth.status().then((state) => {
       if (!box.isConnected) return;
-      const unavailable = [];
+      let shown = 0;
       box.querySelectorAll('[data-social-login]').forEach((button) => {
         const provider = button.dataset.socialLogin, name = provider === 'google' ? 'Google' : 'Apple';
         const connected = state.connected.includes(provider);
+        button.hidden = !(connected || state.providers[provider]);
+        if (!button.hidden) shown++;
         button.disabled = connected;
         button.classList.toggle('is-connected', connected);
         button.querySelector('span').textContent = connected ? name + ' connected' : 'Continue with ' + name;
-        if (!state.providers[provider]) unavailable.push(name);
       });
-      box.querySelector('.auth-status').textContent = unavailable.length ? unavailable.join(' and ') + ' sign-in ' + (unavailable.length > 1 ? 'are' : 'is') + ' not available yet. Your current profile still works.' : state.connected.length ? 'Your connected sign-in keeps this same profile and progress.' : 'Already have a profile here? Connecting keeps your XP, friends and study progress.';
-    }).catch(() => { if (box.isConnected) box.querySelector('.auth-status').textContent = 'Sign-in options could not be checked. Check your connection and try again.'; });
+      box.hidden = !shown;
+      box.querySelector('.auth-status').textContent = state.connected.length ? 'Your connected sign-in keeps this same profile and progress.'
+        : joined() ? 'Already have a profile here? Connecting keeps your XP, friends and study progress.'
+          : 'Used this sign-in on another device? It brings your profile back here. New? It starts a fresh one.';
+    }).catch(() => { /* offline, or sign-in isn't set up: keep the card hidden */ });
   }
   document.addEventListener('click', async (event) => {
     if (event.target.closest('[data-retry-restore]')) { location.reload(); return; }

@@ -70,8 +70,12 @@
       const redirectTo = location.origin + location.pathname;
       const options = { redirectTo, skipBrowserRedirect: true };
       if (provider === 'google') options.queryParams = { prompt: 'select_account' };
-      if (session && EF.cloud.joined()) await EF.cloud.pushSave();
-      const result = session
+      // With a profile on this device, attach the sign-in to it so its XP and friends keep the same owner.
+      // Without one (no session, or a leftover guest session from an unfinished join), sign in instead:
+      // that brings back a profile made on another device, or starts a new one.
+      const linking = !!(session && EF.cloud.joined());
+      if (linking) await EF.cloud.pushSave();
+      const result = linking
         ? await client.auth.linkIdentity({ provider, options })
         : await client.auth.signInWithOAuth({ provider, options });
       if (result.error) throw new Error(message(result.error));
