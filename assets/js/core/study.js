@@ -72,6 +72,7 @@
           <span class="quiz-score${picked != null && picked === q.answer ? ' bump' : ''}">${icon('fa-check')} ${right}</span>
         </div>
         <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="${qs.length}" aria-valuenow="${i}"><span style="width:${barFrom}%"></span></div>
+        ${q.ctx ? `<blockquote class="quiz-ctx"><span>${icon('fa-book-open')} Read this first</span>${q.ctx}</blockquote>` : ''}
         <h3 class="quiz-q" id="qq-${esc(id)}">${q.q}</h3>
         <div class="quiz-opts" role="group" aria-labelledby="qq-${esc(id)}">
           ${q.options.map((o, oi) => `<button type="button" class="opt${picked == null ? '' : oi === q.answer ? ' is-right' : oi === picked ? ' is-wrong' : ' is-dim'}${picked === oi ? ' is-picked' : ''}" data-opt="${oi}" ${picked == null ? '' : 'disabled'}><span class="opt-key">${'ABCD'[oi]}</span><span>${o}</span>${picked != null && oi === q.answer ? icon('fa-circle-check', 'opt-mark') : picked === oi ? icon('fa-circle-xmark', 'opt-mark') : ''}</button>`).join('')}

@@ -173,11 +173,11 @@
     formulas: (b) => `${b.title ? `<h3 class="sub-heading">${esc(b.title)}</h3>` : ''}<div class="formulas">${b.items.map((it) => `
       <div class="formula"><span class="formula-name">${esc(it.name)}</span><span class="formula-f">${it.f}</span>${it.html ? `<p>${it.html}</p>` : ''}${it.units ? `<span class="formula-u">${icon('fa-ruler')} ${it.units}</span>` : ''}</div>`).join('')}</div>`,
 
-    /* Worked example: reveal the working one step at a time, then the answer */
+    /* Worked example: reveal the working one step at a time, then the answer (and a model answer, e.g. a letter) */
     worked: (b) => `<article class="worked">
       <header><span class="worked-badge">${icon(b.icon || 'fa-pen-ruler')} ${esc(b.label || 'Worked example')}</span><p class="worked-q">${b.q}</p></header>
       <ol class="worked-steps">${b.steps.map((x) => `<li hidden>${x}</li>`).join('')}</ol>
-      <div class="worked-ans" hidden>${icon('fa-circle-check')}<span>${b.answer}</span></div>
+      <div class="worked-ans" hidden>${icon('fa-circle-check')}<span>${b.answer}</span>${b.model ? `<div class="worked-model">${b.model}</div>` : ''}</div>
       <div class="worked-ctrl"><button type="button" class="btn btn-sm btn-c" data-worked="next">${icon('fa-forward-step')} Show step 1</button><button type="button" class="btn btn-sm" data-worked="all">Show all</button></div>
     </article>`,
 
@@ -203,6 +203,21 @@
       </article>`;
     },
 
+    /* Study-guide notes: one point per line */
+    notes: (b) => `<ul class="notes">${b.items.map((x) => `<li>${x}</li>`).join('')}</ul>`,
+
+    /* Formulas and rules to learn */
+    rules: (b) => `<div class="rules"><span class="rules-head">${icon('fa-scale-balanced')} ${esc(b.title || 'Formulas & rules')}</span><ul>${b.items.map((x) => `<li>${x}</li>`).join('')}</ul></div>`,
+
+    /* A diagram to practise drawing, with the labels it needs */
+    diagram: (b) => `<figure class="draw">
+      <span class="draw-ic" aria-hidden="true">${icon('fa-pen-ruler')}</span>
+      <figcaption><span class="draw-head">Draw it</span><span class="draw-text">${b.html}</span>${b.labels && b.labels.length ? `<span class="draw-labels" aria-label="Labels">${b.labels.map((l) => `<span>${esc(l)}</span>`).join('')}</span>` : ''}</figcaption>
+    </figure>`,
+
+    /* Where a point came from, tucked away */
+    sources: (b) => `<details class="src-notes"><summary>${icon('fa-circle-info')} Source notes <small>${b.items.length}</small></summary><ul>${b.items.map((x) => `<li>${x}</li>`).join('')}</ul></details>`,
+
     widget: (b, s) => `<div class="widget" data-widget="${esc(b.name)}" data-subject="${esc(s.id)}"><div class="widget-loading">${icon('fa-spinner', 'fa-spin')} Loading…</div></div>`
   };
 
@@ -217,7 +232,9 @@
   EF.blockText = (b) => {
     const parts = [];
     const add = (x) => { if (x) parts.push(EF.strip(x)); };
-    ['html', 'text', 'title', 'sub', 'more', 'name', 'topic', 'goal', 'conclusion', 'q', 'answer'].forEach((k) => add(b[k]));
+    if (b.type === 'sources') return '';
+    ['html', 'text', 'title', 'sub', 'more', 'name', 'topic', 'goal', 'conclusion', 'q', 'answer', 'model'].forEach((k) => add(b[k]));
+    (b.labels || []).forEach(add);
     (b.extra || []).forEach((x) => { add(x.title); x.list.forEach(add); });
     if (b.variables) Object.keys(b.variables).forEach((k) => add(k + ' variable: ' + b.variables[k]));
     (b.steps || []).forEach(add);
@@ -225,7 +242,8 @@
     (b.questions || []).forEach((q) => add(q.q + ' ' + q.a));
     if (b.data && b.data.rows) b.data.rows.forEach((r) => add(r.join(' ')));
     (b.items || []).forEach((it) => {
-      if (Array.isArray(it)) it.forEach((x) => typeof x === 'string' && add(x));
+      if (typeof it === 'string') add(it);
+      else if (Array.isArray(it)) it.forEach((x) => typeof x === 'string' && add(x));
       else if (it && typeof it === 'object') {
         ['title', 'sub', 'html', 'more', 'label', 'name', 'badge', 'foot', 'desc', 'f', 'units'].forEach((k) => add(it[k]));
         (it.rows || it.points || it.summary || it.phases || []).forEach((r) => add(r.join ? r.join(' ') : r));
