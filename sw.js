@@ -1,7 +1,7 @@
 /* ExamForge service worker — lets the site open and work offline.
    Our own files: network first (so updates show up straight away), cache as the offline fallback.
-   Fonts, icons, Three.js and school crests (Wikimedia): cache first (their URLs never change). */
-const VERSION = 'ef-v11';
+   Images (school crests, 3D icons), fonts, icons and Three.js: cache first (their URLs never change). */
+const VERSION = 'ef-v12';
 const SHELL = [
   './',
   './index.html',
@@ -9,6 +9,7 @@ const SHELL = [
   './assets/js/config.js',
   './assets/css/app.css',
   './assets/css/skin.css',
+  './assets/css/blend.css',
   './assets/img/emby-mark.svg',
   './assets/js/content/religion.js',
   './assets/js/content/french.js',
@@ -55,6 +56,17 @@ self.addEventListener('fetch', (e) => {
   const req = e.request;
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
+
+  // school crests and 3D icons never change under the same name: serve them from the cache when we have them
+  if (url.origin === self.location.origin && url.pathname.includes('/assets/img/')) {
+    e.respondWith(
+      caches.match(req).then((hit) => hit || fetch(req).then((res) => {
+        if (res.ok) { const copy = res.clone(); caches.open(VERSION).then((c) => c.put(req, copy)); }
+        return res;
+      }))
+    );
+    return;
+  }
 
   if (url.origin === self.location.origin) {
     e.respondWith(
