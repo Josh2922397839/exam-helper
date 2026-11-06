@@ -46,6 +46,9 @@ body { font-family: var(--font-body); font-weight: 450; letter-spacing: -.003em;
 .page-head > div, .deck-body, .side-link > span { min-width: 0; }
 .crumb { max-width: 100%; overflow-wrap: anywhere; }
 .set-list ol, .make-cards, .set-list li, .make-cards li { grid-template-columns: minmax(0, 1fr); overflow-wrap: anywhere; }
+/* the country picker next to "Top schools this week" is as wide as its longest country,
+   so on small phones it shrinks instead of pushing the page sideways */
+.section-head .country-sel { min-width: 0; flex: 0 1 auto; }
 h1, h2, h3 { font-family: var(--font-display); font-weight: 800; letter-spacing: -.015em; }
 h4 { font-family: var(--font-body); font-weight: 650; letter-spacing: -.01em; }
 .eyebrow { font-weight: 700; letter-spacing: .06em; }
