@@ -1,7 +1,7 @@
 /* ExamForge service worker — lets the site open and work offline.
    Our own files: network first (so updates show up straight away), cache as the offline fallback.
    Images (school crests, 3D icons), fonts, icons and Three.js: cache first (their URLs never change). */
-const VERSION = 'ef-decks-v19';
+const VERSION = 'ef-labs-v20';
 const SHELL = [
   './',
   './index.html',
@@ -41,6 +41,21 @@ const SHELL = [
   './assets/js/decks/g10-geography.js',
   './assets/js/decks/g10-social.js',
   './assets/js/decks/g10-pob.js',
+  './assets/js/labs/religion.js',
+  './assets/js/labs/french.js',
+  './assets/js/labs/chemistry.js',
+  './assets/js/labs/biology.js',
+  './assets/js/labs/pe.js',
+  './assets/js/labs/business.js',
+  './assets/js/labs/history.js',
+  './assets/js/labs/english.js',
+  './assets/js/labs/math.js',
+  './assets/js/labs/physics.js',
+  './assets/js/labs/hsb.js',
+  './assets/js/labs/it.js',
+  './assets/js/labs/geography.js',
+  './assets/js/labs/social-studies.js',
+  './assets/js/labs/pob.js',
   './assets/js/core/deck.js',
   './assets/js/core/ui.js',
   './assets/js/core/look.js',
@@ -48,6 +63,7 @@ const SHELL = [
   './assets/js/core/three-scenes.js',
   './assets/js/core/skeleton.js',
   './assets/js/core/widgets.js',
+  './assets/js/core/interactive.js',
   './assets/js/core/study.js',
   './assets/js/core/learn.js',
   './assets/js/core/play.js',

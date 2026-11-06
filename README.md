@@ -76,6 +76,7 @@ To add a subject, create a new file, add a `<script>` tag for it in `index.html`
 - `assets/js/core/cloud.js` + `assets/js/config.js`: leagues, schools, friends, cloud saves and school libraries (Supabase; loads only when switched on)
 - `supabase/schema.sql`: the database (tables, security rules and the `ef_*` functions); run it in the Supabase SQL editor
 - `assets/js/core/widgets.js`: interactive tools (French drills, atom, skeleton, cell cycle, cash book, Vernier caliper, moments see-saw, grid method, mini-spreadsheet)
+- `assets/js/core/interactive.js` + `assets/js/labs/<subject>.js`: the Interactive tab. Each subject's file lists its hands-on tools: **sort it**, **put in order**, **label it** (a drawing with numbered spots) and **simulators** (sliders and choices, a live drawing and a goal). The format of each kind is explained at the top of `interactive.js`. To add a tool, copy one from the same subject's file and change the words; a new subject's file also needs a `<script>` tag in `index.html` and a line in `SHELL` in `sw.js`
 - `assets/js/core/motion.js`: Apple-style motion (springs, sliding selection, card tilt, draggable drawer, scroll reveals); all of it turns off with Reduce Motion
 - `assets/js/core/three-scenes.js` + `skeleton.js`: the 3D stage, atom viewer and anatomical skeleton. Three.js only loads when you open a 3D section
 - `sw.js` + `manifest.webmanifest`: make the site installable and work offline. **When you change files, bump `VERSION` in `sw.js`** so phones pick up the new version

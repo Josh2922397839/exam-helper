@@ -87,6 +87,7 @@
         ${navItem('#/', 'home', 'Home', 'home')}
         ${navItem('#/league', 'trophy', 'Leagues', 'league')}
         ${navItem('#/cards', 'cards', 'Study sets', 'cards')}
+        ${navItem('#/lab', 'rocket', 'Interactive', 'lab')}
         ${navItem('#/quiz', 'bolt', 'Quiz Arena', 'quiz', mistakes ? `<span class="side-badge" title="Saved mistakes">${mistakes}</span>` : '')}
         ${navItem('#/sets', 'memo', 'My sets', 'sets')}
         ${navItem('#/progress', 'chart', 'Progress', 'progress')}
@@ -256,6 +257,7 @@
             <a class="btn" href="#/learn/${s.id}">${icon('fa-graduation-cap')} Learn</a>
             <a class="btn" href="#/cards/${s.id}">${icon('fa-clone')} <span class="lbl-l">Flashcards</span><span class="lbl-s">Cards</span></a>
             <a class="btn" href="#/set/${s.id}">${icon('fa-shapes')} Games</a>
+            ${EF.labList(s.id).length ? `<a class="btn" href="#/lab/${s.id}">${icon('fa-flask')} <span class="lbl-l">Interactive</span><span class="lbl-s">Try it</span></a>` : ''}
             <button type="button" class="btn btn-ghost" data-print>${icon('fa-print')} Print notes</button>
           </div>
         </header>
@@ -273,6 +275,7 @@
               <span class="topic-seen${seen.includes(t.id) ? ' is-on' : ''}" title="Read">${icon('fa-circle-check')}<span class="sr-only">Read</span></span>
             </header>
             ${EF.renderBlocks(t.blocks, s)}
+            ${topicLabs(s, t)}
           </section>`).join('')}
 
         ${s.tricky && s.tricky.length ? `
@@ -291,6 +294,7 @@
           </header>
           <div class="quiz-host" data-quiz="${s.id}"></div>
           <a class="cta-card" href="#/cards/${s.id}">${icon('fa-clone')}<div><strong>Lock it in with flashcards</strong><span>${(s.flashcards || []).length} cards · spaced repetition</span></div>${icon('fa-arrow-right')}</a>
+          ${EF.labList(s.id).length ? `<a class="cta-card" href="#/lab/${s.id}">${icon('fa-flask')}<div><strong>Try it hands-on</strong><span>${EF.labList(s.id).length} interactive tools · sort, simulate, label</span></div>${icon('fa-arrow-right')}</a>` : ''}
         </section>
 
         ${s.source || (s.refs && s.refs.length) ? `<footer class="subject-refs">
@@ -382,7 +386,7 @@
   /* A study set's home: all the ways to study it */
   pages.set = (s) => {
     const n = s.flashcards.length, m = EF.store.mastered(s.id), due = EF.store.due(s.id).length, best = EF.store.bestMatch(s.id), q = EF.store.quiz(s.id);
-    const PIC = { 'fa-graduation-cap': 'grad', 'fa-clone': 'cards', 'fa-shapes': 'puzzle', 'fa-bolt': 'bolt', 'fa-book-open': 'book', 'fa-pen': 'pencil', 'fa-stopwatch': 'stopwatch', 'fa-tower-broadcast': 'people' };
+    const PIC = { 'fa-graduation-cap': 'grad', 'fa-clone': 'cards', 'fa-shapes': 'puzzle', 'fa-bolt': 'bolt', 'fa-book-open': 'book', 'fa-pen': 'pencil', 'fa-stopwatch': 'stopwatch', 'fa-tower-broadcast': 'people', 'fa-flask': 'rocket' };
     const mode = (href, ic, title, sub, extra) => `<a class="mode-card" href="${href}"><span class="mode-ic">${EF.img3d(PIC[ic] || 'star', 34)}</span><div><strong>${title}</strong><span>${sub}</span></div>${extra ? `<span class="mode-extra">${extra}</span>` : ''}${icon('fa-chevron-right', 'mode-go')}</a>`;
     return `<div class="page narrow tint" style="--c:${s.color}">
       <a class="crumb" href="#/cards">${icon('fa-arrow-left')} Study sets</a>
@@ -396,6 +400,7 @@
         ${mode('#/speed/' + s.id, 'fa-stopwatch', 'Speed run', 'As many as you can in 90 seconds', EF.bestSpeed(s.id) ? 'best ' + EF.bestSpeed(s.id) : '')}
         ${!s.custom && EF.cloud.enabled ? mode('#/live/host/' + s.id, 'fa-tower-broadcast', 'Live with friends', 'Host a game: same questions, same time', '') : ''}
         ${s.quiz.length ? mode('#/quiz/' + s.id, 'fa-bolt', 'Test', (s.custom ? s.quiz.length : Math.min(20, s.quiz.length)) + ' questions with explanations', q ? q.best + '%' : '') : ''}
+        ${!s.custom && EF.labList(s.id).length ? mode('#/lab/' + s.id, 'fa-flask', 'Interactive', `${EF.labList(s.id).length} hands-on tools: sort, simulate, label`, EF.labDoneCount(s.id) ? EF.labDoneCount(s.id) + ' done' : '') : ''}
         ${s.custom ? '' : mode('#/s/' + s.id, 'fa-book-open', 'Study guide', 'Full notes, worked examples and tools', '')}
       </div>
       ${s.custom ? `<div class="btn-row"><button type="button" class="btn btn-primary" data-share="${esc(s.id)}">${icon('fa-link')} Share by link</button>${EF.cloud.joined() ? `<button type="button" class="btn" data-publish="${esc(s.id)}">${icon(EF.cloud.published(s.id) ? 'fa-rotate' : 'fa-school')} ${EF.cloud.published(s.id) ? 'Update in school library' : 'Share with my school'}</button>${EF.cloud.published(s.id) ? `<button type="button" class="btn btn-ghost" data-unpublish="${esc(s.id)}">${icon('fa-eye-slash')} Remove from library</button>` : ''}` : ''}<a class="btn" href="#/make/${esc(s.id)}">${icon('fa-pen')} Edit</a></div>` : ''}
@@ -440,6 +445,52 @@
       view.querySelectorAll('.dcard-wrap').forEach((li) => { li.hidden = !!t && li.dataset.tag !== t; });
     }
   });
+  /* ================= INTERACTIVE: hands-on tools (assets/js/core/interactive.js) ================= */
+  const topicName = (s, id) => { const t = s.topics.find((x) => x.id === id); return t ? (t.nav || t.title) : ''; };
+  const labCard = (s, t) => {
+    const [kind, ic] = EF.LAB_KINDS[t.kind] || ['Tool', 'fa-flask'];
+    return `<a class="lab-card tint" style="--c:${s.color}" href="#/lab/${s.id}/${t.id}">
+        <span class="lab-card-ic">${icon(t.icon || ic)}</span>
+        <span class="lab-card-body"><small>${esc(kind)}${t.topic ? ' · ' + esc(topicName(s, t.topic)) : ''}</small><strong>${esc(t.title)}</strong><span>${esc(t.desc)}</span></span>
+        ${EF.labDone(s.id, t.id) ? `<span class="lab-card-done" title="Done">${icon('fa-circle-check')}<span class="sr-only">Done</span></span>` : icon('fa-chevron-right', 'lab-card-go')}
+      </a>`;
+  };
+  // "Try it" links at the end of a topic in the study guide (tools already shown inside the topic are skipped)
+  function topicLabs(s, t) {
+    const inline = new Set((t.blocks || []).filter((b) => b.type === 'widget').map((b) => b.name));
+    const list = EF.labList(s.id).filter((x) => x.topic === t.id && !(x.kind === 'widget' && inline.has(x.name)));
+    return list.length ? `<div class="topic-labs">${list.map((x) => `<a class="topic-lab" href="#/lab/${s.id}/${x.id}">${icon((EF.LAB_KINDS[x.kind] || [])[1] || 'fa-flask')}<span>Try it: <strong>${esc(x.title)}</strong></span>${icon('fa-arrow-right')}</a>`).join('')}</div>` : '';
+  }
+  pages.labs = () => `<div class="page">
+      <header class="page-head"><span class="eyebrow">${icon('fa-flask')} Learn by doing</span><h1>Interactive</h1><p>Sort things into groups, put steps in order, label diagrams and play with simulators. Every subject has its own set of hands-on tools.</p></header>
+      ${(EF.multiGrade() ? EF.grades().map((g) => [g, EF.inGrade(g)]) : [[null, EF.subjects]]).map(([g, list]) => `
+        ${g ? `<h2 class="sub-heading">Grade ${g}</h2>` : ''}
+        <div class="lab-subjects">${list.filter((s) => EF.labList(s.id).length).map((s) => `
+          <a class="lab-subject tint" style="--c:${s.color}" href="#/lab/${s.id}">
+            <span class="lab-subject-ic">${EF.subject3d(s.id, 44)}</span>
+            <span><strong>${esc(s.name)}</strong><small>${EF.labList(s.id).length} tools${EF.labDoneCount(s.id) ? ' · ' + EF.labDoneCount(s.id) + ' done' : ''}</small></span>
+            ${icon('fa-chevron-right')}
+          </a>`).join('')}</div>`).join('')}
+    </div>`;
+  pages.labSubject = (s) => {
+    const list = EF.labList(s.id), done = EF.labDoneCount(s.id);
+    return `<div class="page narrow tint" style="--c:${s.color}">
+      <a class="crumb" href="#/set/${s.id}">${icon('fa-arrow-left')} ${esc(s.short)}</a>
+      <header class="page-head page-head-sm quiz-page-head"><span class="quiz-page-ic">${EF.subjectIcon(s.id)}</span><div><span class="eyebrow">Interactive · ${list.length} tools${done ? ' · ' + done + ' done' : ''}</span><h1>${esc(s.name)}</h1></div></header>
+      <div class="lab-list">${list.map((t) => labCard(s, t)).join('')}</div>
+    </div>`;
+  };
+  pages.labTool = (s, t) => {
+    const list = EF.labList(s.id), i = list.indexOf(t), next = list[(i + 1) % list.length];
+    const [kind] = EF.LAB_KINDS[t.kind] || ['Tool'];
+    return `<div class="page narrow tint" style="--c:${s.color}">
+      <a class="crumb" href="#/lab/${s.id}">${icon('fa-arrow-left')} ${esc(s.short)} · Interactive</a>
+      <header class="page-head page-head-sm lab-head"><div><span class="eyebrow">${esc(kind)}${t.topic ? ` · <a href="#/s/${s.id}/${t.topic}">${esc(topicName(s, t.topic))}</a>` : ''}</span><h1>${esc(t.title)}</h1><p>${esc(t.desc)}</p></div></header>
+      ${t.kind === 'widget' ? `<div class="widget" data-widget="${esc(t.name)}" data-subject="${esc(s.id)}"><div class="widget-loading">${icon('fa-spinner', 'fa-spin')} Loading…</div></div>` : `<div class="lab-host" data-lab="${esc(t.id)}" data-subject="${esc(s.id)}"></div>`}
+      ${list.length > 1 ? `<a class="cta-card lab-next" href="#/lab/${s.id}/${next.id}">${icon((EF.LAB_KINDS[next.kind] || [])[1] || 'fa-flask')}<div><strong>Next: ${esc(next.title)}</strong><span>${esc(next.desc)}</span></div>${icon('fa-arrow-right')}</a>` : ''}
+    </div>`;
+  };
+
   const modePage = (s, kind, label, ic) => `<div class="page narrow">
       <a class="crumb" href="#/set/${esc(s.id)}">${icon('fa-arrow-left')} ${esc(s.name)}</a>
       <header class="page-head page-head-sm tint quiz-page-head" style="--c:${s.color}"><span class="quiz-page-ic" ${vt('icon-' + s.id)}>${EF.subjectIcon(s.id)}</span><div><span class="eyebrow">${icon(ic)} ${label}</span><h1>${esc(s.name)}</h1></div></header>
@@ -575,6 +626,7 @@
     $$('[data-match]', main).forEach((el) => cleanup.push(EF.mountMatch(el, el.dataset.match)));
     $$('[data-speed]', main).forEach((el) => cleanup.push(EF.mountSpeed(el, el.dataset.speed, { vs: el.dataset.vs })));
     $$('[data-gap]', main).forEach((el) => cleanup.push(EF.mountGap(el, el.dataset.gap)));
+    $$('[data-lab]', main).forEach((el) => cleanup.push(EF.mountLab(el, el.dataset.subject, el.dataset.lab)));
     $$('[data-live-home]', main).forEach((el) => cleanup.push(EF.mountLiveHome(el)));
     $$('[data-live]', main).forEach((el) => cleanup.push(EF.mountLive(el, el.dataset.live)));
     $$('[data-make]', main).forEach((el) => cleanup.push(EF.mountMake(el, el.dataset.make || null)));
@@ -585,7 +637,7 @@
     const hs = $('[data-home-social]', main); if (hs) EF.paintHomeSocial(hs);
     renderSidebar();
     closeDrawer();
-    const tab = { set: 'cards', learn: 'cards', match: 'cards', sets: 'cards', make: 'cards', import: 'cards', join: 'league', account: 'league', school: 'league', shared: 'league', me: 'league', u: 'league' }[key.split(':')[0]] || key.split(':')[0];
+    const tab = { set: 'cards', learn: 'cards', match: 'cards', sets: 'cards', make: 'cards', import: 'cards', lab: 'cards', join: 'league', account: 'league', school: 'league', shared: 'league', me: 'league', u: 'league' }[key.split(':')[0]] || key.split(':')[0];
     document.body.dataset.view = tab;
     if (after) after(); else window.scrollTo(0, 0);
     EF.countUp(main);
@@ -642,6 +694,14 @@
     if (a === 'vs') {
       const c = EF.vs.decode(b);
       return c ? show('vs:' + b, pages.vs(c, b), 'Challenge') : show('vs:bad', pages.badChallenge(), 'Challenge');
+    }
+    if (a === 'lab') {
+      if (!b) return show('lab', pages.labs(), 'Interactive');
+      const s = EF.subject(b);
+      if (!s || s.custom || !EF.labList(s.id).length) return show('404', pages.notFound(), 'Not found');
+      if (!c) return show('lab:' + s.id, pages.labSubject(s), s.short + ' · Interactive');
+      const t = EF.labTool(s.id, c);
+      return t ? show('lab:' + s.id + ':' + t.id, pages.labTool(s, t), t.title) : show('404', pages.notFound(), 'Not found');
     }
     if (a === 'sets') return show('sets', pages.sets(), 'My sets');
     if (a === 'league') return show('league', pages.league(), 'Leagues');
@@ -737,6 +797,7 @@
       if (s.data && s.data.vocab) Object.keys(s.data.vocab).forEach((k) => s.data.vocab[k].forEach((w) => index.push({ s, title: w[0], text: w[1], href: '#/s/' + s.id + '/vocabulary', kind: 'Vocab · ' + k })));
       if (s.data && s.data.verbs) s.data.verbs.forEach((v) => index.push({ s, title: v.name, text: v.meaning + ' · ' + v.type + ' · ' + v.forms.join(', '), href: '#/s/' + s.id + '/conjugation', kind: 'Verb' }));
       s.quiz.forEach((q) => index.push({ s, title: EF.strip(q.q), text: 'Answer: ' + EF.strip(q.options[q.answer]) + (q.why ? ' — ' + EF.strip(q.why) : ''), href: '#/quiz/' + s.id, kind: 'Quiz question' }));
+      EF.labList(s.id).forEach((t) => index.push({ s, title: t.title, text: t.desc, href: '#/lab/' + s.id + '/' + t.id, kind: 'Interactive · ' + (EF.LAB_KINDS[t.kind] || ['Tool'])[0] }));
     });
     index.forEach((e) => { e.hay = fold(e.title + ' ' + e.text + ' ' + e.kind); e.ft = fold(e.title); });
   }
