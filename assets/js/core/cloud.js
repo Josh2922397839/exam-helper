@@ -8,7 +8,7 @@
   const esc = EF.esc, icon = EF.icon;
   const cfg = window.EF_CONFIG || {};
   const LIB = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.js';
-  const JOINED = 'ef2:cloud', XPQ = 'ef2:xpq', PUB = 'ef2:published', SEEN = 'ef2:lastResultSeen';
+  const JOINED = 'ef2:cloud', XPQ = 'ef2:xpq', PUB = 'ef2:published', SEEN = 'ef2:lastResultSeen', RESTORE = 'ef2:restore-pending';
   const enabled = !!(cfg.supabaseUrl && cfg.supabaseKey);
 
   // Nine weekly leagues: the top 20% move up every Monday, the bottom 20% move down
@@ -36,7 +36,7 @@
       s.onload = () => resolve(); s.onerror = () => { loading = null; reject(new Error('You’re offline. Leagues need the internet.')); };
       document.head.appendChild(s);
     }).then(() => {
-      client = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseKey, { auth: { persistSession: true, autoRefreshToken: true, storageKey: 'ef2-auth' } });
+      client = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseKey, { auth: { persistSession: true, autoRefreshToken: true, storageKey: 'ef2-auth', flowType: 'pkce', detectSessionInUrl: false } });
       return client;
     });
     return loading;
@@ -90,7 +90,7 @@
   function saveSoon() { if (!joined()) return; clearTimeout(saveTimer); saveTimer = setTimeout(pushSave, 20000); }
   async function pushSave() {
     clearTimeout(saveTimer);
-    if (!joined()) return;
+    if (!joined() || ls.get(RESTORE)) return;
     try { await rpc('ef_save_put', { p_data: { v: 1, at: Date.now(), state: EF.store.state(), sets: EF.sets.list() } }); } catch (e) { /* next time */ }
   }
   EF.on('progress', saveSoon);
@@ -134,8 +134,22 @@
       return me;
     },
     cachedMe: () => me,
+    async restoreAuth() {
+      ls.set(RESTORE, '1');
+      me = await rpc('ef_me');
+      if (me) {
+        ls.set(JOINED, '1');
+        ls.set(RESTORE, '1');
+        try { await pullSave(); ls.del(RESTORE); } catch (error) { /* Keep the remote backup safe until a later retry. */ }
+        EF.emit('cloud', { kind: 'joined' });
+      } else { ls.del(JOINED); ls.del(RESTORE); EF.emit('cloud', { kind: 'left' }); }
+      return me;
+    },
+    restoreWarning: () => ls.get(RESTORE) ? 'Your cloud progress could not be downloaded yet. Reload when you are online to try again; your cloud backup is safe.' : '',
+    restorePending: () => !!ls.get(RESTORE),
     usernameFree: (n) => rpc('ef_username_free', { p_username: n }),
     async join({ username, schoolId, grade, avatar }) {
+      if (ls.get(RESTORE)) throw new Error('Your account is still being restored. Reload when you are online before changing your profile.');
       await ensureUser();
       me = await rpc('ef_save_profile', { p_username: username, p_school: schoolId || null, p_grade: grade || null, p_avatar: avatar || null });
       ls.set(JOINED, '1'); ls.set(XPQ, '0');
@@ -163,6 +177,7 @@
     async claim(code) {
       await ensureUser();
       me = await rpc('ef_claim', { p_code: code });
+      ls.del(RESTORE);
       ls.set(JOINED, '1'); ls.set(XPQ, '0');
       try { await pullSave(); } catch (e) { /* no save yet */ }
       pushSave();
@@ -172,13 +187,13 @@
     async signOut() {
       await flushXP(); await pushSave();
       try { const c = await load(); await c.auth.signOut(); } catch (e) { /* offline: still forget it here */ }
-      ls.del(JOINED); me = null;
+      ls.del(JOINED); ls.del(RESTORE); me = null;
       EF.emit('cloud', { kind: 'left' });
     },
     async deleteMe() {
       await rpc('ef_delete_me');
       try { const c = await load(); await c.auth.signOut(); } catch (e) { /* ignore */ }
-      ls.del(JOINED); ls.del(PUB); me = null;
+      ls.del(JOINED); ls.del(PUB); ls.del(RESTORE); me = null;
       EF.emit('cloud', { kind: 'left' });
     },
     schoolSets: (id) => rpc('ef_school_sets', { p_school: +id }),
@@ -213,7 +228,13 @@
   paintFooter();
 
   // On startup: if this device has joined, make sure the session is alive and send any XP earned offline
-  if (joined()) setTimeout(() => { EF.cloud.me(true).then(() => { flushXP(); EF.emit('cloud', { kind: 'ready' }); }).catch(() => {}); }, 1200);
+  if (joined()) setTimeout(async () => {
+    if (EF.accountAuth) await EF.accountAuth.ready;
+    EF.cloud.me(true).then(async () => {
+      if (ls.get(RESTORE)) { await pullSave(); ls.del(RESTORE); }
+      flushXP(); EF.emit('cloud', { kind: 'ready' });
+    }).catch(() => {});
+  }, 1200);
 
   /* ================================================================= UI ================================================================= */
   const countdown = (iso) => {
@@ -445,13 +466,43 @@
 
   const avatarPicker = (cur) => `<div class="ava-pick" role="radiogroup" aria-label="Avatar">${EF.AVATARS.map((k) => `<button type="button" role="radio" class="ava-opt" data-ava="${k}" aria-checked="${k === cur}" aria-label="${k}">${EF.avatar(k, k, 46)}</button>`).join('')}</div>`;
 
+  const authPanel = () => `<section class="profile-auth" aria-label="Sign-in options" data-auth-panel><h2>Keep your account with you</h2><p>Connect a sign-in to return to your profile on another device.</p><div class="auth-options">${['google', 'apple'].map((provider) => `<button type="button" class="auth-provider" data-social-login="${provider}"><i class="fa-brands fa-${provider}" aria-hidden="true"></i><span>Continue with ${provider === 'google' ? 'Google' : 'Apple'}</span></button>`).join('')}</div><p class="auth-status" role="status">Checking sign-in options…</p></section>`;
+  const restoreBox = () => `<section class="profile-auth" role="status"><h2>Let’s get your profile back</h2><p>We couldn’t finish downloading your account. Your cloud backup is safe. Check your connection, then try again.</p><button type="button" class="btn btn-primary" data-retry-restore>Try again</button></section>`;
+  function paintAuthPanel(el) {
+    const box = el.querySelector('[data-auth-panel]');
+    if (!box || !EF.accountAuth) return;
+    EF.accountAuth.status().then((state) => {
+      if (!box.isConnected) return;
+      const unavailable = [];
+      box.querySelectorAll('[data-social-login]').forEach((button) => {
+        const provider = button.dataset.socialLogin, name = provider === 'google' ? 'Google' : 'Apple';
+        const connected = state.connected.includes(provider);
+        button.disabled = connected;
+        button.classList.toggle('is-connected', connected);
+        button.querySelector('span').textContent = connected ? name + ' connected' : 'Continue with ' + name;
+        if (!state.providers[provider]) unavailable.push(name);
+      });
+      box.querySelector('.auth-status').textContent = unavailable.length ? unavailable.join(' and ') + ' sign-in ' + (unavailable.length > 1 ? 'are' : 'is') + ' not available yet. Your current profile still works.' : state.connected.length ? 'Your connected sign-in keeps this same profile and progress.' : 'Already have a profile here? Connecting keeps your XP, friends and study progress.';
+    }).catch(() => { if (box.isConnected) box.querySelector('.auth-status').textContent = 'Sign-in options could not be checked. Check your connection and try again.'; });
+  }
+  document.addEventListener('click', async (event) => {
+    if (event.target.closest('[data-retry-restore]')) { location.reload(); return; }
+    const button = event.target.closest('[data-social-login]');
+    if (!button || !EF.accountAuth) return;
+    const box = button.closest('[data-auth-panel]'), status = box.querySelector('.auth-status');
+    button.disabled = true; status.textContent = 'Opening secure sign-in…';
+    try { const result = await EF.accountAuth.start(button.dataset.socialLogin); if (result.connected) { paintAuthPanel(box.parentElement); } }
+    catch (error) { status.textContent = error.message; button.disabled = false; }
+  });
+
   /* ---------------- #/join ---------------- */
   EF.mountJoin = (el, mode) => {
     if (!enabled) { el.innerHTML = offBox(); return () => {}; }
+    if (ls.get(RESTORE) && !joined()) { el.innerHTML = restoreBox(); return () => {}; }
     if (joined()) { el.innerHTML = `<div class="cloud-msg">${icon('fa-circle-check')} You’ve already joined on this device. <a href="#/league">Go to your league</a>.</div>`; return () => {}; }
     let grade = 10, school = null, nameOk = false, timer = 0, avatar = EF.AVATARS[Math.floor(Math.random() * EF.AVATARS.length)];
     try { const pre = JSON.parse(sessionStorage.getItem('ef2:joinSchool') || 'null'); if (pre && pre.id && pre.name) school = pre; sessionStorage.removeItem('ef2:joinSchool'); } catch (er) { /* private mode */ }
-    el.innerHTML = `<div class="join-hero">${EF.mascot('wave', 120)}<p>Pick a nickname, an avatar and your school. That’s it: no email, no password.</p></div>
+    el.innerHTML = `${authPanel()}<div class="join-hero">${EF.mascot('wave', 120)}<p>Or start with a nickname, an avatar and your school. No email or password needed.</p></div>
       <form class="join-form card" novalidate${mode === 'code' ? ' hidden' : ''}>
         <label class="make-field"><span>1 · Pick a username</span><div class="join-name"><input name="u" maxlength="20" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="e.g. jay_studies" aria-describedby="join-name-hint"><span class="join-check" aria-live="polite"></span></div>
           <small id="join-name-hint" class="muted">3–20 letters, numbers or _. Use a nickname, <strong>not your real full name</strong>.</small></label>
@@ -467,6 +518,7 @@
         <input name="c" class="code-input" placeholder="XXXX-XXXX-XXXX" autocomplete="one-time-code" autocapitalize="characters" spellcheck="false" maxlength="16" aria-label="Transfer code">
         <div class="btn-row"><button class="btn btn-primary" type="submit">${icon('fa-right-to-bracket')} Move my account</button><button type="button" class="btn btn-ghost" data-show-join>New here? Join instead</button></div>
       </form>`;
+    paintAuthPanel(el);
     const picker = schoolPicker(el.querySelector('[data-picker]'), (s) => { school = s; }, school);
     const check = el.querySelector('.join-check');
     const onInput = (e) => {
@@ -543,11 +595,13 @@
           <p class="muted">Your progress, XP and sets are backed up to your account automatically.</p>
           <div class="btn-row"><button type="button" class="btn" data-backup>${icon('fa-cloud-arrow-up')} Back up now</button><a class="btn btn-ghost" href="#/progress">${icon('fa-chart-simple')} My progress</a></div>
         </section>
+        ${authPanel()}
         <section class="card acct-card danger-zone">
           <h3>${icon('fa-door-open')} Sign out or delete</h3>
           <p class="muted">Signing out keeps your progress on this device. Without a transfer code you can’t get back into this account, so make one first.</p>
           <div class="btn-row"><button type="button" class="btn" data-signout>${icon('fa-right-from-bracket')} Sign out</button><button type="button" class="btn btn-danger" data-delete>${icon('fa-trash')} Delete my league account</button></div>
         </section>`;
+      paintAuthPanel(el);
       schoolPicker(el.querySelector('[data-picker]'), (s) => { school = s; }, p.school);
     }).catch((e) => { if (alive) el.innerHTML = errBox(e); });
     const onClick = async (e) => {
@@ -643,21 +697,13 @@
   const statTiles = (list) => `<div class="stat-tiles">${list.map(([img, v, l]) => `<div class="stat-tile">${EF.img3d(img, 44)}<b>${v}</b><small>${l}</small></div>`).join('')}</div>`;
 
   /* ---------- profile picture: your own photo (kept on this device) or an avatar ---------- */
-  EF.myPhoto = () => { const d = ls.get('ef2:photo'); return d && /^data:image\/(webp|jpeg|png);base64,[A-Za-z0-9+/=]+$/.test(d) ? d : null; };
+  EF.myPhoto = () => { const d = ls.get('ef2:photo'); return d && d.length <= 2900000 && /^data:image\/(webp|jpeg|png|gif);base64,[A-Za-z0-9+/=]+$/.test(d) ? d : null; };
   EF.myAvatar = (p, size) => {
     const ph = EF.myPhoto();
     return ph ? `<span class="ava ava-photo" style="--s:${size}px"><img src="${ph}" alt="" aria-hidden="true" draggable="false"></span>` : EF.avatar(p && p.avatar, p ? p.username : 'me', size);
   };
   async function photoFrom(file) {
-    if (!file || !/^image\//.test(file.type)) throw new Error('Pick a photo');
-    const bmp = await createImageBitmap(file);
-    const side = Math.min(bmp.width, bmp.height), c = document.createElement('canvas');
-    c.width = c.height = 192;
-    const g = c.getContext('2d');
-    g.drawImage(bmp, (bmp.width - side) / 2, (bmp.height - side) / 2, side, side, 0, 0, 192, 192);
-    let url = c.toDataURL('image/webp', 0.82);
-    if (!/^data:image\/webp/.test(url)) url = c.toDataURL('image/jpeg', 0.82);
-    return url;
+    return EF.profileMedia.read(file);
   }
   EF.editPicture = () => {
     const me0 = EF.cloud.cachedMe();
@@ -671,11 +717,12 @@
         <div class="pic-tabs" role="tablist"><button type="button" role="tab" data-pic-tab="custom" aria-selected="${tab === 'custom'}">Custom</button><button type="button" role="tab" data-pic-tab="avatar" aria-selected="${tab === 'avatar'}">Avatar</button></div>
         ${tab === 'custom' ? `
           <div class="pic-custom">
-            <h3>Use your own <span>photo</span></h3>
+            <h3>A picture that feels like you</h3>
             <div class="pic-preview">${EF.myAvatar(me1, 168)}</div>
-            <p class="muted">${icon('fa-lock')} Your photo stays on this device. Everyone else still sees your avatar.</p>
+            <p class="muted">Photos and animated GIFs from your gallery. GIFs up to 2 MB; photos up to 10 MB.</p>
+            <p class="muted">${icon('fa-lock')} Your picture stays on this device. Everyone else still sees your avatar.</p>
             <label class="btn btn-primary btn-lg btn-block">${icon('fa-camera')} Take a selfie<input type="file" accept="image/*" capture="user" data-pic-file hidden></label>
-            <label class="btn btn-lg btn-block">${icon('fa-image')} Upload<input type="file" accept="image/*" data-pic-file hidden></label>
+            <label class="btn btn-lg btn-block">${icon('fa-image')} Choose photo or GIF<input type="file" accept="image/jpeg,image/png,image/webp,image/gif" data-pic-file hidden></label>
             ${EF.myPhoto() ? `<button type="button" class="link pic-remove" data-pic-remove>${icon('fa-trash')} Remove photo</button>` : ''}
           </div>` : `
           <div class="pic-avatars">${EF.AVATARS.map((k) => `<button type="button" class="ava-opt" data-pic-ava="${k}" aria-pressed="${k === me1.avatar && !EF.myPhoto()}" aria-label="${k}">${EF.avatar(k, '', 64)}</button>`).join('')}</div>
@@ -684,7 +731,7 @@
     };
     draw();
     document.body.appendChild(dlg);
-    dlg.addEventListener('close', () => { dlg.remove(); EF.paintTopMe(); EF.emit('cloud', { kind: 'profile' }); });
+    dlg.addEventListener('close', () => { dlg.remove(); EF.paintTopMe(); EF.emit('cloud', { kind: 'profile' }); document.dispatchEvent(new Event('profile-picture-updated')); });
     dlg.addEventListener('click', async (e) => {
       if (e.target === dlg) { dlg.close(); return; }
       const t = e.target.closest('[data-pic-tab], [data-pic-ava], [data-pic-remove]');
@@ -703,15 +750,22 @@
     });
     dlg.addEventListener('change', async (e) => {
       if (!e.target.matches('[data-pic-file]')) return;
-      try { const url = await photoFrom(e.target.files[0]); ls.set('ef2:photo', url); EF.toast('Looking good!', 'fa-camera'); EF.haptic('success'); draw(); }
-      catch (er) { EF.toast('That photo didn’t work. Try another one.', 'fa-circle-exclamation'); }
+      if (!e.target.files.length) return;
+      try {
+        const url = await photoFrom(e.target.files[0]);
+        try { localStorage.setItem('ef2:photo', url); } catch (error) { throw new Error('Not enough space to save that picture. Try a smaller file.'); }
+        if (ls.get('ef2:photo') !== url) throw new Error('Your browser could not save that picture. Try a smaller file.');
+        EF.toast('Profile picture updated', 'fa-camera'); EF.haptic('success'); draw();
+      } catch (er) { EF.toast(er.message || 'That picture didn’t work. Try another one.', 'fa-circle-exclamation'); }
     });
     if (dlg.showModal) dlg.showModal(); else dlg.setAttribute('open', '');
   };
   document.addEventListener('click', (e) => { if (e.target.closest('[data-edit-pic]')) EF.editPicture(); });
 
   EF.mountMe = (el) => {
+    el.classList.add('profile-page');
     if (!enabled) { el.innerHTML = offBox(); return () => {}; }
+    if (ls.get(RESTORE) && !joined()) { el.innerHTML = restoreBox(); return () => {}; }
     if (!joined()) { el.innerHTML = joinPitch('Make your profile'); return () => {}; }
     let alive = true, tab = ls.get('ef2:meTab') || 'overview', p = null;
     el.innerHTML = loadingRows(4);
@@ -721,7 +775,7 @@
       if (tab === 'sets') {
         const mine = EF.sets.list();
         return mine.length ? `<div class="deck-grid">${mine.map((x) => `<a class="deck-tile tint" href="#/set/${esc(x.id)}" style="--c:${esc(x.color)}"><span class="deck-band"><span class="deck-3d">${EF.img3d('cards', 56)}</span></span><span class="deck-body"><strong>${esc(x.name)}</strong><small>${x.cards.length} cards${EF.cloud.published(x.id) ? ' · shared with school' : ''}</small></span></a>`).join('')}</div>`
-          : `<div class="cloud-msg">${EF.img3d('memo', 28)} No sets yet. <a href="#/make">Make one from your notes</a>.</div>`;
+          : `<div class="profile-empty">${EF.img3d('memo', 64)}<h3>Your next study set starts here</h3><p>Turn your notes into flashcards, then learn at your own pace.</p><a class="btn btn-primary" href="#/make">${icon('fa-plus')} Create a study set</a></div>`;
       }
       return `<div class="lb-links">
           <a class="lb-link" href="#/league" data-goto-friends>${EF.img3d('heart', 40)}<span><strong>My friends</strong><small>${p.friends_rank ? '#' + p.friends_rank + ' position' : 'Add friends to race them'}</small></span>${icon('fa-chevron-right')}</a>
@@ -730,14 +784,27 @@
         </div>`;
     }
     function draw() {
-      el.innerHTML = profileHead(p, `<a class="btn btn-ink" href="#/league" data-goto-friends>${icon('fa-user-plus')} Find friends</a><a class="icon-btn" href="#/account" aria-label="Edit profile">${icon('fa-pen')}</a><button type="button" class="icon-btn" data-share-profile="${esc(p.username)}" aria-label="Share your profile">${icon('fa-arrow-up-from-bracket')}</button>`, true)
-        + `<div class="pill-tabs profile-tabs" role="tablist">${[['overview', 'Leaderboards'], ['stats', 'Stats'], ['sets', 'Sets']].map(([k, l]) => `<button type="button" role="tab" data-ptab="${k}" aria-selected="${tab === k}">${l}</button>`).join('')}</div>
-        <div class="profile-body">${body()}</div>`;
+      el.innerHTML = profileHead(p, `<a class="btn btn-ink" href="#/account">${icon('fa-pen')} Edit profile</a><a class="btn" href="#/league" data-goto-friends>${icon('fa-user-plus')} Find friends</a><button type="button" class="icon-btn" data-share-profile="${esc(p.username)}" aria-label="Share your profile">${icon('fa-arrow-up-from-bracket')}</button>`, true)
+        + `<div class="profile-highlights" aria-label="Your study highlights"><div>${EF.img3d('bolt', 30)}<span><strong>${fmtXP(p.xp_week)}</strong><small>XP this week</small></span></div><div>${EF.img3d('fire', 30)}<span><strong>${EF.store.streak()}</strong><small>day streak</small></span></div><div>${EF.img3d('cards', 30)}<span><strong>${EF.sets.list().length}</strong><small>study sets</small></span></div></div>
+        <div class="pill-tabs profile-tabs" role="tablist" aria-label="Profile sections">${[['overview', 'Leaderboards'], ['stats', 'Stats'], ['sets', 'Sets']].map(([k, l]) => `<button type="button" role="tab" id="profile-tab-${k}" data-ptab="${k}" aria-controls="profile-content" tabindex="${tab === k ? 0 : -1}" aria-selected="${tab === k}">${l}</button>`).join('')}</div>
+        <section class="profile-body" id="profile-content" role="tabpanel" aria-labelledby="profile-tab-${tab}">${body()}</section>${authPanel()}`;
+      paintAuthPanel(el);
     }
     EF.cloud.me(true).then((r) => { if (!alive) return; if (!r) { el.innerHTML = joinPitch('Make your profile'); return; } p = r; draw(); }).catch((e) => { if (alive) el.innerHTML = errBox(e); });
     const onClick = (e) => { const t = e.target.closest('[data-ptab]'); if (t) { tab = t.dataset.ptab; ls.set('ef2:meTab', tab); draw(); } };
+    const onKey = (e) => {
+      const t = e.target.closest('[data-ptab]');
+      if (!t || !['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return;
+      e.preventDefault();
+      const keys = ['overview', 'stats', 'sets'], index = keys.indexOf(tab);
+      tab = keys[e.key === 'Home' ? 0 : e.key === 'End' ? 2 : (index + (e.key === 'ArrowRight' ? 1 : 2)) % 3];
+      ls.set('ef2:meTab', tab); draw(); el.querySelector('[data-ptab="' + tab + '"]').focus();
+    };
+    const onPicture = () => { if (alive && p) draw(); };
+    document.addEventListener('profile-picture-updated', onPicture);
     el.addEventListener('click', onClick);
-    return () => { alive = false; el.removeEventListener('click', onClick); };
+    el.addEventListener('keydown', onKey);
+    return () => { alive = false; el.removeEventListener('click', onClick); el.removeEventListener('keydown', onKey); document.removeEventListener('profile-picture-updated', onPicture); };
   };
 
   EF.mountUser = (el, name) => {

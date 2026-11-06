@@ -1,7 +1,7 @@
 /* ExamForge service worker — lets the site open and work offline.
    Our own files: network first (so updates show up straight away), cache as the offline fallback.
    Images (school crests, 3D icons), fonts, icons and Three.js: cache first (their URLs never change). */
-const VERSION = 'ef-v14';
+const VERSION = 'ef-profile-auth-v15';
 const SHELL = [
   './',
   './index.html',
@@ -10,6 +10,7 @@ const SHELL = [
   './assets/css/app.css',
   './assets/css/skin.css',
   './assets/css/blend.css',
+  './assets/css/profile.css',
   './assets/img/emby-mark.svg',
   './assets/js/content/religion.js',
   './assets/js/content/french.js',
@@ -37,6 +38,8 @@ const SHELL = [
   './assets/js/core/play.js',
   './assets/js/core/live.js',
   './assets/js/core/cloud.js',
+  './assets/js/core/profile-media.js',
+  './assets/js/core/account-auth.js',
   './assets/js/core/motion.js',
   './assets/js/core/app.js',
   './assets/icons/icon-192.png'

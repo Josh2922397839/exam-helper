@@ -897,10 +897,13 @@
   window.addEventListener('hashchange', () => { closeSearch(); route(); });
 
   /* ================= BOOT ================= */
+  const boot = () => {
   EF.emit('theme', EF.theme.get());
   paintStreak();
   EF.paintGoal();
   EF.paintTopMe();
   route();
   document.documentElement.classList.add('is-ready');
+  };
+  if (EF.accountAuth) EF.accountAuth.ready.then(boot); else boot();
 })();
