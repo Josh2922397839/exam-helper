@@ -603,3 +603,30 @@ button.t-badge i { font-size: .9em; opacity: .8; }
 .pnode-quiz .pnode-ic { width: 70px; height: 66px; background: color-mix(in srgb, #fbbf24 22%, var(--surface)); }
 @keyframes nodePulse { 50% { outline-offset: 6px; outline-color: color-mix(in srgb, var(--c) 12%, transparent); } }
 @media (prefers-reduced-motion: reduce) { .pnode.is-next .pnode-ic { animation: none; } }
+
+/* Breathing room between shared controls, including rows inside the school picker. */
+.sp-search { display: grid; gap: 12px; }
+.sp-row, .sp-browse, .sp-more, .sp-add { gap: 10px; }
+.sp-count { margin: 0; }
+.sp-results { gap: 10px; }
+.pill-tabs { gap: 10px; }
+.sp-groups { gap: 8px; }
+.sp-groups button { height: 40px; }
+.sp-parish { height: 40px; }
+.btn-row { gap: 12px; }
+.seg { gap: 6px; }
+.ava-pick { gap: 12px; }
+.make-field { gap: 8px; }
+.make-form, .acct-form, .join-form, .code-form, .acct-card { gap: 20px; }
+.quiz-opts, .learn-opts, .cards-actions, .modes, .live-subjects { gap: 12px; }
+.btn-row + .set-list { margin-top: 16px; }
+.import-card .btn-row { margin-top: 8px; }
+.toc-group ol { gap: 6px; }
+.toc-groups:not(.is-multi) .toc-group ol { gap: 6px 18px; }
+.toc-group a { padding-block: 8px; }
+.toc-foot { gap: 10px; }
+@media (max-width: 560px) {
+  .join-form .seg[aria-label="Grade"], .acct-form .seg[aria-label="Grade"] { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .sp-country { flex: 1 1 100%; width: 100%; max-width: none; }
+  .make-colors { grid-template-columns: repeat(4, 34px); gap: 12px; }
+}
