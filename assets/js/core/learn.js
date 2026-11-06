@@ -181,6 +181,7 @@
       const it = cur;
       if (ok) {
         correct++; streak++; best = Math.max(best, streak);
+        if (EF.daily) { EF.daily.bump('correct'); EF.daily.max('row', streak); }
         it.stage++;
         EF.haptic('success'); EF.store.addXP(streak >= 5 ? 8 : 6);
         if (it.stage >= 2) { done++; EF.store.setCardBox(sid, it.c.front, Math.max(3, box(it.c) + 1), true); }
@@ -270,6 +271,7 @@
     function done() {
       finished = true; clearInterval(timer);
       const ms = Date.now() - t0 + penalty, record = EF.store.setMatch(sid, ms);
+      if (EF.daily) EF.daily.bump('match');
       EF.store.addXP(15); EF.haptic('success');
       if (record) EF.confetti();
       setTimeout(() => {

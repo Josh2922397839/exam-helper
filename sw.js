@@ -34,6 +34,7 @@ const SHELL = [
   './assets/js/core/widgets.js',
   './assets/js/core/study.js',
   './assets/js/core/learn.js',
+  './assets/js/core/play.js',
   './assets/js/core/cloud.js',
   './assets/js/core/motion.js',
   './assets/js/core/app.js',

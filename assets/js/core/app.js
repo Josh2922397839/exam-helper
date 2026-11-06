@@ -22,6 +22,32 @@
   };
   const vt = (name) => `style="view-transition-name:${name}"`;
   const topicLabel = (t) => t.nav || t.title;
+  /* name of the unit a topic opens (subjects made from a study handoff group their topics into units) */
+  const unitStart = (s, t) => { const u = (s.units || []).find((x) => x.topics[0] === t.id); return u && s.units.length > 1 ? u.name : ''; };
+  const BADGE = { 'Grade 10': 'is-now', 'Grade 9 review': 'is-review', 'Older review': 'is-old' };
+  const topicBadge = (t) => (t.badge ? `<span class="t-badge ${BADGE[t.badge] || ''}"${t.unconfirmed ? ' title="Grade not confirmed yet: check with your teacher"' : ''}>${esc(t.badge)}${t.unconfirmed ? ' ?' : ''}</span>` : '');
+  /* Exam traps: tips in order, with any table (e.g. past-paper mistakes) where it sits */
+  function traps(s) {
+    let out = '', run = [];
+    const flush = () => { if (run.length) out += `<ul class="traps">${run.map((x) => `<li>${x}</li>`).join('')}</ul>`; run = []; };
+    s.tricky.forEach((x) => { if (typeof x === 'string') run.push(x); else if (x && x.table) { flush(); out += EF.renderBlocks([x.table], s); } });
+    flush();
+    return out;
+  }
+  /* Contents card: topics grouped by unit, with read ticks */
+  function contents(s, seen) {
+    const groups = s.units && s.units.length ? s.units.map((u) => ({ name: u.name, icon: u.icon, list: u.topics.map((id) => s.topics.find((t) => t.id === id)).filter(Boolean) })) : [{ name: '', list: s.topics }];
+    let n = 0;
+    return `<nav class="toc card" id="contents" aria-label="Contents of ${esc(s.name)}">
+      <div class="toc-head"><h2>${icon('fa-list-ul')} Contents</h2><span class="muted">${s.topics.length} topics${s.tricky && s.tricky.length ? ' · exam traps' : ''} · quiz</span></div>
+      <div class="toc-groups${groups.length > 1 ? ' is-multi' : ''}">${groups.map((g) => `
+        <div class="toc-group">${g.name ? `<h3>${g.icon ? icon(g.icon) : ''}${esc(g.name)}</h3>` : ''}
+          <ol>${g.list.map((t) => { n++; return `<li><a href="#/s/${s.id}/${t.id}" data-topic="${t.id}"${seen.includes(t.id) ? ' class="is-read"' : ''}><span class="toc-n">${seen.includes(t.id) ? icon('fa-check') : n}</span><span class="toc-t">${esc(topicLabel(t))}</span></a></li>`; }).join('')}</ol>
+        </div>`).join('')}
+      </div>
+      <div class="toc-foot">${s.tricky && s.tricky.length ? `<a class="chip-link" href="#/s/${s.id}/traps" data-topic="traps">${icon('fa-triangle-exclamation')} Exam traps</a>` : ''}<a class="chip-link chip-quiz" href="#/s/${s.id}/quiz" data-topic="quiz">${icon('fa-bolt')} Quiz</a><a class="chip-link" href="#/cards/${s.id}">${icon('fa-clone')} Flashcards</a></div>
+    </nav>`;
+  }
 
   /* ================= SIDEBAR ================= */
   function renderSidebar() {
@@ -57,7 +83,7 @@
           const seen = EF.store.state().visited[s.id] || [];
           return `<li class="side-subject tint${on ? ' is-open' : ''}" style="--c:${s.color}">
             <a class="side-link side-deck" href="#/s/${s.id}" ${on ? 'aria-current="page"' : ''}><span class="side-sq" aria-hidden="true"></span><span>${esc(s.name)}</span>${p.pct ? `<span class="side-pct" title="${p.pct}% complete">${p.pct}%</span>` : ''}</a>
-            ${on ? `<ul class="side-topics">${s.topics.map((t) => `<li><a href="#/s/${s.id}/${t.id}" data-topic="${t.id}">${seen.includes(t.id) ? icon('fa-circle-check', 'seen') : '<i class="dot-o" aria-hidden="true"></i>'}${esc(topicLabel(t))}</a></li>`).join('')}
+            ${on ? `<ul class="side-topics">${s.topics.map((t) => `${unitStart(s, t) ? `<li class="side-unit" aria-hidden="true">${esc(unitStart(s, t))}</li>` : ''}<li><a href="#/s/${s.id}/${t.id}" data-topic="${t.id}">${seen.includes(t.id) ? icon('fa-circle-check', 'seen') : '<i class="dot-o" aria-hidden="true"></i>'}${esc(topicLabel(t))}</a></li>`).join('')}
               <li><a href="#/s/${s.id}/quiz" data-topic="quiz">${icon('fa-bolt')}Quiz</a></li>
               <li><a href="#/learn/${s.id}">${icon('fa-graduation-cap')}Learn</a></li>
               <li><a href="#/cards/${s.id}">${icon('fa-clone')}Flashcards</a></li></ul>` : ''}
@@ -108,7 +134,7 @@
   function rail() {
     const streak = EF.store.streak(), lv = EF.store.level(), today = EF.store.xpToday(), goal = EF.store.goal();
     const me = EF.cloud.joined() ? EF.cloud.cachedMe() : null;
-    return `<div class="invite-card">
+    return `${EF.dailyCard ? EF.dailyCard() : ''}<div class="invite-card">
         <div class="invite-art" aria-hidden="true">${EF.img3d('star', 44)}${EF.img3d('sparkles', 34)}${EF.img3d('rocket', 46)}</div>
         <strong>Study with your friends</strong>
         <span>Share ExamForge and race your crew up the leagues</span>
@@ -127,6 +153,16 @@
   }
   EF.rail = rail;
 
+  /* one practical line under the greeting: today's goal, cards due, streak */
+  function todayLine() {
+    const today = EF.store.xpToday(), goal = EF.store.goal(), streak = EF.store.streak();
+    const due = EF.subjects.reduce((n, s) => n + EF.store.due(s.id).length, 0);
+    const bits = [`${icon('fa-bullseye')} <b>${today}/${goal}</b> XP today`];
+    if (due) bits.push(`<a href="#/cards">${icon('fa-clone')} <b>${due}</b> card${due === 1 ? '' : 's'} due</a>`);
+    if (streak) bits.push(`${icon('fa-fire')} <b>${streak}</b>-day streak`);
+    return bits.map((x) => `<span class="home-sub-item">${x}</span>`).join('<span class="dot-sep" aria-hidden="true">·</span>');
+  }
+
   pages.home = () => {
     const st = EF.store.state();
     const last = st.last && EF.subject(st.last.s);
@@ -140,8 +176,12 @@
       <div class="page has-rail home">
         <div class="page-main">
           <section class="home-hero">
-            <div class="home-mascot">${EF.mascot('read', 156)}</div>
-            <h1 class="home-hello"><span>${hello}! What shall we</span><strong>Study?</strong></h1>
+            <div class="home-mascot">${EF.mascot('read', 112)}</div>
+            <div class="home-hello">
+              <span class="home-hi">${hello}!</span>
+              <h1>What shall we study today?</h1>
+              <p class="home-sub">${todayLine()}</p>
+            </div>
           </section>
           <div class="ask">
             <button type="button" class="ask-input" data-search-open><span>I want to study…</span>${EF.img3d('search', 28)}</button>
@@ -189,25 +229,34 @@
             <a class="btn btn-c" href="#/s/${s.id}/quiz">${icon('fa-bolt')} Take the quiz</a>
             <a class="btn" href="#/learn/${s.id}">${icon('fa-graduation-cap')} Learn</a>
             <a class="btn" href="#/cards/${s.id}">${icon('fa-clone')} Flashcards</a>
-            <a class="btn" href="#/match/${s.id}">${icon('fa-shapes')} Match</a>
+            <a class="btn" href="#/set/${s.id}">${icon('fa-shapes')} Games</a>
             <button type="button" class="btn btn-ghost" data-print>${icon('fa-print')} Print notes</button>
           </div>
         </header>
 
-        <nav class="topic-chips" aria-label="Topics in ${esc(s.name)}">
-          ${s.topics.map((t) => `<a class="chip-link" href="#/s/${s.id}/${t.id}" data-topic="${t.id}">${esc(topicLabel(t))}</a>`).join('')}
-          <a class="chip-link chip-quiz" href="#/s/${s.id}/quiz" data-topic="quiz">${icon('fa-bolt')} Quiz</a>
-        </nav>
+        ${contents(s, seen)}
+
+        <a class="toc-float" href="#contents" data-toc-float aria-label="Back to contents" hidden>${icon('fa-list-ul')}<span data-toc-now>Contents</span></a>
 
         ${s.topics.map((t, i) => `
+          ${unitStart(s, t) ? `<div class="unit-break" aria-hidden="true"><span>${esc(unitStart(s, t))}</span></div>` : ''}
           <section class="topic" id="t-${t.id}" data-topic="${t.id}" aria-labelledby="h-${t.id}">
             <header class="topic-head">
               <span class="topic-icon">${icon(t.icon || 'fa-bookmark')}</span>
-              <div><span class="topic-num">Topic ${i + 1} of ${s.topics.length}</span><h2 id="h-${t.id}">${esc(t.title)}</h2></div>
+              <div><span class="topic-num">Topic ${i + 1} of ${s.topics.length}${topicBadge(t)}</span><h2 id="h-${t.id}">${esc(t.title)}</h2></div>
               <span class="topic-seen${seen.includes(t.id) ? ' is-on' : ''}" title="Read">${icon('fa-circle-check')}<span class="sr-only">Read</span></span>
             </header>
             ${EF.renderBlocks(t.blocks, s)}
           </section>`).join('')}
+
+        ${s.tricky && s.tricky.length ? `
+        <section class="topic topic-traps" id="t-traps" data-topic="traps" aria-labelledby="h-traps">
+          <header class="topic-head">
+            <span class="topic-icon">${icon('fa-triangle-exclamation')}</span>
+            <div><span class="topic-num">Before the exam</span><h2 id="h-traps">Exam traps and tips</h2></div>
+          </header>
+          ${traps(s)}
+        </section>` : ''}
 
         <section class="topic topic-quiz" id="t-quiz" data-topic="quiz" aria-labelledby="h-quiz">
           <header class="topic-head">
@@ -217,6 +266,11 @@
           <div class="quiz-host" data-quiz="${s.id}"></div>
           <a class="cta-card" href="#/cards/${s.id}">${icon('fa-clone')}<div><strong>Lock it in with flashcards</strong><span>${(s.flashcards || []).length} cards · spaced repetition</span></div>${icon('fa-arrow-right')}</a>
         </section>
+
+        ${s.source || (s.refs && s.refs.length) ? `<footer class="subject-refs">
+          ${s.source ? `<p>${icon('fa-circle-info')} ${esc(s.source)}</p>` : ''}
+          ${s.refs && s.refs.length ? `<details><summary>References (${s.refs.length})</summary><ul>${s.refs.map((r) => `<li><a href="${esc(r[1])}" target="_blank" rel="noopener">${esc(r[0])}</a> <small>${esc(r[2])}</small></li>`).join('')}</ul></details>` : ''}
+        </footer>` : ''}
 
         <nav class="pager" aria-label="Other subjects">
           <a href="#/s/${prev.id}" class="pager-link tint" style="--c:${prev.color}"><small>${icon('fa-arrow-left')} Previous</small><span>${EF.subjectIcon(prev.id)} ${esc(prev.name)}</span></a>
@@ -301,7 +355,7 @@
   /* A study set's home: all the ways to study it */
   pages.set = (s) => {
     const n = s.flashcards.length, m = EF.store.mastered(s.id), due = EF.store.due(s.id).length, best = EF.store.bestMatch(s.id), q = EF.store.quiz(s.id);
-    const PIC = { 'fa-graduation-cap': 'grad', 'fa-clone': 'cards', 'fa-shapes': 'puzzle', 'fa-bolt': 'bolt', 'fa-book-open': 'book' };
+    const PIC = { 'fa-graduation-cap': 'grad', 'fa-clone': 'cards', 'fa-shapes': 'puzzle', 'fa-bolt': 'bolt', 'fa-book-open': 'book', 'fa-pen': 'pencil', 'fa-stopwatch': 'stopwatch' };
     const mode = (href, ic, title, sub, extra) => `<a class="mode-card" href="${href}"><span class="mode-ic">${EF.img3d(PIC[ic] || 'star', 34)}</span><div><strong>${title}</strong><span>${sub}</span></div>${extra ? `<span class="mode-extra">${extra}</span>` : ''}${icon('fa-chevron-right', 'mode-go')}</a>`;
     return `<div class="page narrow tint" style="--c:${s.color}">
       <a class="crumb" href="#/cards">${icon('fa-arrow-left')} Study sets</a>
@@ -311,6 +365,8 @@
         ${mode('#/learn/' + s.id, 'fa-graduation-cap', 'Learn', 'Choose, then type the answers. 3 lives per round.', '+6 XP each')}
         ${mode('#/cards/' + s.id, 'fa-clone', 'Flashcards', due ? `${due} due for review now` : 'Flip, then rate yourself', '')}
         ${mode('#/match/' + s.id, 'fa-shapes', 'Match', 'Pair them up against the clock', best ? (best / 1000).toFixed(1) + 's' : '')}
+        ${mode('#/gap/' + s.id, 'fa-pen', 'Fill the gap', 'Complete the key word in each definition', '')}
+        ${mode('#/speed/' + s.id, 'fa-stopwatch', 'Speed run', 'As many as you can in 90 seconds', EF.bestSpeed(s.id) ? 'best ' + EF.bestSpeed(s.id) : '')}
         ${s.quiz.length ? mode('#/quiz/' + s.id, 'fa-bolt', 'Test', s.quiz.length + ' questions with explanations', q ? q.best + '%' : '') : ''}
         ${s.custom ? '' : mode('#/s/' + s.id, 'fa-book-open', 'Study guide', 'Full notes, worked examples and tools', '')}
       </div>
@@ -325,6 +381,18 @@
     </div>`;
   pages.learn = (s) => modePage(s, 'learn', 'Learn', 'fa-graduation-cap');
   pages.match = (s) => modePage(s, 'match', 'Match', 'fa-shapes');
+  pages.speed = (s) => modePage(s, 'speed', 'Speed run', 'fa-stopwatch');
+  pages.gap = (s) => modePage(s, 'gap', 'Fill the gap', 'fa-pen');
+  /* a friend's challenge link: same questions, their score to beat, no account needed */
+  pages.vs = (c, code) => {
+    const s = EF.subject(c.s);
+    return `<div class="page narrow">
+      <header class="page-head page-head-sm tint quiz-page-head" style="--c:${s.color}"><span class="quiz-page-ic">${EF.subjectIcon(s.id)}</span><div><span class="eyebrow">${icon('fa-user-group')} Challenge · ${esc(s.name)}</span><h1>${esc(c.n)} challenged you!</h1></div></header>
+      <div class="vs-banner tint" style="--c:${s.color}">${EF.img3d('trophy', 40)}<div><strong>Score to beat: ${c.m === 'speed' ? `${c.sc} right in a 90-second Speed run` : `${c.sc} out of ${c.of}`}</strong><span>${c.m === 'speed' ? 'Same questions, same order, same clock.' : 'The same questions, in a new order.'} No account needed. Good luck!</span></div></div>
+      ${c.m === 'speed' ? `<div data-speed="${esc(s.id)}" data-vs="${esc(code)}"></div>` : `<div class="quiz-host" data-quiz="${esc(s.id)}" data-vs="${esc(code)}"></div>`}
+    </div>`;
+  };
+  pages.badChallenge = () => `<div class="page narrow center not-found">${EF.mascot ? EF.mascot('think', 140) : ''}<h1>That challenge link didn’t work</h1><p class="muted">It may have been cut off when it was copied. Ask your friend to send it again.</p><a class="btn btn-primary" href="#/">${icon('fa-house')} Go home</a></div>`;
   pages.sets = () => {
     const mine = EF.sets.list();
     return `<div class="page">
@@ -358,7 +426,7 @@
       <a class="crumb" href="#/set/${esc(s.id)}">${icon('fa-arrow-left')} ${esc(s.name)}</a>
       <header class="page-head page-head-sm tint quiz-page-head" style="--c:${s.color}"><span class="quiz-page-ic" ${vt('icon-' + s.id)}>${EF.subjectIcon(s.id)}</span><div><span class="eyebrow">Flashcards</span><h1>${esc(s.name)}</h1></div></header>
       <div class="cards-host" data-cards="${s.id}"></div>
-      <p class="muted small center kbd-hint">Shortcuts: <kbd>space</kbd> flip · <kbd>1</kbd> again · <kbd>2</kbd> got it</p>
+      <p class="muted small center kbd-hint">Shortcuts: <kbd>space</kbd> flip · <kbd>1</kbd> again · <kbd>2</kbd> unsure · <kbd>3</kbd> got it</p>
     </div>`;
 
   pages.progress = () => {
@@ -428,10 +496,12 @@
     main.innerHTML = html;
     document.title = title ? title + ' · ExamForge' : 'ExamForge — Exam Prep';
     cleanup.push(EF.mountWidgets(main));
-    $$('[data-quiz]', main).forEach((el) => cleanup.push(EF.mountQuiz(el, el.dataset.quiz, { inline: !el.hasAttribute('data-autostart'), autostart: el.hasAttribute('data-autostart') })));
+    $$('[data-quiz]', main).forEach((el) => cleanup.push(EF.mountQuiz(el, el.dataset.quiz, { inline: !el.hasAttribute('data-autostart') && !el.dataset.vs, autostart: el.hasAttribute('data-autostart'), vs: el.dataset.vs })));
     $$('[data-cards]', main).forEach((el) => cleanup.push(EF.mountCards(el, el.dataset.cards)));
     $$('[data-learn]', main).forEach((el) => cleanup.push(EF.mountLearn(el, el.dataset.learn)));
     $$('[data-match]', main).forEach((el) => cleanup.push(EF.mountMatch(el, el.dataset.match)));
+    $$('[data-speed]', main).forEach((el) => cleanup.push(EF.mountSpeed(el, el.dataset.speed, { vs: el.dataset.vs })));
+    $$('[data-gap]', main).forEach((el) => cleanup.push(EF.mountGap(el, el.dataset.gap)));
     $$('[data-make]', main).forEach((el) => cleanup.push(EF.mountMake(el, el.dataset.make || null)));
     $$('[data-import]', main).forEach((el) => cleanup.push(EF.mountImport(el, el.dataset.import)));
     const CLOUD = { league: EF.mountLeague, join: EF.mountJoin, account: EF.mountAccount, school: EF.mountSchool, shared: EF.mountShared, me: EF.mountMe, user: EF.mountUser };
@@ -483,10 +553,14 @@
       return show('cards:' + s.id, pages.cards(s), s.short + ' Flashcards');
     }
     if (a === 'progress') return show('progress', pages.progress(), 'My Progress');
-    if (a === 'set' || a === 'learn' || a === 'match') {
+    if (a === 'set' || a === 'learn' || a === 'match' || a === 'speed' || a === 'gap') {
       const s = EF.subject(b);
       if (!s || !s.flashcards || !s.flashcards.length) return show('404', pages.notFound(), 'Not found');
-      return show(a + ':' + s.id, pages[a](s), s.short + (a === 'set' ? '' : a === 'learn' ? ' · Learn' : ' · Match'));
+      return show(a + ':' + s.id, pages[a](s), s.short + ({ set: '', learn: ' · Learn', match: ' · Match', speed: ' · Speed run', gap: ' · Fill the gap' })[a]);
+    }
+    if (a === 'vs') {
+      const c = EF.vs.decode(b);
+      return c ? show('vs:' + b, pages.vs(c, b), 'Challenge') : show('vs:bad', pages.badChallenge(), 'Challenge');
     }
     if (a === 'sets') return show('sets', pages.sets(), 'My sets');
     if (a === 'league') return show('league', pages.league(), 'Leagues');
@@ -516,7 +590,7 @@
       const url = '#/s/' + s.id + '/' + id;
       if (location.hash !== url) history.replaceState(null, '', url);
       clearTimeout(readTimer);
-      if (id !== 'quiz') {
+      if (id !== 'quiz' && id !== 'traps') {
         EF.store.setLast(s.id, id);
         readTimer = setTimeout(() => {
           EF.store.markVisited(s.id, id);
@@ -528,6 +602,13 @@
     sections.forEach((sec) => io.observe(sec));
     spy = { io, active: null };
     cleanup.push(() => clearTimeout(readTimer));
+    // a small "Contents" pill appears once the contents card has scrolled away
+    const toc = $('#contents', main), pill = $('[data-toc-float]', main);
+    if (toc && pill) {
+      const tio = new IntersectionObserver(([e]) => { pill.hidden = e.isIntersecting || e.boundingClientRect.top > 0; });
+      tio.observe(toc);
+      cleanup.push(() => tio.disconnect());
+    }
   }
   function markTopic(id) {
     const [, sid] = parts(), sub = EF.subject(sid), tp = sub && sub.topics.find((t) => t.id === id);
@@ -538,6 +619,8 @@
       a.classList.toggle('is-active', on);
       if (on) a.setAttribute('aria-current', 'location'); else a.removeAttribute('aria-current');
     });
+    const now = $('[data-toc-now]', main);
+    if (now) { const i = sub && tp ? sub.topics.indexOf(tp) : -1; now.textContent = i >= 0 ? `${i + 1}/${sub.topics.length} · ${topicLabel(tp)}` : id === 'quiz' ? 'Quiz' : id === 'traps' ? 'Exam traps' : 'Contents'; }
     const chip = $('.topic-chips .is-active', main);
     if (chip) { const bar = chip.parentElement; bar.scrollTo({ left: chip.offsetLeft - bar.clientWidth / 2 + chip.clientWidth / 2, behavior: EF.reducedMotion() ? 'auto' : 'smooth' }); }
   }
@@ -690,6 +773,7 @@
     }
     const sh = t.closest('[data-share]');
     if (sh) { const set = EF.sets.raw(sh.dataset.share); if (set) EF.sets.share(set).then((r) => { if (r === 'copied') EF.toast('Link copied: send it to your friends!', 'fa-link'); else if (r === 'shared') EF.toast('Shared!', 'fa-share-nodes'); }); return; }
+    if (t.closest('[data-toc-float]')) { e.preventDefault(); const toc = $('#contents', main); if (toc) toc.scrollIntoView({ behavior: EF.reducedMotion() ? 'auto' : 'smooth', block: 'start' }); return; }
     const wk = t.closest('[data-worked]');
     if (wk) { stepWorked(wk.closest('.worked'), wk.dataset.worked); return; }
     const gs = t.closest('[data-set-grade]');
@@ -724,7 +808,7 @@
   window.addEventListener('afterprint', () => { reopened.forEach((d) => d.removeAttribute('open')); reopened = []; });
 
   EF.on('theme', (t) => { $$('[data-theme-toggle]').forEach((b) => { b.innerHTML = EF.img3d(t === 'dark' ? 'sun' : 'moon', 24); b.setAttribute('aria-label', t === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'); }); const m = document.querySelector('meta[name=theme-color]'); if (m) m.content = t === 'dark' ? '#0f1220' : '#f5f6fa'; });
-  const paintStreak = () => { const n = EF.store.streak(); $$('.streak-chip').forEach((el) => { el.innerHTML = `${EF.img3d('fire', 24)}<strong>${n}</strong>`; el.title = n + '-day study streak'; el.classList.toggle('is-hot', n > 0); }); };
+  const paintStreak = () => { const n = EF.store.streak(); $$('.streak-chip').forEach((el) => { el.innerHTML = `${EF.img3d('fire', 24)}<strong>${n}</strong>`; el.title = n + '-day study streak' + (EF.store.freezes() ? ` · ${EF.store.freezes()} streak freeze${EF.store.freezes() > 1 ? 's' : ''} ready` : ''); el.classList.toggle('is-hot', n > 0); }); };
   EF.on('streak', () => { paintStreak(); EF.paintGoal(); });
   EF.on('sets', () => { clearTimeout(sideTimer); sideTimer = setTimeout(renderSidebar, 50); });
   EF.on('cloud', () => { clearTimeout(sideTimer); sideTimer = setTimeout(renderSidebar, 60); });

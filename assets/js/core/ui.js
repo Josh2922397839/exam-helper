@@ -96,7 +96,9 @@
     const x = d || new Date();
     return x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0');
   };
-  const fresh = () => ({ visited: {}, quiz: {}, cards: {}, seen: {}, mistakes: [], days: [], last: null, answered: 0, correct: 0, xp: 0, xpDays: {}, match: {} });
+  const fresh = () => ({ visited: {}, quiz: {}, cards: {}, seen: {}, mistakes: [], days: [], last: null, answered: 0, correct: 0, xp: 0, xpDays: {}, match: {}, freezes: 0, frozen: [], goalHits: 0 });
+  const fromKey = (k) => { const [y, m, d] = k.split('-').map(Number); return new Date(y, m - 1, d); };
+  const daily = () => EF.daily || { bump() {}, max() {} };
   // Spaced repetition: after a card reaches box n, it is due again after this many days
   const DUE_DAYS = [0, 0, 1, 3, 7, 16];
   let state = fresh();
@@ -110,6 +112,17 @@
     touchDay() {
       const t = dayKey();
       if (!state.days.includes(t)) {
+        // streak freezes quietly cover the day(s) you missed, if you have enough of them
+        const lastDay = state.days.concat(state.frozen || []).sort().pop();
+        if (lastDay && state.freezes > 0) {
+          const missed = Math.round((fromKey(t) - fromKey(lastDay)) / 864e5) - 1;
+          if (missed > 0 && missed <= state.freezes) {
+            for (let k = 1; k <= missed; k++) { const d = fromKey(lastDay); d.setDate(d.getDate() + k); state.frozen.push(dayKey(d)); }
+            state.frozen = state.frozen.slice(-30);
+            state.freezes -= missed;
+            EF.emit('freeze-used', missed);
+          }
+        }
         state.days.push(t);
         state.days = state.days.slice(-120);
         save();
@@ -117,7 +130,7 @@
       }
     },
     streak() {
-      const set = new Set(state.days);
+      const set = new Set(state.days.concat(state.frozen || []));
       const d = new Date();
       if (!set.has(dayKey(d))) d.setDate(d.getDate() - 1); // still alive if you studied yesterday
       let n = 0;
@@ -133,10 +146,17 @@
       state.xpDays[t] = before + n;
       const keys = Object.keys(state.xpDays).sort();
       if (keys.length > 90) keys.slice(0, keys.length - 90).forEach((k) => delete state.xpDays[k]);
+      // every third day you reach your goal earns a streak freeze (you can hold two)
+      const g = store.goal();
+      if (before < g && before + n >= g) {
+        state.goalHits = (state.goalHits || 0) + 1;
+        if (state.goalHits % 3 === 0 && (state.freezes || 0) < 2) { state.freezes = (state.freezes || 0) + 1; setTimeout(() => EF.emit('freeze-earned', state.freezes), 1200); }
+      }
       save();
-      EF.emit('xp', { n, today: before + n, before, goal: store.goal() });
+      EF.emit('xp', { n, today: before + n, before, goal: g });
     },
     xp: () => state.xp || 0,
+    freezes: () => state.freezes || 0,
     xpToday: () => state.xpDays[dayKey()] || 0,
     goal: () => +ls.get('ef2:goal') || 50,
     setGoal(g) { ls.set('ef2:goal', String(g)); EF.emit('xp', { n: 0, today: store.xpToday(), before: store.xpToday(), goal: g }); },
@@ -156,25 +176,29 @@
     setMatch(sid, ms) { const old = state.match[sid] || 0; if (!old || ms < old) { state.match[sid] = ms; save(); return true; } return false; },
     markVisited(sid, tid) {
       const v = (state.visited[sid] = state.visited[sid] || []);
-      if (!v.includes(tid)) { v.push(tid); save(); EF.emit('progress', sid); store.addXP(5); }
+      if (!v.includes(tid)) { v.push(tid); save(); EF.emit('progress', sid); store.addXP(5); daily().bump('topics'); }
       store.touchDay();
     },
     setLast(sid, tid) { state.last = { s: sid, t: tid, at: Date.now() }; save(); },
-    answer(key, ok) {
+    /* hinted = the learner removed a wrong option first: still counts, for less XP */
+    answer(key, ok, hinted) {
       state.answered++;
       if (ok) {
         state.correct++;
+        if (state.mistakes.includes(key)) daily().bump('fixed');
         state.mistakes = state.mistakes.filter((k) => k !== key);
+        daily().bump('correct');
       } else if (!state.mistakes.includes(key)) {
         state.mistakes.push(key);
       }
       save();
-      store.addXP(ok ? 10 : 2);
+      store.addXP(ok ? (hinted ? 5 : 10) : 2);
       store.touchDay();
     },
     recordQuiz(id, pct) {
       const q = (state.quiz[id] = state.quiz[id] || { best: 0, last: 0, attempts: 0 });
       q.last = pct; q.best = Math.max(q.best, pct); q.attempts++;
+      if (pct >= 80) daily().max('quiz80', 1);
       save(); EF.emit('progress', id);
       return q;
     },
@@ -185,7 +209,7 @@
       (state.cards[sid] = state.cards[sid] || {})[key] = box;
       (state.seen[sid] = state.seen[sid] || {})[key] = Date.now();
       save(); store.touchDay(); EF.emit('progress', sid);
-      if (!quiet) store.addXP(box > prev ? 4 : 1);
+      if (!quiet) { store.addXP(box > prev ? 4 : 1); daily().bump('cards'); }
     },
     mastered(sid) {
       const s = EF.subject(sid);
