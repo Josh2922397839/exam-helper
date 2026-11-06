@@ -41,6 +41,7 @@
     });
     return loading;
   }
+  EF.cloudClient = () => load();
   async function rpc(fn, args) {
     const c = await load();
     const { data, error } = await c.rpc(fn, args || {});
@@ -629,8 +630,9 @@
 
   /* ---------------- profiles: #/me (yours) and #/u/:name (anyone's) ---------------- */
   const joinPitch = (title) => `<section class="social-card">${EF.mascot('wave', 120)}<div><h2>${title || 'Race your school'}</h2><p class="muted">Join with a nickname and your school. Everything you study earns XP, and every Monday the top players move up a league.</p><div class="btn-row"><a class="btn btn-ink" href="#/join">${EF.img3d('trophy', 22)} Join the league</a><a class="btn" href="#/join/code">${icon('fa-key')} I have a code</a></div></div></section>`;
-  const profileHead = (p, actions) => `<section class="profile-head">
-      <div class="profile-ava">${EF.avatar(p.avatar, p.username, 116)}${p.league ? `<span class="profile-league">${badge(p.league)}</span>` : ''}</div>
+  const profileHead = (p, actions, own) => `<section class="profile-head">
+      ${own ? `<button type="button" class="profile-ava profile-ava-edit" data-edit-pic aria-label="Edit profile picture">${EF.myAvatar(p, 116)}<span class="pic-edit">${icon('fa-camera')}</span>${p.league ? `<span class="profile-league">${badge(p.league)}</span>` : ''}</button>`
+        : `<div class="profile-ava">${EF.avatar(p.avatar, p.username, 116)}${p.league ? `<span class="profile-league">${badge(p.league)}</span>` : ''}</div>`}
       <div class="profile-info">
         <h1>${esc(p.username)}</h1>
         <p class="profile-sub">${p.school ? `<a href="#/school/${p.school.id}">${EF.schoolMark(p.school, 22)} ${esc(p.school.name)}</a>` : 'No school yet'}${p.grade ? ` · Grade ${esc(p.grade)}` : ''}</p>
@@ -639,6 +641,74 @@
       </div>
     </section>`;
   const statTiles = (list) => `<div class="stat-tiles">${list.map(([img, v, l]) => `<div class="stat-tile">${EF.img3d(img, 44)}<b>${v}</b><small>${l}</small></div>`).join('')}</div>`;
+
+  /* ---------- profile picture: your own photo (kept on this device) or an avatar ---------- */
+  EF.myPhoto = () => { const d = ls.get('ef2:photo'); return d && /^data:image\/(webp|jpeg|png);base64,[A-Za-z0-9+/=]+$/.test(d) ? d : null; };
+  EF.myAvatar = (p, size) => {
+    const ph = EF.myPhoto();
+    return ph ? `<span class="ava ava-photo" style="--s:${size}px"><img src="${ph}" alt="" aria-hidden="true" draggable="false"></span>` : EF.avatar(p && p.avatar, p ? p.username : 'me', size);
+  };
+  async function photoFrom(file) {
+    if (!file || !/^image\//.test(file.type)) throw new Error('Pick a photo');
+    const bmp = await createImageBitmap(file);
+    const side = Math.min(bmp.width, bmp.height), c = document.createElement('canvas');
+    c.width = c.height = 192;
+    const g = c.getContext('2d');
+    g.drawImage(bmp, (bmp.width - side) / 2, (bmp.height - side) / 2, side, side, 0, 0, 192, 192);
+    let url = c.toDataURL('image/webp', 0.82);
+    if (!/^data:image\/webp/.test(url)) url = c.toDataURL('image/jpeg', 0.82);
+    return url;
+  }
+  EF.editPicture = () => {
+    const me0 = EF.cloud.cachedMe();
+    let tab = EF.myPhoto() ? 'custom' : 'avatar';
+    const dlg = document.createElement('dialog');
+    dlg.className = 'pic-dlg';
+    const draw = () => {
+      const me1 = EF.cloud.cachedMe() || me0 || {};
+      dlg.innerHTML = `<form method="dialog" class="pic-box">
+        <header><h2>Edit profile picture</h2><button class="icon-btn" value="close" aria-label="Close">${icon('fa-xmark')}</button></header>
+        <div class="pic-tabs" role="tablist"><button type="button" role="tab" data-pic-tab="custom" aria-selected="${tab === 'custom'}">Custom</button><button type="button" role="tab" data-pic-tab="avatar" aria-selected="${tab === 'avatar'}">Avatar</button></div>
+        ${tab === 'custom' ? `
+          <div class="pic-custom">
+            <h3>Use your own <span>photo</span></h3>
+            <div class="pic-preview">${EF.myAvatar(me1, 168)}</div>
+            <p class="muted">${icon('fa-lock')} Your photo stays on this device. Everyone else still sees your avatar.</p>
+            <label class="btn btn-primary btn-lg btn-block">${icon('fa-camera')} Take a selfie<input type="file" accept="image/*" capture="user" data-pic-file hidden></label>
+            <label class="btn btn-lg btn-block">${icon('fa-image')} Upload<input type="file" accept="image/*" data-pic-file hidden></label>
+            ${EF.myPhoto() ? `<button type="button" class="link pic-remove" data-pic-remove>${icon('fa-trash')} Remove photo</button>` : ''}
+          </div>` : `
+          <div class="pic-avatars">${EF.AVATARS.map((k) => `<button type="button" class="ava-opt" data-pic-ava="${k}" aria-pressed="${k === me1.avatar && !EF.myPhoto()}" aria-label="${k}">${EF.avatar(k, '', 64)}</button>`).join('')}</div>
+          <p class="muted center">Your avatar shows on leaderboards, Live games and your profile.</p>`}
+      </form>`;
+    };
+    draw();
+    document.body.appendChild(dlg);
+    dlg.addEventListener('close', () => { dlg.remove(); EF.paintTopMe(); EF.emit('cloud', { kind: 'profile' }); });
+    dlg.addEventListener('click', async (e) => {
+      if (e.target === dlg) { dlg.close(); return; }
+      const t = e.target.closest('[data-pic-tab], [data-pic-ava], [data-pic-remove]');
+      if (!t) return;
+      if (t.dataset.picTab) { tab = t.dataset.picTab; draw(); return; }
+      if (t.hasAttribute('data-pic-remove')) { ls.del('ef2:photo'); EF.toast('Photo removed', 'fa-trash'); draw(); return; }
+      if (t.dataset.picAva) {
+        const m = EF.cloud.cachedMe();
+        ls.del('ef2:photo');
+        if (m && m.avatar !== t.dataset.picAva) {
+          try { await EF.cloud.updateProfile({ username: m.username, schoolId: m.school && m.school.id, grade: m.grade, avatar: t.dataset.picAva }); EF.toast('Avatar updated', 'fa-circle-check'); }
+          catch (er) { EF.toast(er.message, 'fa-circle-exclamation'); }
+        }
+        dlg.close();
+      }
+    });
+    dlg.addEventListener('change', async (e) => {
+      if (!e.target.matches('[data-pic-file]')) return;
+      try { const url = await photoFrom(e.target.files[0]); ls.set('ef2:photo', url); EF.toast('Looking good!', 'fa-camera'); EF.haptic('success'); draw(); }
+      catch (er) { EF.toast('That photo didn’t work. Try another one.', 'fa-circle-exclamation'); }
+    });
+    if (dlg.showModal) dlg.showModal(); else dlg.setAttribute('open', '');
+  };
+  document.addEventListener('click', (e) => { if (e.target.closest('[data-edit-pic]')) EF.editPicture(); });
 
   EF.mountMe = (el) => {
     if (!enabled) { el.innerHTML = offBox(); return () => {}; }
@@ -660,7 +730,7 @@
         </div>`;
     }
     function draw() {
-      el.innerHTML = profileHead(p, `<a class="btn btn-ink" href="#/league" data-goto-friends>${icon('fa-user-plus')} Find friends</a><a class="icon-btn" href="#/account" aria-label="Edit profile">${icon('fa-pen')}</a><button type="button" class="icon-btn" data-share-profile="${esc(p.username)}" aria-label="Share your profile">${icon('fa-arrow-up-from-bracket')}</button>`)
+      el.innerHTML = profileHead(p, `<a class="btn btn-ink" href="#/league" data-goto-friends>${icon('fa-user-plus')} Find friends</a><a class="icon-btn" href="#/account" aria-label="Edit profile">${icon('fa-pen')}</a><button type="button" class="icon-btn" data-share-profile="${esc(p.username)}" aria-label="Share your profile">${icon('fa-arrow-up-from-bracket')}</button>`, true)
         + `<div class="pill-tabs profile-tabs" role="tablist">${[['overview', 'Leaderboards'], ['stats', 'Stats'], ['sets', 'Sets']].map(([k, l]) => `<button type="button" role="tab" data-ptab="${k}" aria-selected="${tab === k}">${l}</button>`).join('')}</div>
         <div class="profile-body">${body()}</div>`;
     }
@@ -700,7 +770,7 @@
     document.querySelectorAll('[data-top-me]').forEach((a) => {
       if (!enabled) { a.hidden = true; return; }
       a.hidden = false;
-      if (joined()) { a.href = '#/me'; a.className = 'top-me'; a.innerHTML = EF.avatar(me && me.avatar, me ? me.username : 'me', 38); a.setAttribute('aria-label', 'Your profile' + (me ? ': ' + me.username : '')); }
+      if (joined()) { a.href = '#/me'; a.className = 'top-me'; const av = EF.myAvatar(me, 38); if (a.innerHTML !== av) a.innerHTML = av; a.setAttribute('aria-label', 'Your profile' + (me ? ': ' + me.username : '')); }
       else { a.href = '#/join'; a.className = 'top-me top-join'; a.innerHTML = `${EF.img3d('trophy', 22)}<span>Join</span>`; a.setAttribute('aria-label', 'Join the league'); }
     });
   };

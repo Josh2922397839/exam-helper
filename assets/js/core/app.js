@@ -38,8 +38,20 @@
   function contents(s, seen) {
     const groups = s.units && s.units.length ? s.units.map((u) => ({ name: u.name, icon: u.icon, list: u.topics.map((id) => s.topics.find((t) => t.id === id)).filter(Boolean) })) : [{ name: '', list: s.topics }];
     let n = 0;
+    const view = (() => { try { return localStorage.getItem('ef2:tocView') === 'path' ? 'path' : 'list'; } catch (e) { return 'list'; } })();
+    const toggle = `<div class="seg seg-sm toc-view" role="tablist" aria-label="Contents view"><button type="button" role="tab" data-toc-view="list" aria-selected="${view === 'list'}">${icon('fa-list-ul')} List</button><button type="button" role="tab" data-toc-view="path" aria-selected="${view === 'path'}">${icon('fa-route')} Path</button></div>`;
+    if (view === 'path') {
+      const nextId = (s.topics.find((t) => !seen.includes(t.id)) || {}).id;
+      let k = 0;
+      return `<nav class="toc card is-path" id="contents" aria-label="Learning path for ${esc(s.name)}">
+        <div class="toc-head"><h2>${icon('fa-route')} Path</h2>${toggle}</div>
+        ${groups.map((g) => `${g.name ? `<h3 class="path-unit">${g.icon ? icon(g.icon) : ''}${esc(g.name)}</h3>` : ''}
+          <ol class="path">${g.list.map((t) => { const x = [0, 1, 0, -1][k++ % 4]; const st = seen.includes(t.id) ? 'is-done' : t.id === nextId ? 'is-next' : ''; return `<li style="--x:${x}"><a class="pnode ${st}" href="#/s/${s.id}/${t.id}" data-topic="${t.id}"><span class="pnode-ic">${seen.includes(t.id) ? icon('fa-check') : icon(t.icon || 'fa-book-open')}</span><span class="pnode-lb">${t.id === nextId ? '<small>Up next</small>' : ''}${esc(topicLabel(t))}</span></a></li>`; }).join('')}</ol>`).join('')}
+        <ol class="path"><li style="--x:0"><a class="pnode pnode-quiz" href="#/s/${s.id}/quiz" data-topic="quiz"><span class="pnode-ic">${EF.img3d('trophy', 34)}</span><span class="pnode-lb">Final quiz</span></a></li></ol>
+      </nav>`;
+    }
     return `<nav class="toc card" id="contents" aria-label="Contents of ${esc(s.name)}">
-      <div class="toc-head"><h2>${icon('fa-list-ul')} Contents</h2><span class="muted">${s.topics.length} topics${s.tricky && s.tricky.length ? ' · exam traps' : ''} · quiz</span></div>
+      <div class="toc-head"><h2>${icon('fa-list-ul')} Contents</h2>${toggle}</div>
       <div class="toc-groups${groups.length > 1 ? ' is-multi' : ''}">${groups.map((g) => `
         <div class="toc-group">${g.name ? `<h3>${g.icon ? icon(g.icon) : ''}${esc(g.name)}</h3>` : ''}
           <ol>${g.list.map((t) => { n++; return `<li><a href="#/s/${s.id}/${t.id}" data-topic="${t.id}"${seen.includes(t.id) ? ' class="is-read"' : ''}><span class="toc-n">${seen.includes(t.id) ? icon('fa-check') : n}</span><span class="toc-t">${esc(topicLabel(t))}</span></a></li>`; }).join('')}</ol>
@@ -50,6 +62,7 @@
   }
 
   /* ================= SIDEBAR ================= */
+  let lastSidebar = '';
   function renderSidebar() {
     const [a, sid] = parts();
     const here = a === 's' ? sid : null;
@@ -59,7 +72,7 @@
     const me = EF.cloud.joined() ? EF.cloud.cachedMe() : null;
     const st = EF.store.state(), lastS = st.last && EF.subject(st.last.s);
     const mine = EF.sets.list();
-    sidebar.innerHTML = `
+    const html = `
       <a class="side-brand" href="#/" aria-label="ExamForge home"><span class="brand-mark" aria-hidden="true"><img src="assets/img/emby-mark.svg" alt="" width="44" height="48"></span><span class="brand-name">Exam<b>Forge</b></span></a>
       <nav class="side-nav" aria-label="Main">
         ${navItem('#/', 'home', 'Home', 'home')}
@@ -68,7 +81,7 @@
         ${navItem('#/quiz', 'bolt', 'Quiz Arena', 'quiz', mistakes ? `<span class="side-badge" title="Saved mistakes">${mistakes}</span>` : '')}
         ${navItem('#/sets', 'memo', 'My sets', 'sets')}
         ${navItem('#/progress', 'chart', 'Progress', 'progress')}
-        ${me ? link('#/me', EF.avatar(me.avatar, me.username, 30), esc(me.username), 'me') : navItem('#/me', 'wave', 'Profile', 'me')}
+        ${me ? link('#/me', EF.myAvatar(me, 30), esc(me.username), 'me') : navItem('#/me', 'wave', 'Profile', 'me')}
       </nav>
       <div class="side-cta">
         <a class="btn btn-ink btn-block side-study" href="${lastS ? '#/learn/' + lastS.id : '#/cards'}">${EF.img3d('game', 26)} Study</a>
@@ -96,6 +109,9 @@
         ${installEvt ? `<button type="button" class="btn btn-sm side-install" data-install>${icon('fa-download')} Install app</button>` : ''}
         <span><kbd>/</kbd> search</span><span><kbd>D</kbd> theme</span><button type="button" class="link" data-keys><kbd>?</kbd></button>
       </div>`;
+    if (html === lastSidebar) { if (here && spy && spy.active) markTopic(spy.active); return; }
+    lastSidebar = html;
+    sidebar.innerHTML = html;
     if (here && here !== lastOpen) { const st2 = $('.side-topics', sidebar); if (st2) st2.classList.add('is-entering'); }
     lastOpen = here;
     if (here && spy && spy.active) markTopic(spy.active);
@@ -286,6 +302,7 @@
     return `
       <div class="page">
         <header class="page-head"><span class="eyebrow">${icon('fa-bolt')} Quiz Arena</span><h1>Test yourself</h1><p>Every question explains the answer. Get one wrong and it’s saved so you can fix it later.</p>${gradeSwitch()}</header>
+        ${EF.cloud.enabled ? `<a class="live-banner" href="#/live">${EF.img3d('people', 44)}<div><strong>Live with friends</strong><span>Host or join a game with a code. Same questions, same time.</span></div><span class="btn btn-primary btn-sm">Play ${icon('fa-arrow-right')}</span></a>` : ''}
         <div class="arena-top">
           <a class="arena-card arena-exam" href="#/quiz/${examId}">
             <span class="arena-ic" ${vt('icon-exam')}>${EF.img3d('fire', 40)}</span>
@@ -355,7 +372,7 @@
   /* A study set's home: all the ways to study it */
   pages.set = (s) => {
     const n = s.flashcards.length, m = EF.store.mastered(s.id), due = EF.store.due(s.id).length, best = EF.store.bestMatch(s.id), q = EF.store.quiz(s.id);
-    const PIC = { 'fa-graduation-cap': 'grad', 'fa-clone': 'cards', 'fa-shapes': 'puzzle', 'fa-bolt': 'bolt', 'fa-book-open': 'book', 'fa-pen': 'pencil', 'fa-stopwatch': 'stopwatch' };
+    const PIC = { 'fa-graduation-cap': 'grad', 'fa-clone': 'cards', 'fa-shapes': 'puzzle', 'fa-bolt': 'bolt', 'fa-book-open': 'book', 'fa-pen': 'pencil', 'fa-stopwatch': 'stopwatch', 'fa-tower-broadcast': 'people' };
     const mode = (href, ic, title, sub, extra) => `<a class="mode-card" href="${href}"><span class="mode-ic">${EF.img3d(PIC[ic] || 'star', 34)}</span><div><strong>${title}</strong><span>${sub}</span></div>${extra ? `<span class="mode-extra">${extra}</span>` : ''}${icon('fa-chevron-right', 'mode-go')}</a>`;
     return `<div class="page narrow tint" style="--c:${s.color}">
       <a class="crumb" href="#/cards">${icon('fa-arrow-left')} Study sets</a>
@@ -367,6 +384,7 @@
         ${mode('#/match/' + s.id, 'fa-shapes', 'Match', 'Pair them up against the clock', best ? (best / 1000).toFixed(1) + 's' : '')}
         ${mode('#/gap/' + s.id, 'fa-pen', 'Fill the gap', 'Complete the key word in each definition', '')}
         ${mode('#/speed/' + s.id, 'fa-stopwatch', 'Speed run', 'As many as you can in 90 seconds', EF.bestSpeed(s.id) ? 'best ' + EF.bestSpeed(s.id) : '')}
+        ${!s.custom && EF.cloud.enabled ? mode('#/live/host/' + s.id, 'fa-tower-broadcast', 'Live with friends', 'Host a game: same questions, same time', '') : ''}
         ${s.quiz.length ? mode('#/quiz/' + s.id, 'fa-bolt', 'Test', s.quiz.length + ' questions with explanations', q ? q.best + '%' : '') : ''}
         ${s.custom ? '' : mode('#/s/' + s.id, 'fa-book-open', 'Study guide', 'Full notes, worked examples and tools', '')}
       </div>
@@ -392,6 +410,11 @@
       ${c.m === 'speed' ? `<div data-speed="${esc(s.id)}" data-vs="${esc(code)}"></div>` : `<div class="quiz-host" data-quiz="${esc(s.id)}" data-vs="${esc(code)}"></div>`}
     </div>`;
   };
+  pages.live = () => `<div class="page narrow live-home">
+      <header class="page-head"><span class="eyebrow">${icon('fa-tower-broadcast')} Live</span><h1>Play live with friends</h1><p>Same questions, same time, one winner. Share a code and race your friends or your whole class.</p></header>
+      <div data-live-home></div>
+    </div>`;
+  pages.liveGame = (code) => `<div class="page narrow live-page" data-live="${esc(code)}"></div>`;
   pages.badChallenge = () => `<div class="page narrow center not-found">${EF.mascot ? EF.mascot('think', 140) : ''}<h1>That challenge link didn’t work</h1><p class="muted">It may have been cut off when it was copied. Ask your friend to send it again.</p><a class="btn btn-primary" href="#/">${icon('fa-house')} Go home</a></div>`;
   pages.sets = () => {
     const mine = EF.sets.list();
@@ -479,10 +502,12 @@
   function show(key, html, title, after) {
     const from = viewKey ? depth(viewKey) : 0, to = depth(key);
     document.documentElement.dataset.navdir = to > from ? 'forward' : to < from ? 'back' : 'fade';
-    const swap = () => render(key, html, title, after);
+    let viaVT = false;
+    const swap = () => { render(key, html, title, after); if (viaVT) $$(':scope > .page', main).forEach((pg) => pg.classList.add('no-enter')); };
     // Cross-fade between pages where the browser supports it (not on first load or with reduced motion)
     if (document.startViewTransition && !firstShow && !EF.reducedMotion() && !document.documentElement.classList.contains('vt-theme')) {
       document.documentElement.classList.add('vt-page');
+      viaVT = true;
       const t = document.startViewTransition(swap);
       // An interrupted transition (fast clicking, rotating the phone) is harmless — the page still updates
       t.ready.catch(() => {});
@@ -502,6 +527,8 @@
     $$('[data-match]', main).forEach((el) => cleanup.push(EF.mountMatch(el, el.dataset.match)));
     $$('[data-speed]', main).forEach((el) => cleanup.push(EF.mountSpeed(el, el.dataset.speed, { vs: el.dataset.vs })));
     $$('[data-gap]', main).forEach((el) => cleanup.push(EF.mountGap(el, el.dataset.gap)));
+    $$('[data-live-home]', main).forEach((el) => cleanup.push(EF.mountLiveHome(el)));
+    $$('[data-live]', main).forEach((el) => cleanup.push(EF.mountLive(el, el.dataset.live)));
     $$('[data-make]', main).forEach((el) => cleanup.push(EF.mountMake(el, el.dataset.make || null)));
     $$('[data-import]', main).forEach((el) => cleanup.push(EF.mountImport(el, el.dataset.import)));
     const CLOUD = { league: EF.mountLeague, join: EF.mountJoin, account: EF.mountAccount, school: EF.mountSchool, shared: EF.mountShared, me: EF.mountMe, user: EF.mountUser };
@@ -557,6 +584,12 @@
       const s = EF.subject(b);
       if (!s || !s.flashcards || !s.flashcards.length) return show('404', pages.notFound(), 'Not found');
       return show(a + ':' + s.id, pages[a](s), s.short + ({ set: '', learn: ' · Learn', match: ' · Match', speed: ' · Speed run', gap: ' · Fill the gap' })[a]);
+    }
+    if (a === 'live') {
+      if (!b) return show('live', pages.live(), 'Live');
+      if (b === 'host') { const s = EF.subject(p[2]); if (s && !s.custom) { EF.liveHost(s.id); return; } return show('404', pages.notFound(), 'Not found'); }
+      const code = EF.liveCode(b);
+      return code ? show('live:' + code, pages.liveGame(code), 'Live · ' + code) : show('404', pages.notFound(), 'Not found');
     }
     if (a === 'vs') {
       const c = EF.vs.decode(b);
@@ -773,6 +806,8 @@
     }
     const sh = t.closest('[data-share]');
     if (sh) { const set = EF.sets.raw(sh.dataset.share); if (set) EF.sets.share(set).then((r) => { if (r === 'copied') EF.toast('Link copied: send it to your friends!', 'fa-link'); else if (r === 'shared') EF.toast('Shared!', 'fa-share-nodes'); }); return; }
+    const tv = t.closest('[data-toc-view]');
+    if (tv) { try { localStorage.setItem('ef2:tocView', tv.dataset.tocView); } catch (er) { /* */ } const [, sid] = parts(), sub = EF.subject(sid), box = $('#contents', main); if (sub && box) { box.outerHTML = contents(sub, EF.store.state().visited[sub.id] || []); } return; }
     if (t.closest('[data-toc-float]')) { e.preventDefault(); const toc = $('#contents', main); if (toc) toc.scrollIntoView({ behavior: EF.reducedMotion() ? 'auto' : 'smooth', block: 'start' }); return; }
     const wk = t.closest('[data-worked]');
     if (wk) { stepWorked(wk.closest('.worked'), wk.dataset.worked); return; }

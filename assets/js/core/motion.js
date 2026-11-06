@@ -39,8 +39,10 @@
         setTimeout(done, 1500);
       });
     }, { rootMargin: '0px 0px -4% 0px', threshold: 0.04 });
+    const fold = innerHeight * 0.92;
     root.querySelectorAll(REVEAL).forEach((el) => {
       if (el.parentElement.closest('.rv, .quiz, .cards, .stage, .flip, .bigcard, .hero')) return;
+      if (el.getBoundingClientRect().top < fold) return;
       el.classList.add('rv');
       io.observe(el);
     });

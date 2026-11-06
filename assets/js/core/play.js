@@ -180,6 +180,8 @@
     });
   }
 
+  EF.questionPool = pool;
+
   /* ================= SPEED RUN ================= */
   const SPEED_MS = 90000;
   const bestSpeed = (sid) => { try { return (JSON.parse(ls.get('ef2:speed') || '{}')[sid]) || 0; } catch (e) { return 0; } };

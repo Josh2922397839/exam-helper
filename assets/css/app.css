@@ -1355,7 +1355,7 @@ kbd {
 ::view-transition-old(page) { animation: vtOut .18s var(--ease) both; }
 ::view-transition-new(page) { animation: vtIn .34s var(--ease) both; }
 ::view-transition-old(root), ::view-transition-new(root) { animation-duration: .2s; }
-html.vt-page .page { animation: none; }
+html.vt-page .page, .page.no-enter { animation: none; }
 /* Theme switch: a circle grows from the toggle button (driven from JS) */
 html.vt-theme #main { view-transition-name: none; }
 html.vt-theme::view-transition-old(root), html.vt-theme::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
