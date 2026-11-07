@@ -110,8 +110,12 @@
 
     stats: (b) => `<div class="stats">${b.items.map((it) => `<div class="stat"><span class="stat-v">${esc(it.value)}</span><span class="stat-l">${esc(it.label)}</span></div>`).join('')}</div>`,
 
-    terms: (b, s) => `${b.title ? `<h3 class="sub-heading">${esc(b.title)}</h3>` : ''}<div class="terms">${b.items.map((it) => `
-      <div class="term"><span class="term-w"${s && s.lang ? ' lang="fr"' : ''}>${esc(it[0])}</span><span class="term-d">${it[1]}</span>${b.speak ? speakBtn(it[0]) : ''}</div>`).join('')}</div>`,
+    /* Key terms as cards: the word, a dashed line, then its meaning. "Test me" hides the meanings until you tap Show */
+    terms: (b, s) => `<div class="terms-box" data-terms>
+      ${b.title || b.items.length > 1 ? `<div class="terms-head">${b.title ? `<h3 class="sub-heading">${esc(b.title)}</h3>` : '<span></span>'}${b.items.length > 1 ? `<button type="button" class="btn btn-sm terms-test" data-terms-test aria-pressed="false">${icon('fa-eye-slash')} Test me</button>` : ''}</div>` : ''}
+      <div class="terms">${b.items.map((it) => `
+      <div class="term"><span class="term-w"${s && s.lang ? ' lang="fr"' : ''}>${esc(it[0])}</span><span class="term-d">${it[1]}</span><button type="button" class="term-reveal" data-term-reveal hidden>${icon('fa-eye')} Show</button>${b.speak ? speakBtn(it[0]) : ''}</div>`).join('')}</div>
+    </div>`,
 
     phrases: (b) => `${b.title ? `<h3 class="sub-heading">${esc(b.title)}</h3>` : ''}<ul class="phrases">${b.items.map((it) => `
       <li class="phrase">${speakBtn(it[0])}<span class="phrase-fr" lang="fr">${esc(it[0])}</span><span class="phrase-en">${esc(it[1])}</span></li>`).join('')}</ul>`,
@@ -203,8 +207,8 @@
       </article>`;
     },
 
-    /* Study-guide notes: one point per line */
-    notes: (b) => `<ul class="notes">${b.items.map((x) => `<li>${x}</li>`).join('')}</ul>`,
+    /* Study-guide notes: one point per card, with the topic's key terms highlighted */
+    notes: (b, s, terms) => `<ul class="notes">${b.items.map((x) => `<li>${EF.markHtml ? EF.markHtml(x, terms, 2) : x}</li>`).join('')}</ul>`,
 
     /* Formulas and rules to learn */
     rules: (b) => `<div class="rules"><span class="rules-head">${icon('fa-scale-balanced')} ${esc(b.title || 'Formulas & rules')}</span><ul>${b.items.map((x) => `<li>${x}</li>`).join('')}</ul></div>`,
@@ -221,12 +225,14 @@
     widget: (b, s) => `<div class="widget" data-widget="${esc(b.name)}" data-subject="${esc(s.id)}"><div class="widget-loading">${icon('fa-spinner', 'fa-spin')} Loading…</div></div>`
   };
 
-  EF.renderBlocks = (blocks, subject) =>
-    (blocks || []).map((b) => {
+  EF.renderBlocks = (blocks, subject) => {
+    const terms = EF.topicTerms ? EF.topicTerms({ blocks }) : []; // this topic's key terms, highlighted in its notes
+    return (blocks || []).map((b) => {
       const fn = R[b.type];
       if (!fn) { console.warn('Unknown block type', b.type); return ''; }
-      return `<div class="block block-${b.type}">${fn(b, subject)}</div>`;
+      return `<div class="block block-${b.type}">${fn(b, subject, terms)}</div>`;
     }).join('');
+  };
 
   /* Plain text for the search index */
   EF.blockText = (b) => {

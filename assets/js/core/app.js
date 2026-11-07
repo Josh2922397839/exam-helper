@@ -275,6 +275,7 @@
               <span class="topic-seen${seen.includes(t.id) ? ' is-on' : ''}" title="Read">${icon('fa-circle-check')}<span class="sr-only">Read</span></span>
             </header>
             ${EF.renderBlocks(t.blocks, s)}
+            ${EF.qcheckHost ? EF.qcheckHost(s, t) : ''}
             ${topicLabs(s, t)}
           </section>`).join('')}
 
@@ -408,43 +409,8 @@
     </div>`;
   };
 
-  /* every card in the deck, Gizmo style: tap a card to flip it; filter by topic */
-  const DECK_FIRST = 12;
-  function deckView(s) {
-    const tags = EF.deckTags ? EF.deckTags(s) : [];
-    const card = (c, k) => `<li class="dcard-wrap"${c[2] ? ` data-tag="${esc(c[2])}"` : ''}${k >= DECK_FIRST ? ' data-more' : ''}>
-        <button type="button" class="dcard" aria-pressed="false" data-dcard>
-          <span class="dcard-face dcard-front">${c[2] ? `<small class="dcard-tag">${esc(c[2])}</small>` : ''}<strong>${esc(c[0])}</strong><span class="dcard-hint">${icon('fa-rotate')} Tap to flip</span></span>
-          <span class="dcard-face dcard-back" aria-hidden="true"><small class="dcard-tag">Answer</small><strong>${esc(c[1])}</strong>${c[4] ? `<span class="dcard-why">${esc(c[4])}</span>` : ''}</span>
-        </button></li>`;
-    return `<section class="deck-view" data-deck-view aria-labelledby="deck-h">
-        <div class="deck-view-head"><h2 id="deck-h">${icon('fa-clone')} All ${s.flashcards.length} cards</h2><p class="muted">Tap a card to see the answer${s.flashcards.some((c) => c[4]) ? ' and why' : ''}.</p></div>
-        ${tags.length > 1 ? `<div class="seg seg-sm seg-scroll deck-tags" role="toolbar" aria-label="Show cards on one topic"><button type="button" data-dtag="" aria-pressed="true">All</button>${tags.map((t) => `<button type="button" data-dtag="${esc(t)}" aria-pressed="false">${esc(t)}</button>`).join('')}</div>` : ''}
-        <ul class="dcard-grid">${s.flashcards.map(card).join('')}</ul>
-        ${s.flashcards.length > DECK_FIRST ? `<div class="center"><button type="button" class="btn" data-deck-all>${icon('fa-layer-group')} Show all ${s.flashcards.length} cards</button></div>` : ''}
-      </section>`;
-  }
-  document.addEventListener('click', (e) => {
-    const flip = e.target.closest('[data-dcard]');
-    if (flip) {
-      const on = flip.getAttribute('aria-pressed') !== 'true';
-      flip.setAttribute('aria-pressed', String(on));
-      flip.querySelector('.dcard-front').setAttribute('aria-hidden', String(on));
-      flip.querySelector('.dcard-back').setAttribute('aria-hidden', String(!on));
-      return;
-    }
-    const view = e.target.closest('[data-deck-view]');
-    if (!view) return;
-    const more = e.target.closest('[data-deck-all]');
-    if (more) { view.classList.add('is-all'); more.parentElement.remove(); return; }
-    const tagBtn = e.target.closest('[data-dtag]');
-    if (tagBtn) {
-      const t = tagBtn.dataset.dtag;
-      view.querySelectorAll('[data-dtag]').forEach((b) => b.setAttribute('aria-pressed', String(b === tagBtn)));
-      view.classList.toggle('is-filtered', !!t);
-      view.querySelectorAll('.dcard-wrap').forEach((li) => { li.hidden = !!t && li.dataset.tag !== t; });
-    }
-  });
+  /* every card in the deck, Gizmo style (core/cards.js) */
+  function deckView(s) { return EF.cardList(s); }
   /* ================= INTERACTIVE: hands-on tools (assets/js/core/interactive.js) ================= */
   const topicName = (s, id) => { const t = s.topics.find((x) => x.id === id); return t ? (t.nav || t.title) : ''; };
   const labCard = (s, t) => {
@@ -601,10 +567,14 @@
   function show(key, html, title, after) {
     const from = viewKey ? depth(viewKey) : 0, to = depth(key);
     document.documentElement.dataset.navdir = to > from ? 'forward' : to < from ? 'back' : 'fade';
+    // the same page drawn again (grade switch, a refresh) stays where you were and doesn't replay its entrance
+    const same = key === viewKey;
+    if (same && !after) { const y = window.scrollY; after = () => window.scrollTo(0, y); }
     let viaVT = false;
-    const swap = () => { render(key, html, title, after); if (viaVT) $$(':scope > .page', main).forEach((pg) => pg.classList.add('no-enter')); };
-    // Cross-fade between pages where the browser supports it (not on first load or with reduced motion)
-    if (document.startViewTransition && !firstShow && !EF.reducedMotion() && !document.documentElement.classList.contains('vt-theme')) {
+    const swap = () => { render(key, html, title, after); if (viaVT || same) $$(':scope > .page', main).forEach((pg) => pg.classList.add('no-enter')); };
+    // Cross-fade between pages where the browser supports it (not on first load, a redraw, phones or with reduced motion).
+    // On phones the snapshot morph ghosted the two pages and hid the tab bar, so they get a quick CSS fade instead.
+    if (document.startViewTransition && !firstShow && !same && !(EF.touchUI && EF.touchUI()) && !EF.reducedMotion() && !document.documentElement.classList.contains('vt-theme')) {
       document.documentElement.classList.add('vt-page');
       viaVT = true;
       const t = document.startViewTransition(swap);
@@ -627,6 +597,7 @@
     $$('[data-speed]', main).forEach((el) => cleanup.push(EF.mountSpeed(el, el.dataset.speed, { vs: el.dataset.vs })));
     $$('[data-gap]', main).forEach((el) => cleanup.push(EF.mountGap(el, el.dataset.gap)));
     $$('[data-lab]', main).forEach((el) => cleanup.push(EF.mountLab(el, el.dataset.subject, el.dataset.lab)));
+    $$('[data-qcheck]', main).forEach((el) => cleanup.push(EF.mountQuickCheck(el)));
     $$('[data-live-home]', main).forEach((el) => cleanup.push(EF.mountLiveHome(el)));
     $$('[data-live]', main).forEach((el) => cleanup.push(EF.mountLive(el, el.dataset.live)));
     $$('[data-make]', main).forEach((el) => cleanup.push(EF.mountMake(el, el.dataset.make || null)));
@@ -937,7 +908,11 @@
     }
     // Clicking a link to the URL we're already on (e.g. same topic) should still scroll there
     const a = t.closest('a[href^="#/"]');
-    if (a && !e.metaKey && !e.ctrlKey && !e.shiftKey && a.getAttribute('href') === location.hash) { e.preventDefault(); route(); closeDrawer(); }
+    // tapping the page you're already on scrolls back to the top, like a phone app (and redraws it if you're already there)
+    if (a && !e.metaKey && !e.ctrlKey && !e.shiftKey && a.getAttribute('href') === location.hash) {
+      e.preventDefault(); closeDrawer();
+      if (window.scrollY > 8) window.scrollTo({ top: 0, behavior: EF.reducedMotion() ? 'auto' : 'smooth' }); else route();
+    }
   });
   document.addEventListener('keydown', (e) => {
     const flip = e.target.closest && e.target.closest('[data-action="flip"]');

@@ -8,6 +8,9 @@
   const EF = window.EF;
   const still = () => EF.reducedMotion();
   const finePointer = window.matchMedia ? window.matchMedia('(hover: hover) and (pointer: fine)') : { matches: false };
+  // phones and tablets get calmer motion: quick fades, no page morphs, nothing that waits for you to scroll
+  const touchUI = window.matchMedia ? window.matchMedia('(max-width: 760px), (hover: none) and (pointer: coarse)') : { matches: false };
+  EF.touchUI = () => touchUI.matches;
 
   /* ---------- haptics: a light tap on phones that support it ---------- */
   EF.haptic = (kind) => {
@@ -20,7 +23,7 @@
   let io = null;
   EF.reveal = (root) => {
     if (io) { io.disconnect(); io = null; }
-    if (still() || !('IntersectionObserver' in window)) return;
+    if (still() || touchUI.matches || !('IntersectionObserver' in window)) return;
     io = new IntersectionObserver((entries) => {
       let n = 0;
       entries.forEach((e) => {
