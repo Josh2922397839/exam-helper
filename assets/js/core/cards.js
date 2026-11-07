@@ -1,4 +1,4 @@
-/* ExamForge core — Gizmo-style cards.
+/* Zing core — Gizmo-style cards.
    • EF.cardList(s): every card in a deck as a list, like Gizmo's "Cards (67)": the question in bold, the answer
      under a dashed line with its key words highlighted green, and multiple-choice cards showing ✓ and ✗ options.
      Search, topic chips, a "weakest first" sort, a Study deck button and a ⋮ menu (read aloud, save to my cards).

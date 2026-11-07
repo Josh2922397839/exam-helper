@@ -1,4 +1,4 @@
-/* ExamForge — motion, following Apple's fluid-interface principles:
+/* Zing — motion, following Apple's fluid-interface principles:
    • springs instead of fixed curves (see --spring tokens in app.css)
    • things follow your finger 1:1, keep their momentum when you let go, and can be interrupted
    • motion shows where things come from and go to (sliding indicators, shared elements)

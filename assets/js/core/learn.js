@@ -1,4 +1,4 @@
-/* ExamForge — study modes inspired by flashcard / study-guide apps, done our way:
+/* Zing — study modes inspired by flashcard / study-guide apps, done our way:
    • EF.sets: make your own sets from pasted notes, saved on this device, shareable by link (no account needed)
    • Learn: multiple choice → type it, with 3 lives; a card is learned once you get it right in both rounds
    • Match: pair terms with answers against the clock; best times are saved
@@ -109,7 +109,7 @@
       const code = await EF.sets.encode(set);
       const url = location.href.split('#')[0] + '#/import/' + code;
       if (navigator.share && matchMedia('(pointer: coarse)').matches) {
-        try { await navigator.share({ title: set.name + ' · ExamForge', text: `Study “${set.name}” with me on ExamForge`, url }); return 'shared'; } catch (e) { if (e && e.name === 'AbortError') return 'cancelled'; }
+        try { await navigator.share({ title: set.name + ' · Zing', text: `Study “${set.name}” with me on Zing`, url }); return 'shared'; } catch (e) { if (e && e.name === 'AbortError') return 'cancelled'; }
       }
       try { await navigator.clipboard.writeText(url); return 'copied'; } catch (e) { window.prompt('Copy this link and send it to your friends:', url); return 'shown'; }
     }

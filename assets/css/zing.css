@@ -1,0 +1,176 @@
+/* ==========================================================================
+   Zing theme (v5). Loaded last, so it re-themes everything before it.
+   Our own look: cream paper, deep-green ink, emerald, coral and sun gold.
+   Bricolage Grotesque for headings, Figtree for reading. Buttons are chunky
+   "keys" with a hard bottom edge that presses down; cards are crisp stickers.
+   The desktop sidebar, phone dock and drawer are deep green.
+   ========================================================================== */
+
+:root {
+  --font-display: 'Bricolage Grotesque', 'Figtree', system-ui, sans-serif;
+  --font-body: 'Figtree', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --brand: #0b8a5e;
+  --brand-2: #ffc23c;
+  --on-brand: #ffffff;
+  --brand-edge: #06603f;
+  --coral: #ff5e4d;
+  --coral-edge: #c93a2c;
+  --sun: #ffc23c;
+  --sun-edge: #c98f0c;
+  --sky: #3a8dff;
+  --grape: #7a5cff;
+  --pine: #0f2a20;
+  --pine-2: #143528;
+  --r: 16px;
+  --r-lg: 20px;
+  --r-xl: 24px;
+}
+:root[data-theme="light"] {
+  --bg: #f4f1e8;
+  --bg-2: #ece7da;
+  --surface: #fffdf8;
+  --surface-2: #f7f3ea;
+  --surface-3: #efe9dc;
+  --line: #e6dfcf;
+  --line-2: #d4cab5;
+  --text: #10241c;
+  --text-2: #3d5046;
+  --text-3: #6c7a71;
+  --ink: #10241c;
+  --on-ink: #fdfbf5;
+  --ink-edge: #000;
+  --xp-bg: #dcf5e6;
+  --xp-ink: #0a7550;
+  --shadow: 0 1px 0 rgba(16, 36, 28, .04), 0 10px 24px -18px rgba(16, 36, 28, .35);
+  --shadow-lg: 0 30px 60px -28px rgba(16, 36, 28, .42);
+}
+:root[data-theme="dark"] {
+  --bg: #0a1410;
+  --bg-2: #0d1914;
+  --surface: #11201a;
+  --surface-2: #172a21;
+  --surface-3: #1f352b;
+  --line: rgba(214, 255, 232, .085);
+  --line-2: rgba(214, 255, 232, .16);
+  --text: #ecf6ef;
+  --text-2: #b3c7ba;
+  --text-3: #869a8d;
+  --ink: #ecf6ef;
+  --on-ink: #0a1410;
+  --ink-edge: #8fa699;
+  --brand: #1fbf80;
+  --brand-edge: #0d7a4f;
+  --on-brand: #03140c;
+  --xp-bg: rgba(31, 191, 128, .15);
+  --xp-ink: #4fe0a4;
+  --shadow: 0 1px 0 rgba(255, 255, 255, .03) inset, 0 12px 28px -18px rgba(0, 0, 0, .85);
+  --shadow-lg: 0 30px 60px -20px rgba(0, 0, 0, .85);
+}
+
+/* ---------- type ---------- */
+body { font-family: var(--font-body); font-weight: 500; letter-spacing: 0; }
+h1, h2, h3 { font-family: var(--font-display); font-weight: 800; letter-spacing: -.025em; }
+h4 { font-family: var(--font-body); font-weight: 750; }
+strong, b { font-weight: 700; }
+.eyebrow { font-family: var(--font-body); font-weight: 800; letter-spacing: .08em; color: var(--brand); }
+.link { font-weight: 700; color: var(--brand); }
+.muted { font-weight: 500; }
+::selection { background: color-mix(in srgb, var(--sun) 55%, transparent); color: var(--text); }
+
+/* ---------- keys: buttons with a hard bottom edge that press down ---------- */
+.btn { border-radius: 14px; border: 1.5px solid var(--line-2); background: var(--surface); color: var(--text); font-family: var(--font-body); font-weight: 750; box-shadow: 0 3px 0 var(--line-2); transition: transform .12s var(--ease), box-shadow .12s var(--ease), background .2s, border-color .2s, color .2s; }
+.btn:active:not(:disabled) { transform: translateY(2px) !important; box-shadow: 0 1px 0 var(--line-2); }
+.btn-primary { background: var(--brand); border-color: var(--brand-edge); color: var(--on-brand); box-shadow: 0 3px 0 var(--brand-edge); }
+.btn-primary:active:not(:disabled) { box-shadow: 0 1px 0 var(--brand-edge); }
+.btn-ink { background: var(--ink); border-color: var(--ink); color: var(--on-ink); box-shadow: 0 3px 0 var(--ink-edge); }
+.btn-ink:active:not(:disabled) { box-shadow: 0 1px 0 var(--ink-edge); }
+.btn-c { border-color: color-mix(in srgb, var(--c) 70%, black); box-shadow: 0 3px 0 color-mix(in srgb, var(--c) 62%, black); }
+.btn-coral { background: var(--coral); border-color: var(--coral-edge); color: #fff; box-shadow: 0 3px 0 var(--coral-edge); }
+.btn-sun { background: var(--sun); border-color: var(--sun-edge); color: #2a1d00; box-shadow: 0 3px 0 var(--sun-edge); }
+.btn-ghost { background: transparent; border-color: transparent; box-shadow: none; }
+.btn-ghost:active:not(:disabled) { box-shadow: none; }
+.btn:disabled, .btn[aria-disabled="true"] { box-shadow: none; opacity: .5; }
+@media (hover: hover) {
+  .btn:hover { border-color: color-mix(in srgb, var(--text) 30%, var(--line-2)); }
+  .btn-primary:hover { background: color-mix(in srgb, var(--brand) 90%, white); border-color: var(--brand-edge); color: var(--on-brand); }
+  .btn-ink:hover { background: color-mix(in srgb, var(--ink) 88%, var(--brand)); border-color: var(--ink); color: var(--on-ink); }
+  .btn-coral:hover { background: color-mix(in srgb, var(--coral) 90%, white); border-color: var(--coral-edge); color: #fff; }
+  .btn-sun:hover { background: color-mix(in srgb, var(--sun) 88%, white); border-color: var(--sun-edge); color: #2a1d00; }
+}
+.icon-btn { border-radius: 14px; border: 1.5px solid var(--line-2); background: var(--surface); box-shadow: 0 2px 0 var(--line-2); }
+.icon-btn:active:not(:disabled) { transform: translateY(2px) !important; box-shadow: none; }
+.seg { border-radius: 14px; border: 1.5px solid var(--line); background: var(--surface-2); }
+.seg button, .seg > .ink { border-radius: 10px; font-weight: 700; }
+.seg > .ink { background: var(--surface); box-shadow: 0 2px 0 var(--line-2), 0 0 0 1.5px var(--line-2); }
+.chip-btn, .chip-link { border-radius: 12px; font-weight: 700; }
+input, select, textarea { font-family: var(--font-body); }
+.search-trigger, .streak-chip, .top-me.top-join { border-radius: 14px; border-width: 1.5px; box-shadow: 0 2px 0 var(--line-2); }
+.top-me.top-join { background: var(--brand); color: var(--on-brand); border-color: var(--brand-edge); box-shadow: 0 3px 0 var(--brand-edge); }
+
+/* ---------- stickers: cards with a crisp outline and a soft lift ---------- */
+.card { border: 1.5px solid var(--line); border-radius: var(--r-lg); box-shadow: 0 2px 0 var(--line), var(--shadow); }
+.pill { font-weight: 700; }
+.xp-pill { font-weight: 800; }
+
+/* ---------- the deep-green sidebar (desktop) and drawer (phones) ---------- */
+.sidebar {
+  --surface: #173a2c;
+  --surface-2: rgba(255, 255, 255, .07);
+  --surface-3: rgba(255, 255, 255, .12);
+  --line: rgba(255, 255, 255, .1);
+  --line-2: rgba(255, 255, 255, .2);
+  --text: #f1f7f2;
+  --text-2: #c3d8ca;
+  --text-3: #8db29b;
+  --ink: var(--sun);
+  --on-ink: #10241c;
+  --ink-edge: var(--sun-edge);
+  color-scheme: dark;
+  background: var(--pine);
+  color: var(--text);
+  border-right: 0;
+}
+:root[data-theme="dark"] .sidebar { background: #0c1e17; box-shadow: inset -1px 0 0 rgba(214, 255, 232, .07); }
+.sidebar .tint { --c-soft: color-mix(in srgb, var(--c) 24%, transparent); --c-softer: color-mix(in srgb, var(--c) 13%, transparent); --c-ink: color-mix(in srgb, var(--c) 55%, white); }
+.side-brand { color: var(--text); }
+.side-brand .brand-name, .topbar .brand-name { font-family: var(--font-display); font-weight: 800; letter-spacing: -.04em; }
+.side-brand .brand-name { font-size: 1.75rem; }
+.side-brand .brand-name::after, .topbar .brand-name::after { content: ''; display: inline-block; width: .32em; height: .32em; margin-left: .06em; border-radius: 50%; background: var(--coral); }
+.brand-mark { width: 44px; height: 40px; }
+.side-brand .brand-mark { width: 52px; height: 46px; }
+.brand-mark img { filter: drop-shadow(0 4px 6px rgba(0, 0, 0, .25)); }
+.side-link { border-radius: 14px; font-weight: 650; color: var(--text-2); }
+.side-nav .side-link.is-active, .side-nav .side-link[aria-current="page"] { background: rgba(255, 255, 255, .1); color: #fff; }
+.side-nav.has-ink > .ink { background: rgba(255, 255, 255, .1); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .06); border-radius: 14px; }
+.side-nav.has-ink > .side-link.is-active { background: transparent; }
+@media (hover: hover) { .sidebar .side-link:hover { background: rgba(255, 255, 255, .06); color: #fff; } }
+.side-head { color: var(--text-3); }
+.side-head-add { color: var(--text-2); }
+.side-badge { background: var(--coral); }
+.side-foot { border-top-color: rgba(255, 255, 255, .1); color: var(--text-3); }
+.side-foot kbd { background: rgba(255, 255, 255, .08); border-color: rgba(255, 255, 255, .14); color: var(--text-2); }
+.side-study { font-weight: 800; }
+.side-add { background: transparent; color: var(--text); }
+.sidebar .side-topics { border-left-color: rgba(255, 255, 255, .12); }
+.sidebar .side-topics a { color: var(--text-2); }
+.sidebar .side-topics a.is-active { color: #fff; }
+
+/* ---------- top bar ---------- */
+.topbar .brand-name { font-size: 1.45rem; }
+
+/* ---------- the phone dock: deep green, sun-gold active pill ---------- */
+@media (max-width: 1023px) {
+  .tabbar { background: var(--pine); border-top: 0; box-shadow: 0 -10px 30px -18px rgba(5, 20, 14, .6); backdrop-filter: none; -webkit-backdrop-filter: none; }
+  :root[data-theme="dark"] .tabbar { background: #0c1e17; box-shadow: inset 0 1px 0 rgba(214, 255, 232, .08); }
+  .tabbar a, .tabbar button { color: #9dbfa9; font-weight: 750; }
+  body[data-view] .tabbar [data-tab].is-active, .tabbar [data-tab].is-active { color: #fff; }
+  .tabbar > .ink::after { background: rgba(255, 194, 60, .2); box-shadow: inset 0 0 0 1px rgba(255, 194, 60, .35); }
+  .tabbar .i3d { filter: saturate(.8) brightness(1.05); }
+}
+
+/* ---------- small accents ---------- */
+.side-sq { border-radius: 6px; box-shadow: inset 0 -2px 0 rgba(0, 0, 0, .2); }
+.home-mascot { filter: drop-shadow(0 14px 18px rgba(11, 138, 94, .2)); }
+.cal i.on { background: linear-gradient(160deg, var(--sun), var(--coral)); }
+.learn-streak { color: var(--coral); }
+.streak-chip.is-hot { border-color: color-mix(in srgb, var(--coral) 40%, var(--line-2)); }

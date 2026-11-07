@@ -1,4 +1,4 @@
-/* ExamForge core — interactive widgets. Each widget(el, subject) renders itself and returns a cleanup function. */
+/* Zing core — interactive widgets. Each widget(el, subject) renders itself and returns a cleanup function. */
 (function () {
   'use strict';
   const EF = window.EF;

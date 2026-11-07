@@ -1,4 +1,4 @@
-/* ExamForge interactive tools — Social Studies (see assets/js/core/interactive.js for the tool kinds) */
+/* Zing interactive tools — Social Studies (see assets/js/core/interactive.js for the tool kinds) */
 window.EF = window.EF || {};
 (EF.labs = EF.labs || {})['social-studies'] = [
   { id: 'family-types', kind: 'sort', topic: 'family', title: 'Family types', desc: 'Sort each family into the right type.',

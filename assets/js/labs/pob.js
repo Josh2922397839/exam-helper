@@ -1,4 +1,4 @@
-/* ExamForge interactive tools — Principles of Business (see assets/js/core/interactive.js for the tool kinds) */
+/* Zing interactive tools — Principles of Business (see assets/js/core/interactive.js for the tool kinds) */
 window.EF = window.EF || {};
 (EF.labs = EF.labs || {}).pob = [
   { id: 'money-functions', kind: 'sort', topic: 'money', title: 'What is money doing?', desc: 'Sort each example into the function of money it shows.',

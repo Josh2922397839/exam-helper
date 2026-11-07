@@ -1,4 +1,4 @@
-/* ExamForge core — extra practice and habit mechanics:
+/* Zing core — extra practice and habit mechanics:
    Speed run (90-second sprint), Fill the gap (complete the definition), daily challenges,
    and challenge-a-friend links (same questions, score to beat, no account needed). */
 (function () {
@@ -142,9 +142,9 @@
       }
       const s = EF.subject(c.s);
       const url = location.href.split('#')[0] + '#/vs/' + EF.vs.encode(Object.assign({}, c, { n: name }));
-      const text = c.m === 'speed' ? `I got ${c.sc} right in a 90-second ${s.short} Speed run on ExamForge. Beat that!` : `I scored ${c.sc}/${c.of} on the ${s.name} quiz on ExamForge. Think you can beat me?`;
+      const text = c.m === 'speed' ? `I got ${c.sc} right in a 90-second ${s.short} Speed run on Zing. Beat that!` : `I scored ${c.sc}/${c.of} on the ${s.name} quiz on Zing. Think you can beat me?`;
       const done = (how) => EF.toast(how === 'copied' ? 'Challenge link copied: send it to a friend!' : 'Challenge sent!', 'fa-user-group');
-      if (navigator.share) navigator.share({ title: 'ExamForge challenge', text, url }).then(() => done('shared')).catch(() => {});
+      if (navigator.share) navigator.share({ title: 'Zing challenge', text, url }).then(() => done('shared')).catch(() => {});
       else if (navigator.clipboard) navigator.clipboard.writeText(text + ' ' + url).then(() => done('copied')).catch(() => window.prompt('Copy this link:', url));
       else window.prompt('Copy this link:', url);
     },
@@ -166,15 +166,16 @@
      multiple choice. A card's own wrong answers come first; otherwise wrong answers come from
      cards on the same topic, then from answers of a similar length, so they look believable. */
   const qKey = (t) => String(t).replace(/<[^>]+>/g, '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
-  function pool(s, rnd) {
+  // every question a deck can ask (its quiz + multiple choice made from its cards); with a tag, only that topic's
+  function pool(s, rnd, tag) {
     const out = [], asked = new Set();
-    (s.quiz || []).forEach((q) => { asked.add(qKey(q.q)); out.push({ q: q.q, ctx: q.ctx, options: q.options.slice(), answer: q.answer }); });
-    const cards = (s.flashcards || []).filter((c) => c[1].length <= 110);
+    (s.quiz || []).forEach((q) => { asked.add(qKey(q.q)); if (tag && q.tag !== tag) return; out.push({ q: q.q, ctx: q.ctx, options: q.options.slice(), answer: q.answer }); });
+    const all = (s.flashcards || []).filter((c) => c[1].length <= 110), cards = tag ? all.filter((c) => c[2] === tag) : all;
     cards.forEach((c) => {
       if (c[5] === 'quiz' || asked.has(qKey(esc(c[0])))) return;
       let wrong = Array.isArray(c[3]) && c[3].length >= 3 ? c[3].slice(0, 3) : null;
       if (!wrong) {
-        const others = cards.filter((d) => d !== c && d[1] !== c[1]);
+        const others = all.filter((d) => d !== c && d[1] !== c[1]);
         const near = (list) => EF.shuffleWith(list, rnd).sort((a, b) => Math.abs(a[1].length - c[1].length) - Math.abs(b[1].length - c[1].length));
         const same = c[2] ? near(others.filter((d) => d[2] === c[2])) : [];
         wrong = same.concat(near(others.filter((d) => !same.includes(d)))).slice(0, 3).map((d) => d[1]);

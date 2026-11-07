@@ -1,7 +1,7 @@
-/* ExamForge service worker — lets the site open and work offline.
+/* Zing service worker — lets the site open and work offline.
    Our own files: network first (so updates show up straight away), cache as the offline fallback.
    Images (school crests, 3D icons), fonts, icons and Three.js: cache first (their URLs never change). */
-const VERSION = 'ef-cards-v21';
+const VERSION = 'zing-v1';
 const SHELL = [
   './',
   './index.html',
@@ -11,7 +11,9 @@ const SHELL = [
   './assets/css/skin.css',
   './assets/css/blend.css',
   './assets/css/profile.css',
-  './assets/img/emby-mark.svg',
+  './assets/css/zing.css',
+  './assets/css/social.css',
+  './assets/img/zing-mark.svg',
   './assets/js/content/religion.js',
   './assets/js/content/french.js',
   './assets/js/content/chemistry.js',
@@ -73,6 +75,9 @@ const SHELL = [
   './assets/js/core/profile-media.js',
   './assets/js/core/account-auth.js',
   './assets/js/core/motion.js',
+  './assets/js/core/social.js',
+  './assets/js/core/groups.js',
+  './assets/js/core/onboard.js',
   './assets/js/core/app.js',
   './assets/icons/icon-192.png'
 ];

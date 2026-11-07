@@ -1,4 +1,4 @@
-/* ExamForge core — app shell, router, pages, search and keyboard shortcuts */
+/* Zing core — app shell, router, pages, search and keyboard shortcuts */
 (function () {
   'use strict';
   const EF = window.EF;
@@ -82,16 +82,20 @@
     const st = EF.store.state(), lastS = st.last && EF.subject(st.last.s);
     const mine = EF.sets.list();
     const html = `
-      <a class="side-brand" href="#/" aria-label="ExamForge home"><span class="brand-mark" aria-hidden="true"><img src="assets/img/emby-mark.svg" alt="" width="44" height="48"></span><span class="brand-name">Exam<b>Forge</b></span></a>
+      <a class="side-brand" href="#/" aria-label="Zing home"><span class="brand-mark" aria-hidden="true"><img src="assets/img/zing-mark.svg" alt="" width="44" height="48"></span><span class="brand-name">Zing</span></a>
       <nav class="side-nav" aria-label="Main">
         ${navItem('#/', 'home', 'Home', 'home')}
+        ${EF.cloud.enabled ? navItem('#/social', 'wave', 'Social', 'social', socialBadge()) : ''}
+        ${EF.cloud.enabled ? navItem('#/live', 'game', 'Live', 'live') : ''}
+        ${EF.cloud.enabled ? navItem('#/groups', 'speech', 'Study groups', 'groups') : ''}
         ${navItem('#/league', 'trophy', 'Leagues', 'league')}
         ${navItem('#/cards', 'cards', 'Study sets', 'cards')}
         ${navItem('#/lab', 'rocket', 'Interactive', 'lab')}
         ${navItem('#/quiz', 'bolt', 'Quiz Arena', 'quiz', mistakes ? `<span class="side-badge" title="Saved mistakes">${mistakes}</span>` : '')}
         ${navItem('#/sets', 'memo', 'My sets', 'sets')}
         ${navItem('#/progress', 'chart', 'Progress', 'progress')}
-        ${me ? link('#/me', EF.myAvatar(me, 30), esc(me.username), 'me') : navItem('#/me', 'wave', 'Profile', 'me')}
+        ${me ? link('#/me', EF.myAvatar(me, 30), esc(me.first_name || me.username), 'me') : navItem('#/me', 'star', 'Profile', 'me')}
+        ${navItem('#/settings', 'gear', 'Settings', 'settings')}
         <button type="button" class="side-link side-theme" data-theme-toggle data-label aria-label="${EF.theme.get() === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}">${themeFace(EF.theme.get(), true)}</button>
       </nav>
       <div class="side-cta">
@@ -128,9 +132,10 @@
     if (here && spy && spy.active) markTopic(spy.active);
   }
   let lastOpen = null;
+  const socialBadge = () => { const n = EF.socialCount ? EF.socialCount() : 0; return n ? `<span class="side-badge is-green" title="New">${n > 9 ? '9+' : n}</span>` : ''; };
   function current(key) {
     const k = viewKey.split(':')[0];
-    return viewKey === key || k === key || (key === 'cards' && ['set', 'learn', 'match'].includes(k)) || (key === 'sets' && ['make', 'import'].includes(k)) || (key === 'league' && ['join', 'school', 'shared'].includes(k)) || (key === 'me' && ['account', 'u'].includes(k));
+    return viewKey === key || k === key || (key === 'cards' && ['set', 'learn', 'match'].includes(k)) || (key === 'sets' && ['make', 'import'].includes(k)) || (key === 'league' && ['join', 'school', 'shared'].includes(k)) || (key === 'me' && ['account', 'u'].includes(k)) || (key === 'settings' && k === 'help');
   }
 
   /* ================= PAGES ================= */
@@ -161,12 +166,7 @@
   function rail() {
     const streak = EF.store.streak(), lv = EF.store.level(), today = EF.store.xpToday(), goal = EF.store.goal();
     const me = EF.cloud.joined() ? EF.cloud.cachedMe() : null;
-    return `${EF.dailyCard ? EF.dailyCard() : ''}<div class="invite-card">
-        <div class="invite-art" aria-hidden="true">${EF.img3d('star', 44)}${EF.img3d('sparkles', 34)}${EF.img3d('rocket', 46)}</div>
-        <strong>Study with your friends</strong>
-        <span>Share ExamForge and race your crew up the leagues</span>
-        <button type="button" class="btn btn-block invite-btn" data-invite>${icon('fa-user-plus')} Invite friends</button>
-      </div>
+    return `${EF.dailyCard ? EF.dailyCard() : ''}${EF.inviteCard ? EF.inviteCard() : ''}
       <div class="stats-card">
         <a class="stats-head" href="#/progress">${EF.img3d('star', 32)}<strong>${EF.store.xp().toLocaleString()}</strong><span>XP · level ${lv.lvl}</span></a>
         <span class="lvl-bar" aria-hidden="true"><span style="width:${lv.pct}%"></span></span>
@@ -176,7 +176,7 @@
           <a href="#/cards" title="Cards mastered">${EF.img3d('gem', 40)}<b>${EF.subjects.reduce((n, s) => n + EF.store.mastered(s.id), 0)}</b><small>mastered</small></a>
           <a href="#/league" title="Your league">${EF.img3d('trophy', 40)}<b>${me ? esc(EF.cloud.league(me.league)[0]) : '–'}</b><small>league</small></a>
         </div>
-      </div>`;
+      </div>${EF.powerupsCard ? EF.powerupsCard() : ''}`;
   }
   EF.rail = rail;
 
@@ -198,7 +198,8 @@
     const g = EF.grade();
     const me = EF.cloud.joined() ? EF.cloud.cachedMe() : null;
     const h = new Date().getHours();
-    const hello = (h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening') + (me ? ', ' + esc(me.username) : '');
+    const local = EF.localMe ? EF.localMe() : null, first = (me && me.first_name) || (local && local.first) || (me && me.username) || '';
+    const hello = (h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening') + (first ? ', ' + esc(first) : '');
     return `
       <div class="page has-rail home">
         <div class="page-main">
@@ -476,7 +477,8 @@
     </div>`;
   };
   pages.live = () => `<div class="page narrow live-home">
-      <header class="page-head"><span class="eyebrow">${icon('fa-tower-broadcast')} Live</span><h1>Play live with friends</h1><p>Same questions, same time, one winner. Share a code and race your friends or your whole class.</p></header>
+      <header class="page-head"><span class="eyebrow">${icon('fa-tower-broadcast')} Live</span><h1>Play live with friends</h1><p>Same questions, same time, one winner. Share a code and race your friends or your whole class.</p>
+        ${EF.cloud.enabled && EF.cloud.joined() ? `<button type="button" class="btn btn-coral btn-lg live-friend-btn" data-live-friend>${EF.img3d('bolt', 24)} Challenge a friend</button>` : ''}</header>
       <div data-live-home></div>
     </div>`;
   pages.liveGame = (code) => `<div class="page narrow live-page" data-live="${esc(code)}"></div>`;
@@ -503,6 +505,10 @@
   pages.join = (mode) => cloudPage('join', mode || '', `<a class="crumb" href="#/league">${icon('fa-arrow-left')} Leagues</a><header class="page-head page-head-sm"><span class="eyebrow">${icon('fa-fire')} Join</span><h1>${mode === 'code' ? 'Welcome back' : 'Join the league'}</h1></header>`);
   pages.account = () => cloudPage('account', null, `<a class="crumb" href="#/league">${icon('fa-arrow-left')} Leagues</a><header class="page-head page-head-sm"><span class="eyebrow">${icon('fa-user')} Account</span><h1>Your account</h1></header>`);
   pages.me = () => cloudPage('me', null, '');
+  pages.social = () => `<div class="page social-page"><div data-cloud="social"></div></div>`;
+  pages.groups = (id) => `<div class="page narrow${id ? ' chat-page' : ''}"><div data-cloud="groups"${id ? ` data-arg="${esc(id)}"` : ''}></div></div>`;
+  pages.settings = () => `<div class="page narrow settings-page"><div data-cloud="settings"></div></div>`;
+  pages.help = () => EF.helpPage();
   pages.user = (name) => cloudPage('user', name, `<a class="crumb" href="javascript:history.back()">${icon('fa-arrow-left')} Back</a>`);
   pages.school = (id) => cloudPage('school', id, `<a class="crumb" href="#/league">${icon('fa-arrow-left')} Leagues</a>`);
   pages.shared = (id) => cloudPage('shared', id, `<a class="crumb" href="javascript:history.back()">${icon('fa-arrow-left')} Back</a>`);
@@ -588,7 +594,7 @@
     teardown();
     viewKey = key;
     main.innerHTML = html;
-    document.title = title ? title + ' · ExamForge' : 'ExamForge — Exam Prep';
+    document.title = title ? title + ' · Zing' : 'Zing — Exam Prep';
     cleanup.push(EF.mountWidgets(main));
     $$('[data-quiz]', main).forEach((el) => cleanup.push(EF.mountQuiz(el, el.dataset.quiz, { inline: !el.hasAttribute('data-autostart') && !el.dataset.vs, autostart: el.hasAttribute('data-autostart'), vs: el.dataset.vs })));
     $$('[data-cards]', main).forEach((el) => cleanup.push(EF.mountCards(el, el.dataset.cards)));
@@ -602,13 +608,13 @@
     $$('[data-live]', main).forEach((el) => cleanup.push(EF.mountLive(el, el.dataset.live)));
     $$('[data-make]', main).forEach((el) => cleanup.push(EF.mountMake(el, el.dataset.make || null)));
     $$('[data-import]', main).forEach((el) => cleanup.push(EF.mountImport(el, el.dataset.import)));
-    const CLOUD = { league: EF.mountLeague, join: EF.mountJoin, account: EF.mountAccount, school: EF.mountSchool, shared: EF.mountShared, me: EF.mountMe, user: EF.mountUser };
+    const CLOUD = { league: EF.mountLeague, join: EF.mountJoin, account: EF.mountAccount, school: EF.mountSchool, shared: EF.mountShared, me: EF.mountMe, user: EF.mountUser, social: EF.mountSocial, groups: EF.mountGroups, settings: EF.mountSettings };
     $$('[data-cloud]', main).forEach((el) => { const fn = CLOUD[el.dataset.cloud]; if (fn) cleanup.push(fn(el, el.dataset.arg)); });
     const lc = $('[data-league-cta]', main); if (lc) EF.paintLeagueCta(lc);
     const hs = $('[data-home-social]', main); if (hs) EF.paintHomeSocial(hs);
     renderSidebar();
     closeDrawer();
-    const tab = { set: 'cards', learn: 'cards', match: 'cards', sets: 'cards', make: 'cards', import: 'cards', lab: 'cards', join: 'league', account: 'league', school: 'league', shared: 'league', me: 'league', u: 'league' }[key.split(':')[0]] || key.split(':')[0];
+    const tab = { set: 'cards', learn: 'cards', match: 'cards', sets: 'cards', make: 'cards', import: 'cards', lab: 'cards', join: 'social', account: 'me', school: 'league', shared: 'league', u: 'social', groups: 'social', live: 'social', vs: 'social', settings: 'me', help: 'me' }[key.split(':')[0]] || key.split(':')[0];
     document.body.dataset.view = tab;
     if (after) after(); else window.scrollTo(0, 0);
     EF.countUp(main);
@@ -679,6 +685,10 @@
     if (a === 'join') return show('join' + (b ? ':' + b : ''), pages.join(b), 'Join the league');
     if (a === 'account') return show('account', pages.account(), 'Account');
     if (a === 'me') return show('me', pages.me(), 'Profile');
+    if (a === 'social') return show('social', pages.social(), 'Social');
+    if (a === 'groups') { if (b && !/^[0-9a-f-]{36}$/.test(b)) return show('404', pages.notFound(), 'Not found'); return show(b ? 'groups:' + b : 'groups', pages.groups(b), b ? 'Study group' : 'Study groups'); }
+    if (a === 'settings') return show('settings', pages.settings(), 'Settings');
+    if (a === 'help') return show('help', pages.help(), 'Help');
     if (a === 'u' && b) return show('u:' + b.toLowerCase(), pages.user(b), b);
     if (a === 'school' && /^\d+$/.test(b || '')) return show('school:' + b, pages.school(b), 'School');
     if (a === 'shared' && /^[0-9a-f-]{36}$/.test(b || '')) return show('shared:' + b, pages.shared(b), 'Shared set');
@@ -686,6 +696,9 @@
     if (a === 'import' && b) return show('import:x', pages.importSet(p.slice(1).join('/')), 'Shared set');
     return show('404', pages.notFound(), 'Not found');
   }
+
+  EF.on('rerender', () => route());
+  EF.on('social', () => renderSidebar());
 
   /* Scroll-spy: highlights the topic you're reading, marks it as read, keeps the URL in sync */
   function startSpy(s) {
@@ -879,9 +892,10 @@
     const upb = t.closest('[data-unpublish]');
     if (upb) { EF.cloud.unpublish(upb.dataset.unpublish).then(() => { EF.toast('Removed from your school library', 'fa-eye-slash'); route(); }).catch((er) => EF.toast(er.message, 'fa-circle-exclamation')); return; }
     if (t.closest('[data-invite]')) {
+      if (EF.inviteFriends) return; // social.js handles invites (with your invite code)
       const url = location.href.split('#')[0];
       const done = (how) => EF.toast(how === 'copied' ? 'Link copied: send it to your friends!' : 'Thanks for sharing!', 'fa-user-plus');
-      if (navigator.share) navigator.share({ title: 'ExamForge', text: 'Study with me on ExamForge: notes, quizzes, flashcards and school leagues', url }).then(() => done('shared')).catch(() => {});
+      if (navigator.share) navigator.share({ title: 'Zing', text: 'Study with me on Zing: notes, quizzes, flashcards and school leagues', url }).then(() => done('shared')).catch(() => {});
       else if (navigator.clipboard) navigator.clipboard.writeText(url).then(() => done('copied')).catch(() => window.prompt('Copy this link:', url));
       else window.prompt('Copy this link:', url);
       return;
@@ -898,6 +912,7 @@
     const gs = t.closest('[data-set-grade]');
     if (gs) { EF.setGrade(gs.dataset.setGrade); route(); return; }
     if (t.closest('[data-keys]')) { openKeys(); return; }
+    if (t.closest('[data-live-friend]')) { EF.pickFriends({ title: 'Challenge a friend', multi: false, cta: 'Next' }).then((f) => { if (f && f[0]) EF.openChallenge(f[0]); }); return; }
     if (t.closest('[data-install]') && installEvt) { installEvt.prompt(); installEvt.userChoice.finally(() => { installEvt = null; renderSidebar(); }); return; }
     if (t.closest('.menu-btn')) { document.body.classList.contains('nav-open') ? closeDrawer() : openDrawer(); return; }
     if (t.closest('.scrim')) { closeDrawer(); return; }
@@ -963,11 +978,17 @@
   /* Installable + offline (only over http/https — service workers don't run from a local file) */
   let installEvt = null;
   window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installEvt = e; renderSidebar(); });
-  window.addEventListener('appinstalled', () => { installEvt = null; renderSidebar(); EF.toast('ExamForge installed — study anywhere, even offline', 'fa-download'); });
+  window.addEventListener('appinstalled', () => { installEvt = null; renderSidebar(); EF.toast('Zing installed — study anywhere, even offline', 'fa-download'); });
   if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
     window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
   }
 
+  // without the online features there's no Social page: the phone dock gets the Quiz tab back, and no bell or Live button
+  if (!EF.cloud.enabled) {
+    const st = $('.tabbar [data-tab="social"]');
+    if (st) st.outerHTML = `<a href="#/quiz" data-tab="quiz"><img class="i3d" src="assets/img/3d/bolt.webp" width="26" height="26" alt="" aria-hidden="true"><span>Quiz</span></a>`;
+    $$('.live-btn').forEach((x) => { x.hidden = true; });
+  }
   window.addEventListener('hashchange', () => { closeSearch(); route(); });
 
   /* ================= BOOT ================= */

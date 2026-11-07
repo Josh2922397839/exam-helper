@@ -1,4 +1,4 @@
-/* ExamForge core — turns content blocks into HTML.
+/* Zing core — turns content blocks into HTML.
    Content is written by us (trusted), so fields named `html` may contain tags. Everything else is escaped. */
 (function () {
   'use strict';

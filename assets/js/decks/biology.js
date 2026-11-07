@@ -1,4 +1,4 @@
-/* ExamForge deck — Biology (Grade 9): extra cards.
+/* Zing deck — Biology (Grade 9): extra cards.
    Each card: [question, answer, [three wrong answers], why]. Cards are grouped by topic. */
 window.EF = window.EF || {};
 (EF.decks = EF.decks || {}).biology = [

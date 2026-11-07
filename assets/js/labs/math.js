@@ -1,4 +1,4 @@
-/* ExamForge interactive tools — Mathematics (see assets/js/core/interactive.js for the tool kinds) */
+/* Zing interactive tools — Mathematics (see assets/js/core/interactive.js for the tool kinds) */
 window.EF = window.EF || {};
 (function () {
   'use strict';

@@ -1,4 +1,4 @@
-/* ExamForge content — Business Basics */
+/* Zing content — Business Basics */
 window.EF = window.EF || {};
 EF.subjects = EF.subjects || [];
 

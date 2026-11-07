@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>ExamForge — Grade 9 & 10 Exam Prep</title>
+<title>Zing — Grade 9 & 10 Exam Prep</title>
 <meta name="description" content="Notes, 3D models, flashcards and practice quizzes for Grade 9 and 10, plus weekly leagues for every school in Jamaica.">
-<meta name="theme-color" content="#f7f7f4">
-<meta property="og:title" content="ExamForge — Grade 9 & 10 Exam Prep">
+<meta name="theme-color" content="#f4f1e8">
+<meta property="og:title" content="Zing — study with your friends, Grade 9 & 10">
 <meta property="og:description" content="Notes, 3D models, flashcards and practice quizzes for Grade 9 and 10, plus weekly leagues for every school in Jamaica.">
 <meta property="og:type" content="website">
-<link rel="icon" type="image/svg+xml" href="assets/img/emby-mark.svg">
+<link rel="icon" type="image/svg+xml" href="assets/img/zing-mark.svg">
 <link rel="alternate icon" type="image/png" href="assets/icons/icon-192.png">
 <script>
   /* Set the theme before the page paints, so there's no flash */
@@ -18,20 +18,25 @@
     try { t = localStorage.getItem('ef2:theme'); if (!t && localStorage.getItem('ef-dark') === 'false') t = 'light'; } catch (e) {}
     if (!t) t = 'light'; // light by default; the moon button switches to dark and remembers it
     document.documentElement.setAttribute('data-theme', t);
+    try { var f = JSON.parse(localStorage.getItem('ef2:prefs') || '{}').fontSize; if (/^(s|m|l|xl)$/.test(f)) document.documentElement.setAttribute('data-fs', f); } catch (e) {}
+    // a new user sees the setup screen, so the app stays covered until it opens (never longer than 6 s, in case it can't load)
+    try { if (localStorage.getItem('ef2:onboarded') !== '1' && !sessionStorage.getItem('ef2:ob-later')) { document.documentElement.classList.add('ob-pending'); setTimeout(function () { document.documentElement.classList.remove('ob-pending'); }, 6000); } } catch (e) {}
   })();
 </script>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="ExamForge">
+<meta name="apple-mobile-web-app-title" content="Zing">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&family=Nunito:wght@600;700;800;900&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600..800&family=Figtree:wght@400..900&family=Inter:wght@400..800&family=Nunito:wght@600;700;800;900&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <link rel="stylesheet" href="assets/css/app.css">
 <link rel="stylesheet" href="assets/css/skin.css">
 <link rel="stylesheet" href="assets/css/blend.css">
 <link rel="stylesheet" href="assets/css/profile.css">
+<link rel="stylesheet" href="assets/css/zing.css">
+<link rel="stylesheet" href="assets/css/social.css">
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -42,9 +47,9 @@
   <div class="content">
   <header class="topbar">
     <button type="button" class="icon-btn menu-btn" aria-label="Open menu" aria-expanded="false" aria-controls="sidebar"><i class="fa-solid fa-bars" aria-hidden="true"></i></button>
-    <a class="brand" href="#/" aria-label="ExamForge home">
-      <span class="brand-mark" aria-hidden="true"><img src="assets/img/emby-mark.svg" alt="" width="36" height="40"></span>
-      <span class="brand-name">Exam<b>Forge</b></span>
+    <a class="brand" href="#/" aria-label="Zing home">
+      <span class="brand-mark" aria-hidden="true"><img src="assets/img/zing-mark.svg" alt="" width="40" height="36"></span>
+      <span class="brand-name">Zing</span>
     </a>
     <div class="top-title" aria-hidden="true"><strong></strong><small></small></div>
     <button type="button" class="search-trigger" data-search-open aria-label="Search all subjects">
@@ -52,17 +57,20 @@
     </button>
     <div class="top-actions">
       <button type="button" class="icon-btn search-mobile" data-search-open aria-label="Search"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i></button>
+      <a class="live-btn" href="#/live" aria-label="Live games"><img class="i3d" src="assets/img/3d/bolt.webp" width="22" height="22" alt="" aria-hidden="true"><span>Live</span></a>
+      <a class="coin-chip" href="#/social" data-coins aria-label="Your coins"><img class="i3d" src="assets/img/3d/coin.webp" width="22" height="22" alt="" aria-hidden="true"><b>0</b></a>
       <a class="streak-chip" href="#/progress" aria-label="Study streak"></a>
-      <button type="button" class="icon-btn" data-theme-toggle aria-label="Toggle theme"></button>
+      <button type="button" class="icon-btn bell-btn" data-bell aria-label="Notifications" hidden><img class="i3d" src="assets/img/3d/bell.webp" width="24" height="24" alt="" aria-hidden="true"><span class="bell-n" data-bell-n hidden>0</span></button>
+      <button type="button" class="icon-btn theme-btn" data-theme-toggle aria-label="Toggle theme"></button>
       <a class="top-me" href="#/me" aria-label="Your profile" data-top-me></a>
     </div>
     <div class="read-bar" aria-hidden="true"><span></span></div>
   </header>
     <main id="main" tabindex="-1">
-      <noscript><div class="page narrow"><h1>ExamForge needs JavaScript</h1><p>Turn on JavaScript to use the study tools, quizzes and 3D models.</p></div></noscript>
+      <noscript><div class="page narrow"><h1>Zing needs JavaScript</h1><p>Turn on JavaScript to use the study tools, quizzes and 3D models.</p></div></noscript>
     </main>
     <footer class="footer">
-      <div class="footer-brand"><span class="brand-mark" aria-hidden="true"><img src="assets/img/emby-mark.svg" alt="" width="24" height="26"></span> ExamForge <span class="muted">· built for exam crushing</span></div>
+      <div class="footer-brand"><span class="brand-mark" aria-hidden="true"><img src="assets/img/zing-mark.svg" alt="" width="28" height="25"></span> Zing <span class="muted">· study together, glow up together</span></div>
       <div class="footer-keys"><span><kbd>/</kbd> search</span><span><kbd>D</kbd> dark / light</span><span><kbd>1</kbd>–<kbd>4</kbd> answer quiz</span><span><kbd>space</kbd> flip card</span><button type="button" class="link" data-keys><kbd>?</kbd> all shortcuts</button></div>
       <nav class="footer-legal" aria-label="Legal"><a href="privacy.html">Privacy</a><a href="terms.html">Terms</a></nav>
       <p class="footer-note muted">Your progress is saved on this device.</p>
@@ -74,7 +82,7 @@
 <nav class="tabbar" aria-label="Quick navigation">
   <a href="#/" data-tab="home"><img class="i3d" src="assets/img/3d/home.webp" width="26" height="26" alt="" aria-hidden="true"><span>Home</span></a>
   <button type="button" data-tab="s" data-open-subjects><img class="i3d" src="assets/img/3d/books.webp" width="26" height="26" alt="" aria-hidden="true"><span>Subjects</span></button>
-  <a href="#/quiz" data-tab="quiz"><img class="i3d" src="assets/img/3d/bolt.webp" width="26" height="26" alt="" aria-hidden="true"><span>Quiz</span></a>
+  <a href="#/social" data-tab="social"><img class="i3d" src="assets/img/3d/wave.webp" width="26" height="26" alt="" aria-hidden="true"><span>Social</span><b class="tab-badge" data-tab-badge hidden></b></a>
   <a href="#/cards" data-tab="cards"><img class="i3d" src="assets/img/3d/cards.webp" width="26" height="26" alt="" aria-hidden="true"><span>Sets</span></a>
   <a href="#/league" data-tab="league"><img class="i3d" src="assets/img/3d/trophy.webp" width="26" height="26" alt="" aria-hidden="true"><span>League</span></a>
 </nav>
@@ -173,6 +181,9 @@
 <script src="assets/js/core/cloud.js"></script>
 <script src="assets/js/core/account-auth.js"></script>
 <script src="assets/js/core/motion.js"></script>
+<script src="assets/js/core/social.js"></script>
+<script src="assets/js/core/groups.js"></script>
+<script src="assets/js/core/onboard.js"></script>
 <script src="assets/js/core/app.js"></script>
 </body>
 </html>
