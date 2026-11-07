@@ -1,4 +1,4 @@
-/* ExamForge interactive tools — French (see assets/js/core/interactive.js for the tool kinds) */
+/* Zing interactive tools — French (see assets/js/core/interactive.js for the tool kinds) */
 window.EF = window.EF || {};
 (EF.labs = EF.labs || {}).french = [
   { id: 'vocab-trainer', kind: 'widget', name: 'vocab', topic: 'vocabulary', title: 'Vocabulary trainer', desc: 'Practise French words by theme, with sound.' },

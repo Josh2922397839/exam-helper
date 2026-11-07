@@ -1,4 +1,4 @@
-/* ExamForge core — helpers, saved progress, theme, speech, toasts, confetti */
+/* Zing core — helpers, saved progress, theme, speech, toasts, confetti */
 (function () {
   'use strict';
   const EF = (window.EF = window.EF || {});
@@ -141,6 +141,7 @@
     /* XP: every bit of studying earns some, and today's total fills the daily-goal ring */
     addXP(n) {
       if (!(n > 0)) return;
+      n = Math.round(n * (EF.xpBoost ? EF.xpBoost() : 1)); // a Double XP power-up counts every bit twice
       const t = dayKey(), before = state.xpDays[t] || 0;
       state.xp = (state.xp || 0) + n;
       state.xpDays[t] = before + n;
@@ -157,6 +158,8 @@
     },
     xp: () => state.xp || 0,
     freezes: () => state.freezes || 0,
+    // a streak freeze bought with coins (you can hold two)
+    addFreeze() { if ((state.freezes || 0) >= 2) return false; state.freezes = (state.freezes || 0) + 1; save(); EF.emit('progress'); return true; },
     xpToday: () => state.xpDays[dayKey()] || 0,
     goal: () => +ls.get('ef2:goal') || 50,
     setGoal(g) { ls.set('ef2:goal', String(g)); EF.emit('xp', { n: 0, today: store.xpToday(), before: store.xpToday(), goal: g }); },

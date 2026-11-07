@@ -1,4 +1,4 @@
-/* ExamForge core — 3D stage + atom scene (Three.js r134, loaded only when a 3D section opens).
+/* Zing core — 3D stage + atom scene (Three.js r134, loaded only when a 3D section opens).
    The skeleton lives in skeleton.js and reuses EF.makeStage from here.
    Every scene pauses when off-screen or when the tab is hidden, and fully cleans up on dispose(). */
 (function () {

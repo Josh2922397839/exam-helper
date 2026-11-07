@@ -1,4 +1,4 @@
-/* ExamForge content — Physical Education */
+/* Zing content — Physical Education */
 window.EF = window.EF || {};
 EF.subjects = EF.subjects || [];
 

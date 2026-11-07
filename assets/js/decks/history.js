@@ -1,4 +1,4 @@
-/* ExamForge deck — History (Grade 9): the Haitian Revolution, extra cards.
+/* Zing deck — History (Grade 9): the Haitian Revolution, extra cards.
    Each card: [question, answer, [three wrong answers], why]. Cards are grouped by topic. */
 window.EF = window.EF || {};
 (EF.decks = EF.decks || {}).history = [

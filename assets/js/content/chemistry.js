@@ -1,4 +1,4 @@
-/* ExamForge content — Chemistry */
+/* Zing content — Chemistry */
 window.EF = window.EF || {};
 EF.subjects = EF.subjects || [];
 

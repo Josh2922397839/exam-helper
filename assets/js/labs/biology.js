@@ -1,4 +1,4 @@
-/* ExamForge interactive tools — Biology (see assets/js/core/interactive.js for the tool kinds) */
+/* Zing interactive tools — Biology (see assets/js/core/interactive.js for the tool kinds) */
 window.EF = window.EF || {};
 (EF.labs = EF.labs || {}).biology = [
   { id: 'cycle', kind: 'widget', name: 'cycle', topic: 'menstrual-cycle', title: 'Menstrual cycle explorer', desc: 'Move through the 28 days and watch the hormones and the uterus lining change.' },

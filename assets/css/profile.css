@@ -28,7 +28,7 @@
 .auth-options { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr)); gap: 10px; }
 .auth-provider { display: flex; align-items: center; justify-content: center; gap: 12px; min-height: 50px; border: 1px solid var(--line-2); border-radius: 12px; background: var(--surface); color: var(--text); font: 700 .88rem var(--font-body); cursor: pointer; padding: 10px 16px; }
 .auth-provider i { font-size: 1.2rem; }
-.auth-provider:hover { background: var(--surface-2); border-color: var(--text-3); }
+@media (hover: hover) { .auth-provider:hover { background: var(--surface-2); border-color: var(--text-3); } }
 .auth-provider:focus-visible, .profile-tabs button:focus-visible { outline: 3px solid var(--brand); outline-offset: 3px; }
 .auth-provider:disabled { cursor: default; opacity: .65; }
 .auth-provider.is-connected { color: var(--ok); }

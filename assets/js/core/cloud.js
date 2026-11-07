@@ -1,4 +1,4 @@
-/* ExamForge cloud: leagues, schools, friends, cloud saves and school libraries (Supabase).
+/* Zing cloud: leagues, schools, friends, cloud saves and school libraries (Supabase).
    Everything here is optional. With no keys in assets/js/config.js the site works exactly as before, fully offline.
    The browser only ever calls the ef_* database functions (see supabase/schema.sql); it can't touch tables directly.
    Text from other students (names, schools, sets) is always escaped before it's shown. */
@@ -187,14 +187,16 @@
     async signOut() {
       await flushXP(); await pushSave();
       try { const c = await load(); await c.auth.signOut(); } catch (e) { /* offline: still forget it here */ }
-      ls.del(JOINED); ls.del(RESTORE); me = null;
+      ls.del(JOINED); ls.del(RESTORE); ls.del('ef2:onboarded'); me = null;
       EF.emit('cloud', { kind: 'left' });
+      if (EF.onboarding) setTimeout(() => EF.onboarding.start(), 400);
     },
     async deleteMe() {
       await rpc('ef_delete_me');
       try { const c = await load(); await c.auth.signOut(); } catch (e) { /* ignore */ }
-      ls.del(JOINED); ls.del(PUB); ls.del(RESTORE); me = null;
+      ls.del(JOINED); ls.del(PUB); ls.del(RESTORE); ls.del('ef2:onboarded'); me = null;
       EF.emit('cloud', { kind: 'left' });
+      if (EF.onboarding) setTimeout(() => EF.onboarding.start(), 400);
     },
     schoolSets: (id) => rpc('ef_school_sets', { p_school: +id }),
     getShared: (id) => rpc('ef_set_get', { p_id: id }),
@@ -223,6 +225,39 @@
     flushXP, pushSave
   };
 
+  /* ---------------- v6: onboarding, friends, Live challenges, the Social page, study groups ---------------- */
+  Object.assign(EF.cloud, {
+    // a private guest account (no email or password); onboarding turns it into a profile
+    async guest() { await ensureUser(); return true; },
+    async hasSession() { if (!enabled) return false; try { const c = await load(); const { data } = await c.auth.getSession(); return !!(data && data.session); } catch (e) { return false; } },
+    async onboard(p) {
+      if (ls.get(RESTORE)) throw new Error('Your account is still being restored. Reload when you are online, then try again.');
+      await ensureUser();
+      const was = joined();
+      me = await rpc('ef_onboard', { p });
+      ls.set(JOINED, '1');
+      if (!was) ls.set(XPQ, '0');
+      pushSave();
+      EF.emit('cloud', { kind: was ? 'profile' : 'joined' });
+      return me;
+    },
+    async setPrefs(p) { me = await rpc('ef_set_prefs', { p }); EF.emit('cloud', { kind: 'profile' }); return me; },
+    suggest: (q, schoolOnly) => rpc('ef_suggest', { p_q: q || null, p_school_only: !!schoolOnly }),
+    followMany: (names) => rpc('ef_follow_many', { p_usernames: names }),
+    challenge: (username, code, sid, topic) => rpc('ef_challenge', { p_username: username, p_code: code, p_subject: sid, p_topic: topic || null }),
+    challenges: () => rpc('ef_challenges'),
+    answerChallenge: (id, status) => rpc('ef_challenge_answer', { p_id: id, p_status: status }),
+    social: () => rpc('ef_social'),
+    inbox: () => rpc('ef_inbox'),
+    inboxSeen: () => rpc('ef_inbox_seen'),
+    groups: () => rpc('ef_groups'),
+    groupCreate: (name, users) => rpc('ef_group_create', { p_name: name, p_usernames: users || [] }),
+    group: (id, after) => rpc('ef_group_get', { p_id: id, p_after: after || 0 }),
+    groupSend: (id, kind, body) => rpc('ef_group_send', { p_id: id, p_kind: kind, p_body: body }),
+    groupAdd: (id, username) => rpc('ef_group_add', { p_id: id, p_username: username }),
+    groupLeave: (id) => rpc('ef_group_leave', { p_id: id })
+  });
+
   const paintFooter = () => { const n = document.querySelector('.footer-note'); if (n) n.textContent = joined() ? 'Your progress is saved on this device and backed up to your league account.' : 'Your progress is saved on this device.'; };
   EF.on('cloud', paintFooter);
   paintFooter();
@@ -246,10 +281,10 @@
   const badge = (n, size) => { const [name, col] = EF.cloud.league(n); return `<span class="league-badge${size ? ' is-' + size : ''}" style="--lc:${col}" title="${name} League" role="img" aria-label="${name} League"><i class="fa-solid fa-fire" aria-hidden="true"></i><b aria-hidden="true">${n}</b></span>`; };
   const loadingRows = (n) => `<div class="lb-loading">${Array.from({ length: n || 5 }, () => '<span></span>').join('')}</div>`;
   const errBox = (e) => `<div class="cloud-msg is-err">${icon('fa-triangle-exclamation')} ${esc(e.message || String(e))}</div>`;
-  const offBox = () => `<div class="cloud-off card">${EF.mascot ? EF.mascot('sleep', 120) : `<span class="cloud-off-ic">${icon('fa-trophy')}</span>`}<h2>Leagues are coming soon</h2><p class="muted">School leagues, friends and cloud saves aren’t switched on for this copy of ExamForge yet. Everything else works offline.</p></div>`;
+  const offBox = () => `<div class="cloud-off card">${EF.mascot ? EF.mascot('sleep', 120) : `<span class="cloud-off-ic">${icon('fa-trophy')}</span>`}<h2>Leagues are coming soon</h2><p class="muted">School leagues, friends and cloud saves aren’t switched on for this copy of Zing yet. Everything else works offline.</p></div>`;
   const fmtXP = (n) => { n = +n || 0; return n >= 10000 ? Math.round(n / 1000) + 'k' : n >= 1000 ? Math.round(n / 100) / 10 + 'k' : String(n); };
   const medal = (rank) => (rank <= 3 ? `<span class="lb-medal">${EF.img3d(['gold', 'silver', 'bronze'][rank - 1], 32, 'Rank ' + rank)}</span>` : `<span class="lb-num">${rank}</span>`);
-  const row = (r, extra) => `<li class="lb-row${r.me ? ' is-me' : ''}${extra || ''}">${medal(r.rank)}${EF.avatar(r.avatar, r.username, 40)}<a class="lb-name" href="#/u/${encodeURIComponent(r.username)}"><strong>${esc(r.username)}</strong>${r.school ? `<small>${esc(r.school)}</small>` : r.grade ? `<small>Grade ${esc(r.grade)}</small>` : ''}</a>${r.friend ? `<span class="lb-friend" title="Friend">${icon('fa-user-check')}</span>` : ''}${r.league ? badge(r.league, 'xs') : ''}<span class="xp-pill${r.xp ? '' : ' is-zero'}">${fmtXP(r.xp)} XP</span></li>`;
+  const row = (r, extra) => `<li class="lb-row${r.me ? ' is-me' : ''}${extra || ''}">${medal(r.rank)}${r.me && EF.myAvatar ? EF.myAvatar(me, 40) : EF.avatar(r.avatar, r.username, 40)}<a class="lb-name" href="#/u/${encodeURIComponent(r.username)}"><strong>${r.me ? 'You' : esc(r.name || r.username)}</strong>${r.school ? `<small>${esc(r.school)}</small>` : r.name || r.grade ? `<small>${[r.name && !r.me ? '@' + esc(r.username) : '', r.grade ? 'Grade ' + esc(r.grade) : ''].filter(Boolean).join(' · ')}</small>` : ''}</a>${r.friend ? `<span class="lb-friend" title="Friend">${icon('fa-user-check')}</span>` : ''}${r.league ? badge(r.league, 'xs') : ''}<span class="xp-pill${r.xp ? '' : ' is-zero'}">${fmtXP(r.xp)} XP</span></li>`;
   const schoolRow = (s, mine) => `<li class="lb-row is-link${mine ? ' is-me' : ''}"><a href="#/school/${s.id}">${medal(s.rank)}${EF.schoolMark(s, 38)}<span class="lb-name"><strong>${esc(s.name)}</strong><small>${s.members} student${s.members === 1 ? '' : 's'}${s.region ? ' · ' + esc(s.region) : ''}</small></span><span class="xp-pill${+s.xp ? '' : ' is-zero'}">${fmtXP(s.xp)} XP</span></a></li>`;
 
   function lastResultBanner(p) {
@@ -384,7 +419,7 @@
     const $ = (s) => host.querySelector(s);
     const list = $('.sp-results');
     const pick = (s) => { picked = s; $('.sp-picked-name').textContent = s.name; $('.sp-crest').innerHTML = EF.schoolMark(s, 34); $('.sp-picked').hidden = false; $('.sp-search').hidden = true; onPick(s); EF.haptic(); };
-    const item = (s, i, from) => `<li><button type="button" class="sp-item" data-sp-i="${i}" data-from="${from}">${EF.schoolMark(s, 38)}<span><strong>${esc(s.name)}</strong><small>${[s.region, kindLabel(s.kind), from === 'map' ? 'from the world map' : ''].filter(Boolean).map(esc).join(' · ')}</small></span>${s.members ? `<span class="sp-members" aria-hidden="true">${icon('fa-user-group')} ${s.members}</span>` : ''}</button></li>`;
+    const item = (s, i, from) => `<li><button type="button" class="sp-item" data-sp-i="${i}" data-from="${from}">${EF.schoolMark(s, 38)}<span><strong>${esc(s.name)}</strong><small>${[s.region, kindLabel(s.kind), from === 'map' ? 'from the world map' : '', s.members > 0 ? `${s.members} classmate${s.members === 1 ? '' : 's'} on Zing` : ''].filter(Boolean).map(esc).join(' · ')}</small></span>${s.members ? `<span class="sp-members" aria-hidden="true">${icon('fa-user-group')} ${s.members}</span>` : ''}</button></li>`;
     const show = (items, from, append) => {
       const start = append ? (list._items || []).length : 0;
       const html = items.map((s, i) => item(s, start + i, from)).join('');
@@ -464,9 +499,12 @@
     return { get: () => picked };
   }
 
+  EF.schoolPicker = (host, onPick, initial) => schoolPicker(host, onPick, initial);
+  EF.cloudUI = { row: (r, extra) => row(r, extra), badge: (n, size) => badge(n, size), fmtXP: (n) => fmtXP(n), countdown: (iso) => countdown(iso), loadingRows: (n) => loadingRows(n), errBox: (e) => errBox(e), offBox: () => offBox(), kindLabel: (k) => kindLabel(k) };
+
   const avatarPicker = (cur) => `<div class="ava-pick" role="radiogroup" aria-label="Avatar">${EF.AVATARS.map((k) => `<button type="button" role="radio" class="ava-opt" data-ava="${k}" aria-checked="${k === cur}" aria-label="${k}">${EF.avatar(k, k, 46)}</button>`).join('')}</div>`;
 
-  const authPanel = () => `<section class="profile-auth" aria-label="Sign-in options" data-auth-panel hidden><h2>Keep your account with you</h2><p>Connect a sign-in to return to your profile on another device.</p><div class="auth-options">${['google', 'apple'].map((provider) => `<button type="button" class="auth-provider" data-social-login="${provider}"><i class="fa-brands fa-${provider}" aria-hidden="true"></i><span>Continue with ${provider === 'google' ? 'Google' : 'Apple'}</span></button>`).join('')}</div><p class="auth-status" role="status">Checking sign-in options…</p></section>`;
+  const authPanel = () => `<section class="profile-auth" aria-label="Sign-in options" data-auth-panel hidden><h2>Keep your account with you</h2><p>Connect a sign-in to return to your profile on another device.</p><div class="auth-options">${['google', 'apple'].map((provider) => `<button type="button" class="auth-provider" data-social-login="${provider}"><i class="fa-brands fa-${provider}" aria-hidden="true"></i><span>Continue with ${provider === 'google' ? 'Google' : 'Apple'}</span></button>`).join('')}</div><form class="auth-email" data-auth-email novalidate hidden><input type="email" name="email" autocomplete="email" inputmode="email" placeholder="Add your email address" aria-label="Email address"><button type="submit" class="btn btn-sm">${icon('fa-envelope')} Send link</button></form><p class="auth-status" role="status">Checking sign-in options…</p></section>`;
   const restoreBox = () => `<section class="profile-auth" role="status"><h2>Let’s get your profile back</h2><p>We couldn’t finish downloading your account. Your cloud backup is safe. Check your connection, then try again.</p><button type="button" class="btn btn-primary" data-retry-restore>Try again</button></section>`;
   function paintAuthPanel(el) {
     const box = el.querySelector('[data-auth-panel]');
@@ -484,12 +522,30 @@
         button.classList.toggle('is-connected', connected);
         button.querySelector('span').textContent = connected ? name + ' connected' : 'Continue with ' + name;
       });
+      const em = box.querySelector('[data-auth-email]');
+      if (em) {
+        em.hidden = !(joined() && state.providers.email && !state.email);
+        if (state.email) { em.hidden = true; box.querySelector('.auth-options').insertAdjacentHTML('beforeend', `<span class="auth-provider is-connected">${icon('fa-envelope')}<span>${esc(state.email)}</span></span>`); }
+        else if (state.pendingEmail) { em.hidden = true; box.querySelector('.auth-options').insertAdjacentHTML('beforeend', `<span class="auth-provider">${icon('fa-envelope')}<span>Check ${esc(state.pendingEmail)} to confirm</span></span>`); }
+        if (!em.hidden || state.email || state.pendingEmail) shown++;
+      }
       box.hidden = !shown;
-      box.querySelector('.auth-status').textContent = state.connected.length ? 'Your connected sign-in keeps this same profile and progress.'
+      box.querySelector('.auth-status').textContent = state.connected.length || state.email ? 'Your connected sign-in keeps this same profile and progress.'
         : joined() ? 'Already have a profile here? Connecting keeps your XP, friends and study progress.'
           : 'Used this sign-in on another device? It brings your profile back here. New? It starts a fresh one.';
     }).catch(() => { /* offline, or sign-in isn't set up: keep the card hidden */ });
   }
+  // add an email to this account: a link is sent, and once it's opened the email signs in to this same profile
+  document.addEventListener('submit', async (event) => {
+    const f = event.target.closest && event.target.closest('[data-auth-email]');
+    if (!f || !EF.accountAuth) return;
+    event.preventDefault();
+    const status = f.parentElement.querySelector('.auth-status'), b = f.querySelector('button');
+    b.disabled = true;
+    try { const r = await EF.accountAuth.linkEmail(f.email.value); status.textContent = `Check ${r.email} and open the link to finish adding it.`; f.hidden = true; }
+    catch (error) { status.textContent = error.message; }
+    b.disabled = false;
+  });
   document.addEventListener('click', async (event) => {
     if (event.target.closest('[data-retry-restore]')) { location.reload(); return; }
     const button = event.target.closest('[data-social-login]');
@@ -504,75 +560,17 @@
   EF.mountJoin = (el, mode) => {
     if (!enabled) { el.innerHTML = offBox(); return () => {}; }
     if (ls.get(RESTORE) && !joined()) { el.innerHTML = restoreBox(); return () => {}; }
-    if (joined()) { el.innerHTML = `<div class="cloud-msg">${icon('fa-circle-check')} You’ve already joined on this device. <a href="#/league">Go to your league</a>.</div>`; return () => {}; }
-    let grade = 10, school = null, nameOk = false, timer = 0, avatar = EF.AVATARS[Math.floor(Math.random() * EF.AVATARS.length)];
-    try { const pre = JSON.parse(sessionStorage.getItem('ef2:joinSchool') || 'null'); if (pre && pre.id && pre.name) school = pre; sessionStorage.removeItem('ef2:joinSchool'); } catch (er) { /* private mode */ }
-    el.innerHTML = `${authPanel()}<div class="join-hero">${EF.mascot('wave', 120)}<p>Or start with a nickname, an avatar and your school. No email or password needed.</p></div>
-      <form class="join-form card" novalidate${mode === 'code' ? ' hidden' : ''}>
-        <label class="make-field"><span>1 · Pick a username</span><div class="join-name"><input name="u" maxlength="20" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="e.g. jay_studies" aria-describedby="join-name-hint"><span class="join-check" aria-live="polite"></span></div>
-          <small id="join-name-hint" class="muted">3–20 letters, numbers or _. Use a nickname, <strong>not your real full name</strong>.</small></label>
-        <div class="make-field"><span>2 · Your avatar</span>${avatarPicker(avatar)}</div>
-        <div class="make-field"><span>3 · Your grade</span><div class="seg" role="radiogroup" aria-label="Grade">${[9, 10, 11, 12].map((g) => `<button type="button" role="radio" data-grade="${g}" aria-pressed="${g === grade}">Grade ${g}</button>`).join('')}</div></div>
-        <div class="make-field"><span>4 · Your school</span><div data-picker></div></div>
-        <p class="muted small">${icon('fa-shield-halved')} Only your username, school, grade and XP are shown to others. No email or password needed.</p>
-        <div class="btn-row"><button class="btn btn-primary" type="submit">${icon('fa-fire')} Join the league</button><button type="button" class="btn btn-ghost" data-show-code>${icon('fa-key')} I have a transfer code</button></div>
-      </form>
-      <form class="code-form card" novalidate${mode === 'code' ? '' : ' hidden'}>
-        <h2>Move your account here</h2>
-        <p class="muted">On your other device, open <strong>Account → Move to another device</strong> to get a code, then type it here. Your XP, league, friends and progress come with you.</p>
-        <input name="c" class="code-input" placeholder="XXXX-XXXX-XXXX" autocomplete="one-time-code" autocapitalize="characters" spellcheck="false" maxlength="16" aria-label="Transfer code">
-        <div class="btn-row"><button class="btn btn-primary" type="submit">${icon('fa-right-to-bracket')} Move my account</button><button type="button" class="btn btn-ghost" data-show-join>New here? Join instead</button></div>
-      </form>`;
-    paintAuthPanel(el);
-    const picker = schoolPicker(el.querySelector('[data-picker]'), (s) => { school = s; }, school);
-    const check = el.querySelector('.join-check');
-    const onInput = (e) => {
-      if (e.target.name !== 'u') return;
-      clearTimeout(timer); nameOk = false;
-      const v = e.target.value.trim();
-      if (!/^[A-Za-z0-9_]{3,20}$/.test(v)) { check.className = 'join-check'; check.innerHTML = v ? `${icon('fa-circle-xmark')} 3–20 letters, numbers or _` : ''; return; }
-      check.className = 'join-check'; check.innerHTML = `${icon('fa-spinner', 'fa-spin')}`;
-      timer = setTimeout(async () => {
-        try { nameOk = await EF.cloud.usernameFree(v); check.className = 'join-check ' + (nameOk ? 'is-ok' : 'is-bad'); check.innerHTML = nameOk ? `${icon('fa-circle-check')} Available` : `${icon('fa-circle-xmark')} Taken`; }
-        catch (er) { check.innerHTML = ''; nameOk = true; }
-      }, 400);
-    };
-    const onClick = (e) => {
-      const g = e.target.closest('[data-grade]');
-      if (g) { grade = +g.dataset.grade; el.querySelectorAll('[data-grade]').forEach((b) => b.setAttribute('aria-pressed', b === g)); return; }
-      const av = e.target.closest('[data-ava]');
-      if (av) { avatar = av.dataset.ava; el.querySelectorAll('[data-ava]').forEach((b) => b.setAttribute('aria-checked', b === av)); EF.haptic(); return; }
-      if (e.target.closest('[data-show-code]')) { el.querySelector('.join-form').hidden = true; el.querySelector('.code-form').hidden = false; el.querySelector('.code-input').focus(); return; }
-      if (e.target.closest('[data-show-join]')) { el.querySelector('.join-form').hidden = false; el.querySelector('.code-form').hidden = true; }
-    };
-    const onSubmit = async (e) => {
-      e.preventDefault();
-      const btn = e.target.querySelector('button[type=submit]');
-      if (e.target.classList.contains('join-form')) {
-        const u = e.target.u.value.trim();
-        if (!/^[A-Za-z0-9_]{3,20}$/.test(u)) { EF.toast('Pick a username first', 'fa-circle-exclamation'); e.target.u.focus(); return; }
-        if (!school) { EF.toast('Pick your school', 'fa-school'); return; }
-        btn.disabled = true;
-        try { await EF.cloud.join({ username: u, schoolId: school.id, grade, avatar }); EF.confetti(); EF.toast(`Welcome to the league, ${u}!`, 'fa-fire'); location.hash = '#/league'; }
-        catch (er) { EF.toast(er.message, 'fa-circle-exclamation'); EF.haptic('error'); btn.disabled = false; }
-      } else {
-        const c = e.target.c.value.trim();
-        if (c.replace(/[^A-Za-z0-9]/g, '').length !== 12) { EF.toast('Codes look like XXXX-XXXX-XXXX', 'fa-circle-exclamation'); return; }
-        btn.disabled = true;
-        try { const p = await EF.cloud.claim(c); EF.toast(`Welcome back, ${p.username}!`, 'fa-right-to-bracket'); location.hash = '#/league'; }
-        catch (er) { EF.toast(er.message, 'fa-circle-exclamation'); EF.haptic('error'); btn.disabled = false; }
-      }
-    };
-    el.addEventListener('input', onInput); el.addEventListener('click', onClick); el.addEventListener('submit', onSubmit);
-    void picker;
-    return () => { clearTimeout(timer); el.removeEventListener('input', onInput); el.removeEventListener('click', onClick); el.removeEventListener('submit', onSubmit); };
+    if (joined()) { el.innerHTML = `<div class="cloud-msg">${icon('fa-circle-check')} You’re all set up on this device. <a href="#/social">Go to Social</a>.</div>`; return () => {}; }
+    el.innerHTML = `<div class="empty-state">${EF.mascot('wave', 120)}<h2>${mode === 'code' ? 'Welcome back!' : 'Let’s make your account'}</h2><p class="muted">It takes about a minute.</p><button type="button" class="btn btn-primary btn-lg" data-ob-again>${icon('fa-user-plus')} ${mode === 'code' ? 'Sign in' : 'Get started'}</button></div>`;
+    if (EF.onboarding && !document.querySelector('.ob')) setTimeout(() => EF.onboarding.open(), 50);
+    return () => {};
   };
 
   /* ---------------- #/account ---------------- */
   EF.mountAccount = (el) => {
     if (!enabled) { el.innerHTML = offBox(); return () => {}; }
     if (!joined()) { el.innerHTML = `<div class="cloud-msg">${icon('fa-user')} You haven’t joined yet. <a href="#/join">Join the league</a> or <a href="#/join/code">use a transfer code</a>.</div>`; return () => {}; }
-    let alive = true, school = null, grade = null, avatar = null;
+    let alive = true, school = null, grade = null, avatar = null, acct = null;
     el.innerHTML = loadingRows(4);
     EF.cloud.me(true).then((p) => {
       if (!alive) return;
@@ -583,13 +581,15 @@
           <div class="acct-top">${EF.avatar(p.avatar, p.username, 64)}<div><h2>${esc(p.username)}</h2><p class="muted">${lname} League · ${p.xp_total.toLocaleString()} XP all time${p.school ? ' · ' + esc(p.school.name) : ''}</p></div></div>
           <form class="acct-form" novalidate>
             <div class="make-field"><span>Avatar</span>${avatarPicker(avatar)}</div>
+            <div class="acct-names"><label class="make-field"><span>First name</span><input name="fn" value="${esc(p.first_name || '')}" maxlength="30" autocomplete="given-name" autocapitalize="words"></label><label class="make-field"><span>Last name</span><input name="ln" value="${esc(p.last_name || '')}" maxlength="30" autocomplete="family-name" autocapitalize="words"></label><label class="make-field acct-age"><span>Age</span><input name="age" type="number" inputmode="numeric" min="5" max="100" value="${esc(p.age || '')}"></label></div>
+            <small class="muted">${icon('fa-shield-halved')} Others only see your first name and last initial (if you’re 13+ and friend finding is on). Your age and last name stay private.</small>
             <label class="make-field"><span>Username</span><input name="u" value="${esc(p.username)}" maxlength="20" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
-            <div class="make-field"><span>Grade</span><div class="seg" role="radiogroup" aria-label="Grade">${[9, 10, 11, 12].map((g) => `<button type="button" role="radio" data-grade="${g}" aria-pressed="${g === p.grade}">Grade ${g}</button>`).join('')}</div></div>
+            <div class="make-field"><span>Grade</span><div class="seg seg-wrap" role="radiogroup" aria-label="Grade">${[7, 8, 9, 10, 11, 12].map((g) => `<button type="button" role="radio" data-grade="${g}" aria-pressed="${g === p.grade}">Grade ${g}</button>`).join('')}</div></div>
             <div class="make-field"><span>School</span><div data-picker></div></div>
             <button class="btn btn-c" type="submit">${icon('fa-floppy-disk')} Save changes</button>
           </form>
         </section>
-        <section class="card acct-card">
+        <section class="card acct-card" id="security" data-security>
           <h3>${icon('fa-mobile-screen')} Move to another device</h3>
           <p class="muted">Get a one-time code, then on the new phone or computer tap <strong>Join → I have a transfer code</strong>. Keep it secret: anyone with the code can take your account.</p>
           <div class="btn-row"><button type="button" class="btn" data-code>${icon('fa-key')} ${p.has_code ? 'Make a new code' : 'Get my code'}</button></div>
@@ -604,10 +604,12 @@
         <section class="card acct-card danger-zone">
           <h3>${icon('fa-door-open')} Sign out or delete</h3>
           <p class="muted">Signing out keeps your progress on this device. Without a transfer code you can’t get back into this account, so make one first.</p>
-          <div class="btn-row"><button type="button" class="btn" data-signout>${icon('fa-right-from-bracket')} Sign out</button><button type="button" class="btn btn-danger" data-delete>${icon('fa-trash')} Delete my league account</button></div>
+          <div class="btn-row"><button type="button" class="btn" data-signout>${icon('fa-right-from-bracket')} Sign out</button><button type="button" class="btn btn-danger" data-delete>${icon('fa-trash')} Delete my account</button></div>
         </section>`;
       paintAuthPanel(el);
       schoolPicker(el.querySelector('[data-picker]'), (s) => { school = s; }, p.school);
+      acct = p;
+      if (/\/security$/.test(location.hash)) requestAnimationFrame(() => { const sec = el.querySelector('[data-security]'); if (sec) sec.scrollIntoView({ block: 'start' }); });
     }).catch((e) => { if (alive) el.innerHTML = errBox(e); });
     const onClick = async (e) => {
       const g = e.target.closest('[data-grade]');
@@ -624,15 +626,19 @@
       if (e.target.closest('[data-backup]')) { await EF.cloud.flushXP(); await EF.cloud.pushSave(); EF.toast('Backed up', 'fa-cloud'); return; }
       if (e.target.closest('[data-signout]')) { if (confirm('Sign out on this device? Your progress stays here.')) { await EF.cloud.signOut(); EF.toast('Signed out', 'fa-right-from-bracket'); location.hash = '#/league'; } return; }
       if (e.target.closest('[data-delete]')) {
-        if (!confirm('Delete your league account? Your username, XP ranking, friends and shared sets will be removed. Progress on this device stays.')) return;
-        try { await EF.cloud.deleteMe(); EF.toast('League account deleted', 'fa-trash'); location.hash = '#/league'; } catch (er) { EF.toast(er.message, 'fa-circle-exclamation'); }
+        if (!confirm('Delete your Zing account? Your profile, friends, groups, Live invites and shared sets are removed for good. Progress on this device stays.')) return;
+        try { await EF.cloud.deleteMe(); ls.del('ef2:onboarded'); EF.toast('Account deleted', 'fa-trash'); location.hash = '#/'; } catch (er) { EF.toast(er.message, 'fa-circle-exclamation'); }
       }
     };
     const onSubmit = async (e) => {
       if (!e.target.classList.contains('acct-form')) return;
       e.preventDefault();
-      try { await EF.cloud.updateProfile({ username: e.target.u.value.trim(), schoolId: school && school.id, grade, avatar }); EF.toast('Saved', 'fa-circle-check'); EF.haptic('success'); EF.emit('cloud', { kind: 'profile' }); }
-      catch (er) { EF.toast(er.message, 'fa-circle-exclamation'); }
+      const f = e.target, fn = f.fn.value.trim(), ln = f.ln.value.trim(), age = +f.age.value;
+      try {
+        await EF.cloud.updateProfile({ username: f.u.value.trim(), schoolId: school && school.id, grade, avatar });
+        if (fn && ln && age) await EF.cloud.onboard({ first: fn, last: ln, age, purpose: (acct && acct.purpose) || 'school', grade, school: school ? school.id : null, findable: acct ? acct.findable !== false : true, reminders: acct ? acct.reminders !== false : true, avatar });
+        EF.toast('Saved', 'fa-circle-check'); EF.haptic('success'); EF.emit('cloud', { kind: 'profile' });
+      } catch (er) { EF.toast(er.message, 'fa-circle-exclamation'); }
     };
     el.addEventListener('click', onClick); el.addEventListener('submit', onSubmit);
     return () => { alive = false; el.removeEventListener('click', onClick); el.removeEventListener('submit', onSubmit); };
@@ -641,22 +647,25 @@
   /* ---------------- #/school/:id: the school's leaderboard + its shared sets ---------------- */
   EF.mountSchool = (el, id) => {
     if (!enabled) { el.innerHTML = offBox(); return () => {}; }
-    let alive = true, tab = 'all', period = 'week', data = null, sets = [], me = null;
+    let alive = true, tab = 'all', period = ls.get('ef2:sbPeriod') || 'week', view = ls.get('ef2:sbView') || 'board', data = null, sets = [], me = null;
     el.innerHTML = loadingRows(6);
     function draw() {
       const b = data, mineHere = me && me.school && me.school.id === b.school.id, myLocal = EF.sets.list();
       const rows = b.rows.filter((r) => tab === 'all' || r.friend || r.me);
       el.innerHTML = `<section class="school-board">
-          <header class="sb-head">${EF.schoolMark(b.school, 58)}<div><span class="sb-name">${esc(b.school.name)}${b.school.region ? ' · ' + esc(b.school.region) : ''}</span><h1>${b.school.members} classmate${b.school.members === 1 ? '' : 's'} on ExamForge</h1>${kindLabel(b.school.kind) ? `<span class="sb-kind">${esc(kindLabel(b.school.kind))}</span>` : ''}</div>
+          <header class="sb-head">${EF.schoolMark(b.school, 58)}<div><span class="sb-name">${esc(b.school.name)}${b.school.region ? ' · ' + esc(b.school.region) : ''}</span><h1>${b.school.members} classmate${b.school.members === 1 ? '' : 's'} on Zing</h1>${kindLabel(b.school.kind) ? `<span class="sb-kind">${esc(kindLabel(b.school.kind))}</span>` : ''}</div>
             <div class="sb-cta">${mineHere ? `<span class="sb-mine">${icon('fa-circle-check')} Your school</span>` : joined() ? `<button type="button" class="btn btn-sm" data-switch-school>${icon('fa-right-left')} Switch to this school</button>` : `<a class="btn btn-primary btn-sm" href="#/join" data-join-school>${icon('fa-fire')} Join with this school</a>`}</div></header>
+          <div class="sb-views seg" role="tablist" aria-label="School page"><button type="button" role="tab" data-sbview="board" aria-selected="${view === 'board'}">${icon('fa-trophy')} Leaderboard</button><button type="button" role="tab" data-sbview="decks" aria-selected="${view === 'decks'}">${icon('fa-layer-group')} Decks (${sets.length})</button></div>
+          <div class="sb-board"${view === 'board' ? '' : ' hidden'}>
           <div class="sb-tools">
             <div class="pill-tabs" role="tablist" aria-label="Who"><button type="button" role="tab" data-sbtab="all" aria-selected="${tab === 'all'}">All (${b.school.members})</button><button type="button" role="tab" data-sbtab="friends" aria-selected="${tab === 'friends'}">Friends (${b.school.friends || 0})</button></div>
-            <label class="pill-select">${icon('fa-calendar')}<select data-period aria-label="Time period"><option value="week"${period === 'week' ? ' selected' : ''}>Week</option><option value="all"${period === 'all' ? ' selected' : ''}>All time</option></select></label>
+            <div class="seg seg-sm" role="tablist" aria-label="Time period">${[['week', 'Week'], ['month', 'Month'], ['all', 'All time']].map(([k, l]) => `<button type="button" role="tab" data-period="${k}" aria-selected="${period === k}">${l}</button>`).join('')}</div>
           </div>
           <ol class="lb lb-big">${rows.length ? rows.map((r) => row(r)).join('') : `<li class="lb-empty-row">${tab === 'friends' ? 'No friends from this school yet. Add some in <a href="#/league" data-goto-friends>Leagues → Friends</a>.' : 'Nobody has joined from here yet.'}</li>`}</ol>
-          ${period === 'week' ? `<p class="muted small sb-foot">${icon('fa-clock')} This week’s board resets ${countdown(b.week_ends).replace(' left', '')} from now</p>` : ''}
+          ${period === 'week' ? `<p class="muted small sb-foot">${icon('fa-clock')} This week’s board resets ${countdown(b.week_ends).replace(' left', '')} from now</p>` : period === 'month' && b.month_ends ? `<p class="muted small sb-foot">${icon('fa-calendar')} This month’s board resets ${countdown(b.month_ends).replace(' left', '')} from now</p>` : ''}
+          </div>
         </section>
-        <section class="home-section"><div class="section-head"><h2>${EF.img3d('books', 30)} School library</h2></div>
+        <section class="home-section sb-decks"${view === 'decks' ? '' : ' hidden'}><div class="section-head"><h2>${EF.img3d('books', 30)} ${esc(b.school.name)} decks</h2></div>
           ${mineHere && myLocal.length ? `<div class="share-row"><select data-share-pick aria-label="Choose one of your sets">${myLocal.map((s) => `<option value="${esc(s.id)}">${esc(s.name)} (${s.cards.length})</option>`).join('')}</select><button type="button" class="btn btn-ink btn-sm" data-share-school>${icon('fa-share-nodes')} Share with ${esc(b.school.name)}</button></div>` : mineHere ? `<p class="muted small">${icon('fa-lightbulb')} <a href="#/make">Make a set</a> and share it here so everyone at your school can study it.</p>` : ''}
           ${sets.length ? `<div class="deck-grid">${sets.map((s) => `<a class="deck-tile tint" href="#/shared/${esc(s.id)}" style="--c:${esc(s.color)}"><span class="deck-band"><span class="deck-3d">${EF.img3d('cards', 56)}</span></span><span class="deck-body"><strong>${esc(s.name)}</strong><small>${s.card_count} cards · by ${esc(s.author || 'someone')}</small></span>${s.saves ? `<span class="deck-prog"><span class="xp-pill">${icon('fa-bookmark')} ${s.saves}</span></span>` : ''}</a>`).join('')}</div>` : `<p class="muted lb-empty">No shared sets yet.${mineHere ? ' Be the first!' : ''}</p>`}
         </section>`;
@@ -669,6 +678,10 @@
     const onClick = async (e) => {
       const t = e.target.closest('[data-sbtab]');
       if (t) { tab = t.dataset.sbtab; draw(); return; }
+      const v = e.target.closest('[data-sbview]');
+      if (v) { view = v.dataset.sbview; ls.set('ef2:sbView', view); draw(); return; }
+      const pr = e.target.closest('[data-period]');
+      if (pr) { period = pr.dataset.period; ls.set('ef2:sbPeriod', period); const lb = el.querySelector('.lb'); if (lb) lb.classList.add('is-loading'); load(); return; }
       if (e.target.closest('[data-join-school]')) { try { sessionStorage.setItem('ef2:joinSchool', JSON.stringify(data.school)); } catch (er) { /* private mode */ } return; }
       if (e.target.closest('[data-switch-school]')) {
         if (!me || !confirm(`Move to ${data.school.name}? Your XP and league come with you.`)) return;
@@ -681,10 +694,9 @@
       try { const r = await EF.cloud.publish(sel.value); EF.toast(r.updated ? 'Updated in your school library' : 'Shared with your school!', 'fa-share-nodes'); EF.haptic('success'); if (!r.updated) EF.store.addXP(10); load(); }
       catch (er) { EF.toast(er.message, 'fa-circle-exclamation'); }
     };
-    const onChange = (e) => { if (e.target.closest('[data-period]')) { period = e.target.value; el.querySelector('.lb').classList.add('is-loading'); load(); } };
-    el.addEventListener('click', onClick); el.addEventListener('change', onChange);
+    el.addEventListener('click', onClick);
     load();
-    return () => { alive = false; el.removeEventListener('click', onClick); el.removeEventListener('change', onChange); };
+    return () => { alive = false; el.removeEventListener('click', onClick); };
   };
 
   /* ---------------- profiles: #/me (yours) and #/u/:name (anyone's) ---------------- */
@@ -693,7 +705,7 @@
       ${own ? `<button type="button" class="profile-ava profile-ava-edit" data-edit-pic aria-label="Edit profile picture">${EF.myAvatar(p, 116)}<span class="pic-edit">${icon('fa-camera')}</span>${p.league ? `<span class="profile-league">${badge(p.league)}</span>` : ''}</button>`
         : `<div class="profile-ava">${EF.avatar(p.avatar, p.username, 116)}${p.league ? `<span class="profile-league">${badge(p.league)}</span>` : ''}</div>`}
       <div class="profile-info">
-        <h1>${esc(p.username)}</h1>
+        <h1>${esc(own && p.first_name ? p.first_name + ' ' + (p.last_name || '') : p.name || p.username)}</h1>${own || p.name ? `<p class="profile-handle">@${esc(p.username)}${p.online ? ' · <span class="on-dot">online</span>' : ''}</p>` : p.online ? '<p class="profile-handle"><span class="on-dot">online</span></p>' : ''}
         <p class="profile-sub">${p.school ? `<a href="#/school/${p.school.id}">${EF.schoolMark(p.school, 22)} ${esc(p.school.name)}</a>` : 'No school yet'}${p.grade ? ` · Grade ${esc(p.grade)}` : ''}</p>
         <p class="profile-follow"><strong>${p.followers || 0}</strong> follower${p.followers === 1 ? '' : 's'} · <strong>${p.following || 0}</strong> following</p>
         <div class="btn-row">${actions}</div>
@@ -818,8 +830,8 @@
     el.innerHTML = loadingRows(3);
     function draw() {
       const act = p.me ? `<a class="btn btn-ink" href="#/me">${icon('fa-user')} This is you</a>`
-        : joined() ? `<button type="button" class="btn ${p.i_follow ? '' : 'btn-ink'}" data-follow>${icon(p.i_follow ? 'fa-user-check' : 'fa-user-plus')} ${p.i_follow ? 'Following' : 'Follow'}</button>`
-          : `<a class="btn btn-ink" href="#/join">${icon('fa-user-plus')} Join to follow</a>`;
+        : joined() ? `<button type="button" class="btn ${p.i_follow ? '' : 'btn-primary'}" data-follow>${icon(p.i_follow ? 'fa-user-check' : 'fa-user-plus')} ${p.i_follow ? 'Following' : p.follows_me ? 'Follow back' : 'Follow'}</button>${p.can_challenge ? `<button type="button" class="btn btn-coral" data-play-user>${icon('fa-bolt')} Play</button>` : ''}`
+          : `<button type="button" class="btn btn-primary" data-ob-again>${icon('fa-user-plus')} Join to follow</button>`;
       const [lname] = EF.cloud.league(p.league);
       el.innerHTML = profileHead(p, act) + statTiles([['star', fmtXP(p.xp_total), 'XP all time'], ['bolt', fmtXP(p.xp_week), 'XP this week'], ['trophy', lname, 'league'], ['medal', p.school_rank ? '#' + p.school_rank : '–', 'at school']]);
     }
@@ -829,6 +841,7 @@
       p = r; draw();
     }).catch((e) => { if (alive) el.innerHTML = errBox(e); });
     const onClick = async (e) => {
+      if (e.target.closest('[data-play-user]') && p) { EF.openChallenge({ username: p.username, avatar: p.avatar, name: p.name }); return; }
       if (!e.target.closest('[data-follow]') || !p) return;
       try { if (p.i_follow) await EF.cloud.unfollow(p.username); else await EF.cloud.follow(p.username); p.i_follow = !p.i_follow; p.followers += p.i_follow ? 1 : -1; EF.haptic('success'); draw(); }
       catch (er) { EF.toast(er.message, 'fa-circle-exclamation'); }
@@ -853,7 +866,7 @@
     if (!el) return;
     if (!enabled) { el.remove(); return; }
     if (!joined()) { el.innerHTML = joinPitch(); return; }
-    const head = `<div class="section-head"><h2>Challenge friends</h2><a class="link" href="#/league">Leagues ${icon('fa-arrow-right')}</a></div>`;
+    const head = `<div class="section-head"><h2>Challenge friends</h2><a class="link" href="#/social">Social ${icon('fa-arrow-right')}</a></div>`;
     el.innerHTML = head + loadingRows(1);
     try {
       const [fr, lb] = await Promise.all([EF.cloud.friendsBoard(), EF.cloud.leagueBoard()]);
@@ -861,8 +874,8 @@
       const friends = fr.rows.filter((r) => !r.me).slice(0, 3), [lname, lcol] = EF.cloud.league(lb.league);
       el.innerHTML = head + `<div class="challenge-row">
           <a class="challenge-card is-league" href="#/league" style="--lc:${lcol}"><span class="ch-tag">This week</span>${badge(lb.league, 'lg')}<strong>${lname} League</strong><small>#${lb.my_rank || '–'} of ${lb.total} · ${countdown(lb.week_ends)}</small></a>
-          ${friends.map((f) => `<a class="challenge-card" href="#/u/${encodeURIComponent(f.username)}"><span class="ch-tag is-purple">Challenger</span>${EF.avatar(f.avatar, f.username, 58)}<strong>${esc(f.username)}</strong><small>${fmtXP(f.xp)} XP this week</small></a>`).join('')}
-          ${friends.length < 3 ? `<a class="challenge-card is-add" href="#/league" data-goto-friends>${EF.img3d('people', 52)}<strong>Add friends</strong><small>Race them every week</small></a>` : ''}
+          ${friends.map((f) => `<a class="challenge-card" href="#/u/${encodeURIComponent(f.username)}" data-challenge="${esc(f.username)}"><span class="ch-tag is-purple">Challenge</span>${EF.avatar(f.avatar, f.username, 58)}<strong>${esc(f.name || f.username)}</strong><small>${fmtXP(f.xp)} XP this week</small></a>`).join('')}
+          ${friends.length < 3 ? `<a class="challenge-card is-add" href="#/groups">${EF.img3d('people', 52)}<strong>Add friends</strong><small>Race them every week</small></a>` : ''}
         </div>`;
     } catch (e) { el.innerHTML = ''; }
   };
@@ -871,7 +884,7 @@
     const sp = e.target.closest && e.target.closest('[data-share-profile]');
     if (sp) {
       const url = location.href.split('#')[0] + '#/u/' + encodeURIComponent(sp.dataset.shareProfile);
-      if (navigator.share) navigator.share({ title: 'ExamForge', text: 'Follow me on ExamForge', url }).catch(() => {});
+      if (navigator.share) navigator.share({ title: 'Zing', text: 'Follow me on Zing', url }).catch(() => {});
       else if (navigator.clipboard) navigator.clipboard.writeText(url).then(() => EF.toast('Profile link copied', 'fa-link')).catch(() => {});
     }
   });

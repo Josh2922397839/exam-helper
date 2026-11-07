@@ -1,4 +1,4 @@
-/* ExamForge content — Grade 10 Principles of Business.
+/* Zing content — Grade 10 Principles of Business.
    Scope (the user's own words in the study inventory): "everything up to functional areas of business —
    barter & monetary system, forms of business, economic systems, and functional areas of business". */
 window.EF = window.EF || {};

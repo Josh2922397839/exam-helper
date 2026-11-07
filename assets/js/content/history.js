@@ -1,4 +1,4 @@
-/* ExamForge content — History: The Haitian Revolution */
+/* Zing content — History: The Haitian Revolution */
 window.EF = window.EF || {};
 EF.subjects = EF.subjects || [];
 

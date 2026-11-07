@@ -1,4 +1,4 @@
-/* ExamForge content — Grade 10 Social Studies.
+/* Zing content — Grade 10 Social Studies.
    Scope = topics in the study inventory: the individual and the family, unions and marriage, family roles and change,
    culture (incl. Jamaican influences, diffusion, music, preservation), regional integration, and government.
    Names of current office-holders are deliberately left out because they change. */

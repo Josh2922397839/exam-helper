@@ -1,4 +1,4 @@
-/* ExamForge core — card decks.
+/* Zing core — card decks.
    Like Gizmo, every subject is one deck of cards: a question, its answer, and (optionally)
    three wrong answers for multiple choice plus a short "why" that explains the answer.
 

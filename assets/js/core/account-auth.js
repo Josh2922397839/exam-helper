@@ -20,7 +20,7 @@
   }
 
   async function providers(force) {
-    if (!cfg.supabaseUrl || !cfg.supabaseKey) return { google: false, apple: false };
+    if (!cfg.supabaseUrl || !cfg.supabaseKey) return { google: false, apple: false, email: false, guest: false };
     if (!force && providerSettings && Date.now() - checkedAt < 60000) return providerSettings;
     if (checking) return checking;
     checking = (async () => {
@@ -31,7 +31,8 @@
         });
         if (!response.ok) throw new Error('settings');
         const settings = await response.json();
-        providerSettings = { google: settings.external && settings.external.google === true, apple: settings.external && settings.external.apple === true };
+        const ext = settings.external || {};
+        providerSettings = { google: ext.google === true, apple: ext.apple === true, email: ext.email === true && settings.disable_signup !== true, guest: ext.anonymous_users === true };
         checkedAt = Date.now();
         return providerSettings;
       } catch (e) { throw new Error('Could not check sign-in options. Check your connection and try again.'); }
@@ -51,7 +52,9 @@
     const result = await client.auth.getSession();
     if (result.error) throw new Error(message(result.error));
     const user = result.data && result.data.session && result.data.session.user;
-    return { signedIn: !!user, anonymous: !!(user && user.is_anonymous), connected: connected(user), providers: available };
+    const identities = user && Array.isArray(user.identities) ? user.identities : [];
+    return { signedIn: !!user, anonymous: !!(user && user.is_anonymous), connected: connected(user), providers: available,
+      email: identities.some((i) => i.provider === 'email') ? user.email : null, pendingEmail: user && user.new_email ? user.new_email : null };
   }
 
   async function start(provider) {
@@ -111,8 +114,8 @@
         restoring = true;
       }
       const profile = await EF.cloud.restoreAuth();
-      history.replaceState(null, '', url.pathname + url.search + (profile ? '#/me' : '#/join'));
-      notice = profile ? 'Signed in. Your profile and progress are ready.' : 'Signed in. Choose a nickname to finish your profile.';
+      history.replaceState(null, '', url.pathname + url.search + (profile ? '#/me' : '#/'));
+      notice = profile ? 'Signed in. Your profile and progress are ready.' : 'Signed in! Let’s finish setting up your account.';
       const restoreWarning = profile && typeof EF.cloud.restoreWarning === 'function' ? EF.cloud.restoreWarning() : '';
       if (restoreWarning) notice = 'Signed in. ' + restoreWarning;
     } catch (e) {
@@ -125,6 +128,32 @@
     setTimeout(() => { if (notice) EF.toast(notice, errorCode ? 'fa-circle-info' : 'fa-user'); }, 100);
   }
 
-  const api = EF.accountAuth = { providers, status, start, message, notice: () => notice };
+  /* Email: a one-time sign-in link (no password). New addresses get a new account.
+     linkEmail() adds an email to the account already on this device instead (a guest keeps their progress). */
+  const EMAIL_OK = /^[^\s@]{1,64}@[^\s@]+\.[^\s@]{2,}$/;
+  function emailMessage(error) {
+    const code = String(error && (error.code || error.error_code) || ''), text = String(error && error.message || '');
+    if (/email_address_not_authorized/.test(code) || /not authorized/i.test(text)) return 'Email sign-in isn’t open to everyone yet. Use Google, or continue as a guest for now.';
+    if (/over_email_send_rate_limit|rate_limit/.test(code) || /rate limit/i.test(text)) return 'Too many sign-in emails were sent. Try again in a little while, or use Google.';
+    if (/email_address_invalid|validation_failed/.test(code)) return 'That email address doesn’t look right. Check it and try again.';
+    if (/email_exists|user_already_exists/.test(code)) return 'That email already belongs to another account.';
+    return 'Couldn’t send the email. Check your connection and try again.';
+  }
+  async function email(address, link) {
+    const a = String(address || '').trim().toLowerCase();
+    if (!EMAIL_OK.test(a) || a.length > 254) throw new Error('Type your full email address.');
+    await api.ready;
+    if (!(await providers(true)).email) throw new Error('Email sign-in is not available yet. Use Google, or continue as a guest.');
+    const client = await EF.cloudClient();
+    const redirectTo = location.origin + location.pathname;
+    const result = link
+      ? await client.auth.updateUser({ email: a }, { emailRedirectTo: redirectTo })
+      : await client.auth.signInWithOtp({ email: a, options: { emailRedirectTo: redirectTo, shouldCreateUser: true } });
+    if (result.error) throw new Error(emailMessage(result.error));
+    try { sessionStorage.setItem(pendingKey, JSON.stringify({ provider: 'email', at: Date.now() })); } catch (e) { /* optional */ }
+    return { sent: true, email: a };
+  }
+
+  const api = EF.accountAuth = { providers, status, start, email, linkEmail: (a) => email(a, true), message, notice: () => notice };
   api.ready = callback();
 })();
