@@ -23,6 +23,15 @@
     return c ? { s, c } : null;
   };
   // card text → plain text, using an inert document (nothing in it can load or run)
+  // a card without its own wrong answers borrows them from other cards in the deck (same topic first), the same way every time
+  const distractors = (f, seed) => {
+    const all = f.s.flashcards.filter((d) => d !== f.c && d[1] !== f.c[1] && d[1].length <= 140);
+    const same = f.c[2] ? all.filter((d) => d[2] === f.c[2]) : [];
+    const pool = EF.shuffleWith(same, EF.rng(seed)).concat(EF.shuffleWith(all.filter((d) => !same.includes(d)), EF.rng(seed + 1)));
+    const out = [];
+    pool.forEach((d) => { if (out.length < 3 && !out.includes(d[1])) out.push(d[1]); });
+    return out;
+  };
   const plain = (html) => { try { return new DOMParser().parseFromString(String(html || ''), 'text/html').body.textContent || ''; } catch (e) { return String(html || '').replace(/<[^>]*>/g, ''); } };
   function preview(m) {
     if (!m) return 'No messages yet';
@@ -114,7 +123,8 @@
         const f = findCard(b);
         if (!f) inner = `<span class="msg-text muted">A card from a deck this device doesn’t have yet.</span>`;
         else {
-          const opts = Array.isArray(f.c[3]) && f.c[3].length >= 3 ? EF.shuffleWith([f.c[1]].concat(f.c[3].slice(0, 3)), EF.rng(m.id)) : null;
+          const wrong = Array.isArray(f.c[3]) && f.c[3].length >= 3 ? f.c[3].slice(0, 3) : distractors(f, m.id);
+          const opts = wrong.length >= 3 ? EF.shuffleWith([f.c[1]].concat(wrong), EF.rng(m.id)) : null;
           inner = `<div class="msg-card tint" style="--c:${f.s.color}" data-card-msg="${m.id}"><span class="msg-card-sub">${EF.subjectIcon(f.s.id)} ${esc(f.s.short)}${f.c[2] ? ' · ' + esc(f.c[2]) : ''}</span><strong>${esc(plain(f.c[0]))}</strong>
             ${opts ? `<div class="msg-card-opts">${opts.map((o) => `<button type="button" data-card-opt="${o === f.c[1] ? 1 : 0}">${esc(plain(o))}</button>`).join('')}</div>` : `<button type="button" class="btn btn-sm" data-card-show>${icon('fa-eye')} Show answer</button><p class="msg-card-a" hidden>${esc(plain(f.c[1]))}</p>`}</div>`;
         }
