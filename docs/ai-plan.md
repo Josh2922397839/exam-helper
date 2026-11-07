@@ -1,5 +1,7 @@
 # Adding AI to Zing: how Gizmo does it, and the plan
 
+> **Update, 7 November 2026: Zing AI is live.** Magic import uses **Gemma 4 on Cloudflare Workers AI** through the `zing-ai` Supabase Edge Function (free daily allowance, no card on file), not the Claude API this plan first suggested. See **Zing AI** in the [README](../README.md#zing-ai) for how it works, who can use it and the limits. The rest of this page is the original research and plan.
+
 ## The short version
 
 - **Gizmo's AI does three main jobs.** It turns your notes into cards, it writes believable wrong answers for multiple choice, and it explains answers when you're stuck. It also has an AI tutor and marks written answers in practice tests.

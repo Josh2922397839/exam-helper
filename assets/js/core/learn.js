@@ -1,5 +1,6 @@
 /* Zing — study modes inspired by flashcard / study-guide apps, done our way:
-   • EF.sets: make your own sets from pasted notes, saved on this device, shareable by link (no account needed)
+   • EF.sets: your own decks (cards, notes, subdecks), saved on this device and backed up to your account,
+     shareable by link. A card is [question, answer] or [question, answer, [3 wrong answers], why].
    • Learn: multiple choice → type it, with 3 lives; a card is learned once you get it right in both rounds
    • Match: pair terms with answers against the clock; best times are saved
    Everything a student types is treated as plain text (escaped), because shared links come from other people. */
@@ -8,61 +9,170 @@
   const EF = window.EF;
   const esc = EF.esc, icon = EF.icon, $ = EF.$;
   const KEY = 'ef2:sets';
-  const COLORS = ['#ff6a2b', '#3b82f6', '#22c55e', '#a855f7', '#ef4444', '#06b6d4', '#f59e0b', '#ec4899'];
+  // coral, orange, sun, lime, teal, sky, indigo, purple, pink (any other #rrggbb colour works too)
+  const COLORS = ['#ff5e4d', '#ff8a1f', '#ffc23c', '#8acb2f', '#14b8a6', '#3a8dff', '#6c6cff', '#b46cff', '#f25ca8'];
+  const COLOR_NAMES = ['Coral', 'Orange', 'Sun', 'Lime', 'Teal', 'Sky', 'Indigo', 'Purple', 'Pink'];
+  const HEX = /^#[0-9a-f]{6}$/i;
+  const NOTE_KINDS = ['note', 'paste', 'pdf', 'doc', 'slides', 'text', 'web', 'yt', 'audio', 'photo', 'sheet'];
+  const ID = /^my-[a-z0-9]{4,24}$/;
 
-  /* ================= MY SETS ================= */
+  /* ================= MY DECKS ================= */
   let cache = null;
   const load = () => { if (cache) return cache; try { cache = JSON.parse(EF.ls.get(KEY) || '[]'); } catch (e) { cache = []; } if (!Array.isArray(cache)) cache = []; return cache; };
-  const persist = () => { EF.ls.set(KEY, JSON.stringify(cache || [])); views.clear(); EF.emit('sets'); };
+  // notes can be long, so a full device is reported instead of silently losing the deck
+  const persist = () => {
+    let ok = true;
+    try { localStorage.setItem(KEY, JSON.stringify(cache || [])); } catch (e) { ok = false; if (e && /quota/i.test(e.name + e.message)) EF.toast('This device is out of space. Delete some notes or decks.', 'fa-triangle-exclamation'); }
+    views.clear(); EF.emit('sets');
+    return ok;
+  };
   const clean = (x, n) => String(x == null ? '' : x).replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, n);
+  // longer text (notes) keeps its line breaks and tabs
+  const cleanText = (x, n) => String(x == null ? '' : x).replace(/\r\n?/g, '\n').replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, ' ').slice(0, n);
+  const colorOf = (c) => (HEX.test(String(c || '')) ? String(c).toLowerCase() : '#0b8a5e');
+  const newId = () => 'my-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
   const views = new Map();
+  // one card: [q, a] or [q, a, [3 wrong answers], why] (wrong answers that repeat the answer are dropped)
+  function cardOf(c) {
+    if (!Array.isArray(c)) return null;
+    const q = clean(c[0], 300), a = clean(c[1], 300);
+    if (!q || !a) return null;
+    const w = Array.isArray(c[2]) ? Array.from(new Set(c[2].map((x) => clean(x, 200)).filter((x) => x && x.toLowerCase() !== a.toLowerCase()))) : [];
+    const why = clean(c[3], 300);
+    return w.length >= 3 ? [q, a, w.slice(0, 3), why] : why ? [q, a, [], why] : [q, a];
+  }
+  function noteOf(n) {
+    if (!n || typeof n !== 'object' || typeof n.id !== 'string' || !/^n[a-z0-9]{3,20}$/.test(n.id)) return null;
+    const out = { id: n.id, t: clean(n.t, 80) || 'Notes', x: cleanText(n.x, 30000), k: NOTE_KINDS.includes(n.k) ? n.k : 'note', at: +n.at || Date.now() };
+    if (typeof n.src === 'string' && /^https:\/\/[^\s"'<>]{4,500}$/.test(n.src)) out.src = n.src;
+    if (n.cut) out.cut = 1;
+    return out;
+  }
+  const byId = (id) => load().find((x) => x.id === id);
+  // a deck can sit inside another deck (a subdeck), but never inside itself or its own subdecks
+  function okParent(id, parent) {
+    if (!parent || parent === id || !byId(parent)) return false;
+    let p = byId(parent), depth = 0;
+    while (p && p.parent && depth++ < 12) { if (p.parent === id) return false; p = byId(p.parent); }
+    return depth < 6;
+  }
+  const kids = (id) => load().filter((x) => x.parent === id).sort((a, b) => (a.created || 0) - (b.created || 0));
+  function descendants(id) { const out = []; const walk = (d) => kids(d).forEach((k) => { out.push(k); walk(k.id); }); walk(id); return out; }
 
-  // A saved set looks like a subject to the rest of the app, so Flashcards, Quiz, Learn and Match all just work
+  // the deck plus its subdecks' cards, as [q, a, topic, wrong, why] (the shape every study mode reads)
+  function allCards(set) {
+    const seen = new Set(), out = [];
+    [set].concat(descendants(set.id)).forEach((d) => d.cards.forEach((c) => {
+      const k = c[0].toLowerCase(); if (seen.has(k)) return; seen.add(k);
+      out.push([c[0], c[1], d.id === set.id ? '' : d.name, Array.isArray(c[2]) && c[2].length >= 3 ? c[2] : null, c[3] || '']);
+    }));
+    return out;
+  }
+  // multiple choice: a card's own wrong answers, else other answers picked the same way every time (so saved mistakes stay valid)
+  function quizFor(cards) {
+    const backs = Array.from(new Set(cards.map((c) => c[1])));
+    const mix = (i, j) => (Math.imul(i + 1, 2654435761) ^ Math.imul(j + 7, 40503)) >>> 0;
+    return cards.slice(0, 40).map((c, i) => {
+      const wrong = c[3] ? c[3].slice(0, 3) : backs.filter((b) => b !== c[1]).map((b, j) => [mix(i, j), b]).sort((x, y) => x[0] - y[0]).slice(0, 3).map((x) => x[1]);
+      return wrong.length >= 3 ? { q: esc(c[0]), options: [esc(c[1])].concat(wrong.map(esc)), answer: 0, why: esc(c[4] || '') } : null;
+    }).filter(Boolean);
+  }
+  // A saved deck looks like a subject to the rest of the app, so Flashcards, Quiz, Learn and Match all just work
   function asSubject(set) {
     if (views.has(set.id)) return views.get(set.id);
-    const cards = set.cards.map((c) => [c[0], c[1]]);
-    const backs = Array.from(new Set(cards.map((c) => c[1])));
-    // one question per card (first 40), with wrong answers picked the same way every time so saved mistakes stay valid
-    const mix = (i, j) => (Math.imul(i + 1, 2654435761) ^ Math.imul(j + 7, 40503)) >>> 0;
-    const quiz = backs.length >= 4 ? cards.slice(0, 40).map((c, i) => {
-      const wrong = backs.filter((b) => b !== c[1]).map((b, j) => [mix(i, j), b]).sort((x, y) => x[0] - y[0]).slice(0, 3).map((x) => x[1]);
-      return { q: `What matches “${esc(c[0])}”?`, options: [esc(c[1])].concat(wrong.map(esc)), answer: 0, why: '' };
-    }) : [];
-    const s = { id: set.id, custom: true, name: set.name, short: set.name, grade: 0, iconKey: 'study', icon: 'fa-layer-group', color: set.color || COLORS[0], tagline: cards.length + ' cards', intro: '', topics: [], quiz, flashcards: cards };
+    const cards = allCards(set);
+    const s = { id: set.id, custom: true, name: set.name, short: set.name, grade: 0, iconKey: 'study', icon: 'fa-layer-group', color: colorOf(set.color), tagline: cards.length + ' cards', intro: '', topics: [], quiz: quizFor(cards), flashcards: cards, home: '#/deck/' + set.id };
     views.set(set.id, s);
+    return s;
+  }
+  // the Path tab: the deck in levels of about 6 cards (a short last level joins the one before it)
+  function levels(cards) {
+    const out = [];
+    for (let i = 0; i < cards.length; i += 6) out.push(cards.slice(i, i + 6));
+    if (out.length > 1 && out[out.length - 1].length < 4) { const last = out.pop(); out[out.length - 1] = out[out.length - 1].concat(last); }
+    return out;
+  }
+  function levelView(base, n) {
+    const key = base.id + '~' + n;
+    if (views.has(key)) return views.get(key);
+    const lv = levels(base.flashcards)[n - 1];
+    if (!lv) return undefined;
+    const s = Object.assign({}, base, { id: key, name: base.name + ' · Level ' + n, short: 'Level ' + n, flashcards: lv, quiz: quizFor(lv), base: base.id, home: '#/deck/' + base.id + '/path', tagline: lv.length + ' cards' });
+    views.set(key, s);
     return s;
   }
 
   EF.sets = {
     list: () => load().slice().sort((a, b) => (b.updated || 0) - (a.updated || 0)),
-    raw: (id) => load().find((x) => x.id === id),
-    get(id) { const x = load().find((s) => s.id === id); return x ? asSubject(x) : undefined; },
+    raw: byId,
+    get(id) {
+      const m = /^(my-[a-z0-9]{4,24})~(\d{1,3})$/.exec(String(id));
+      if (m) { const base = EF.sets.get(m[1]); return base ? levelView(base, +m[2]) : undefined; }
+      const x = byId(id); return x ? asSubject(x) : undefined;
+    },
     save(set) {
       load();
-      const s = { id: set.id || 'my-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name: clean(set.name, 60) || 'My set', color: COLORS.includes(set.color) ? set.color : COLORS[0], cards: (set.cards || []).map((c) => [clean(c[0], 300), clean(c[1], 300)]).filter((c) => c[0] && c[1]).slice(0, 400), updated: Date.now() };
-      if (typeof set.from === 'string' && /^[0-9a-f-]{36}$/.test(set.from)) s.from = set.from; // came from a school library
+      const id = typeof set.id === 'string' && ID.test(set.id) ? set.id : newId();
+      const prev = byId(id);
+      const s = { id, name: clean(set.name, 60) || 'Untitled', color: colorOf(set.color), cards: (set.cards || []).map(cardOf).filter(Boolean).slice(0, 400), updated: Date.now(), created: (prev && prev.created) || +set.created || Date.now() };
+      const parent = set.parent !== undefined ? set.parent : prev && prev.parent;
+      if (parent && okParent(id, parent)) s.parent = parent;
+      const notes = (set.notes !== undefined ? set.notes : prev && prev.notes) || [];
+      if (notes.length) s.notes = notes.map(noteOf).filter(Boolean).slice(0, 40);
+      const from = set.from !== undefined ? set.from : prev && prev.from;
+      if (typeof from === 'string' && /^[0-9a-f-]{36}$/.test(from)) s.from = from; // came from a shared link or a school library
       const i = cache.findIndex((x) => x.id === s.id);
       if (i >= 0) cache[i] = s; else cache.push(s);
       persist();
       return s;
     },
-    remove(id) { load(); cache = cache.filter((x) => x.id !== id); persist(); },
-    // sets from a cloud backup: add the ones this device doesn't have, keep the newer copy of the rest
+    // change one deck in place: fn gets a copy and returns nothing (or false to cancel)
+    patch(id, fn) { const d = byId(id); if (!d) return null; const copy = JSON.parse(JSON.stringify(d)); if (fn(copy) === false) return d; return EF.sets.save(copy); },
+    // a deck and all its subdecks
+    remove(id) { load(); const gone = new Set([id].concat(descendants(id).map((d) => d.id))); cache = cache.filter((x) => !gone.has(x.id)); persist(); return gone.size; },
+    children: kids,
+    descendants,
+    parentOk: okParent,
+    levels: (id) => { const s = EF.sets.get(id); return s ? levels(s.flashcards) : []; },
+    newNoteId: () => 'n' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
+    // what goes into the cloud backup: every deck, with notes trimmed to fit (newest first)
+    backup() {
+      let budget = 150000;
+      return EF.sets.list().map((d) => {
+        const x = Object.assign({}, d);
+        if (d.notes) x.notes = d.notes.slice().sort((a, b) => b.at - a.at).map((n) => { if (n.x.length <= budget) { budget -= n.x.length; return n; } return Object.assign({}, n, { x: '', cut: 1 }); });
+        return x;
+      });
+    },
+    // decks from a cloud backup: add the ones this device doesn't have, keep the newer copy of the rest
     mergeIn(list) {
       load();
       let changed = false;
       (Array.isArray(list) ? list : []).forEach((x) => {
-        if (!x || typeof x.id !== 'string' || !/^my-[a-z0-9]{4,24}$/.test(x.id) || !Array.isArray(x.cards)) return;
-        const mine = cache.find((y) => y.id === x.id);
+        if (!x || typeof x.id !== 'string' || !ID.test(x.id) || !Array.isArray(x.cards)) return;
+        const mine = byId(x.id);
         if (mine && (mine.updated || 0) >= (+x.updated || 0)) return;
-        const s = { id: x.id, name: clean(x.name, 60) || 'My set', color: COLORS.includes(x.color) ? x.color : COLORS[0], cards: x.cards.filter((c) => Array.isArray(c)).map((c) => [clean(c[0], 300), clean(c[1], 300)]).filter((c) => c[0] && c[1]).slice(0, 400), updated: +x.updated || Date.now() };
+        const s = { id: x.id, name: clean(x.name, 60) || 'Untitled', color: colorOf(x.color), cards: x.cards.map(cardOf).filter(Boolean).slice(0, 400), updated: +x.updated || Date.now(), created: +x.created || +x.updated || Date.now() };
+        if (typeof x.parent === 'string' && ID.test(x.parent)) s.parent = x.parent;
+        if (Array.isArray(x.notes)) {
+          s.notes = x.notes.map(noteOf).filter(Boolean).slice(0, 40).map((n) => {
+            // a note the backup had to trim keeps this device's full text
+            const local = n.cut && mine && (mine.notes || []).find((m) => m.id === n.id);
+            return local && local.x ? Object.assign({}, n, { x: local.x, cut: undefined }) : n;
+          });
+          if (!s.notes.length) delete s.notes;
+        }
         if (typeof x.from === 'string' && /^[0-9a-f-]{36}$/.test(x.from)) s.from = x.from;
-        if (mine) Object.assign(mine, s); else cache.push(s);
+        if (mine) { Object.keys(mine).forEach((k) => delete mine[k]); Object.assign(mine, s); } else cache.push(s);
         changed = true;
       });
+      // parents that didn't come along (or would loop) are dropped: those decks move to the top level
+      cache.forEach((d) => { if (d.parent && !okParent(d.id, d.parent)) delete d.parent; });
       if (changed) persist();
     },
     colors: COLORS,
+    colorNames: COLOR_NAMES,
+    cardOf,
 
     /* Paste notes → cards. Understands "term - meaning", "term: meaning", tabs (spreadsheet / app exports),
        "term = meaning", and Q:/A: pairs on separate lines. */
@@ -101,9 +211,9 @@
       }
       const o = JSON.parse(new TextDecoder().decode(bytes));
       if (!o || !Array.isArray(o.k)) throw new Error('bad set');
-      const cards = o.k.filter((c) => Array.isArray(c) && typeof c[0] === 'string' && typeof c[1] === 'string').map((c) => [clean(c[0], 300), clean(c[1], 300)]).filter((c) => c[0] && c[1]).slice(0, 400);
+      const cards = o.k.filter((c) => Array.isArray(c) && typeof c[0] === 'string' && typeof c[1] === 'string').map(cardOf).filter(Boolean).slice(0, 400);
       if (!cards.length) throw new Error('empty set');
-      return { name: clean(o.n, 60) || 'Shared set', color: COLORS.includes(o.c) ? o.c : COLORS[0], cards };
+      return { name: clean(o.n, 60) || 'Shared deck', color: colorOf(o.c), cards };
     },
     async share(set) {
       const code = await EF.sets.encode(set);
@@ -135,7 +245,9 @@
     const MAXH = 3, ROUND = 8;
     let queue = [], done = 0, total = 0, lives = MAXH, cur = null, answered = null, streak = 0, best = 0, correct = 0, tries = 0;
     el.classList.add('learn', 'tint'); el.style.setProperty('--c', s.color);
-    const box = (c) => EF.store.cardBox(sid, c.front);
+    // a Path level of your own deck shares the deck's progress
+    const bid = s.base || sid, home = s.home || '#/set/' + sid;
+    const box = (c) => EF.store.cardBox(bid, c.front);
     // the typed round only makes sense when the answer is short enough to type
     const typeable = (c) => c.back.length <= 32;
 
@@ -190,13 +302,13 @@
         if (EF.daily) { EF.daily.bump('correct'); EF.daily.max('row', streak); }
         it.stage++;
         EF.haptic('success'); EF.store.addXP(streak >= 5 ? 8 : 6);
-        if (it.stage >= 2) { done++; EF.store.setCardBox(sid, it.c.front, Math.max(3, box(it.c) + 1), true); }
+        if (it.stage >= 2) { done++; EF.store.setCardBox(bid, it.c.front, Math.max(3, box(it.c) + 1), true); }
         else queue.splice(Math.min(queue.length, 2), 0, it);
       } else {
         streak = 0; lives--;
         EF.haptic('error');
         it.stage = 0; it.opts = null;
-        EF.store.setCardBox(sid, it.c.front, 1, true);
+        EF.store.setCardBox(bid, it.c.front, 1, true);
         queue.splice(Math.min(queue.length, 3), 0, it);
       }
       const card = el.querySelector('.learn-card');
@@ -217,7 +329,7 @@
         <h2>${out ? 'Out of lives!' : 'Round complete!'}</h2>
         <p class="muted">${out ? 'No stress: the cards you missed come first next time.' : `You learned ${done} card${done === 1 ? '' : 's'}.`}</p>
         <div class="learn-stats"><span><strong>${done}/${total}</strong>learned</span><span><strong>${pct}%</strong>accuracy</span><span><strong>${best}</strong>best streak</span></div>
-        <div class="btn-row center"><button type="button" class="btn btn-c" data-lagain>${icon('fa-rotate-right')} ${out ? 'Try again' : 'Next round'}</button><a class="btn" href="#/set/${esc(sid)}">${icon('fa-layer-group')} Other modes</a></div>
+        <div class="btn-row center"><button type="button" class="btn btn-c" data-lagain>${icon('fa-rotate-right')} ${out ? 'Try again' : 'Next round'}</button><a class="btn" href="${esc(home)}">${icon(s.base ? 'fa-route' : 'fa-layer-group')} ${s.base ? 'Back to the path' : s.custom ? 'Back to the deck' : 'Other modes'}</a></div>
       </div>`;
     }
     const onClick = (e) => {
@@ -281,7 +393,7 @@
       EF.store.addXP(15); EF.haptic('success');
       if (record) EF.confetti();
       setTimeout(() => {
-        el.querySelector('.match-grid').outerHTML = `<div class="learn-card learn-done is-in">${EF.mascot ? EF.mascot(record ? 'cheer' : 'wave', 120) : `<span class="learn-done-ic">${icon(record ? 'fa-trophy' : 'fa-flag-checkered')}</span>`}<h2>${fmt(ms)}</h2><p class="muted">${record ? 'New personal best!' : `Your best is ${fmt(EF.store.bestMatch(sid))}.`}${penalty ? ` Includes ${penalty / 1000}s penalty for wrong pairs.` : ''}</p><div class="btn-row center"><button type="button" class="btn btn-c" data-mrestart>${icon('fa-rotate-right')} Play again</button><a class="btn" href="#/set/${esc(sid)}">${icon('fa-layer-group')} Other modes</a></div></div>`;
+        el.querySelector('.match-grid').outerHTML = `<div class="learn-card learn-done is-in">${EF.mascot ? EF.mascot(record ? 'cheer' : 'wave', 120) : `<span class="learn-done-ic">${icon(record ? 'fa-trophy' : 'fa-flag-checkered')}</span>`}<h2>${fmt(ms)}</h2><p class="muted">${record ? 'New personal best!' : `Your best is ${fmt(EF.store.bestMatch(sid))}.`}${penalty ? ` Includes ${penalty / 1000}s penalty for wrong pairs.` : ''}</p><div class="btn-row center"><button type="button" class="btn btn-c" data-mrestart>${icon('fa-rotate-right')} Play again</button><a class="btn" href="${esc(s.home || '#/set/' + sid)}">${icon('fa-layer-group')} ${s.custom ? 'Back to the deck' : 'Other modes'}</a></div></div>`;
       }, 450);
     }
     const onClick = (e) => {
@@ -312,15 +424,16 @@
   EF.mountMake = (el, id) => {
     const existing = id ? EF.sets.raw(id) : null;
     let color = existing ? existing.color : COLORS[Math.floor(Math.random() * COLORS.length)];
+    const palette = COLORS.includes(color) ? COLORS : COLORS.concat(color);
     const sample = 'Photosynthesis - Plants making glucose from carbon dioxide and water using light\nOsmosis: Movement of water through a partially permeable membrane\nQ: What is the unit of force?\nA: The newton (N)';
     el.innerHTML = `<form class="make-form" novalidate>
-      <label class="make-field"><span>Set name</span><input name="name" maxlength="60" required placeholder="e.g. Physics test: moments" value="${existing ? esc(existing.name) : ''}"></label>
-      <div class="make-field"><span>Colour</span><div class="make-colors" role="radiogroup" aria-label="Colour">${COLORS.map((c) => `<button type="button" class="make-color${c === color ? ' is-on' : ''}" style="--c:${c}" data-color="${c}" role="radio" aria-checked="${c === color}" aria-label="Colour ${c}"></button>`).join('')}</div></div>
+      <label class="make-field"><span>Deck name</span><input name="name" maxlength="60" required placeholder="e.g. Physics test: moments" value="${existing ? esc(existing.name) : ''}"></label>
+      <div class="make-field"><span>Colour</span><div class="make-colors" role="radiogroup" aria-label="Colour">${palette.map((c, i) => `<button type="button" class="make-color${c === color ? ' is-on' : ''}" style="--c:${esc(c)}" data-color="${esc(c)}" role="radio" aria-checked="${c === color}" aria-label="${esc(COLOR_NAMES[i] || 'Your colour')}"></button>`).join('')}</div></div>
       <label class="make-field"><span>Paste your notes: one card per line</span>
         <textarea name="text" rows="10" spellcheck="true" placeholder="${esc(sample)}">${existing ? esc(existing.cards.map((c) => c[0] + ' - ' + c[1]).join('\n')) : ''}</textarea></label>
-      <p class="muted small">${icon('fa-circle-info')} Use <strong>term - meaning</strong>, <strong>term: meaning</strong>, a tab (copied from a spreadsheet or another flashcard app), or <strong>Q:</strong> / <strong>A:</strong> lines.</p>
+      <p class="muted small">${icon('fa-circle-info')} Use <strong>term - meaning</strong>, <strong>term: meaning</strong>, a tab (copied from a spreadsheet or another flashcard app), or <strong>Q:</strong> / <strong>A:</strong> lines.${existing && existing.cards.some((c) => c[2]) ? ' Cards you don’t change keep their wrong answers and explanations.' : ''}</p>
       <div class="make-preview" aria-live="polite"></div>
-      <div class="btn-row"><button class="btn btn-primary" type="submit">${icon('fa-floppy-disk')} ${existing ? 'Save changes' : 'Create set'}</button>${existing ? `<button type="button" class="btn btn-danger" data-mdelete>${icon('fa-trash')} Delete set</button>` : ''}</div>
+      <div class="btn-row"><button class="btn btn-primary" type="submit">${icon('fa-floppy-disk')} ${existing ? 'Save changes' : 'Create deck'}</button>${existing ? `<button type="button" class="btn btn-danger" data-mdelete>${icon('fa-trash')} Delete deck</button>` : ''}</div>
     </form>`;
     const ta = el.querySelector('textarea'), prev = el.querySelector('.make-preview');
     const preview = () => {
@@ -331,17 +444,24 @@
     const onClick = (e) => {
       const c = e.target.closest('[data-color]');
       if (c) { color = c.dataset.color; el.querySelectorAll('[data-color]').forEach((b) => { const on = b === c; b.classList.toggle('is-on', on); b.setAttribute('aria-checked', on); }); return; }
-      if (e.target.closest('[data-mdelete]') && existing && confirm(`Delete “${existing.name}”? This can’t be undone.`)) { EF.sets.remove(existing.id); EF.toast('Set deleted', 'fa-trash'); location.hash = '#/sets'; }
+      if (e.target.closest('[data-mdelete]') && existing) {
+        const subs = EF.sets.descendants(existing.id).length;
+        if (!confirm(`Delete “${existing.name}”${subs ? ` and its ${subs} subdeck${subs === 1 ? '' : 's'}` : ''}? This can’t be undone.`)) return;
+        EF.sets.remove(existing.id); EF.toast('Deck deleted', 'fa-trash'); location.hash = existing.parent && EF.sets.raw(existing.parent) ? '#/deck/' + existing.parent : '#/decks';
+      }
     };
     const onSubmit = (e) => {
       e.preventDefault();
-      const cards = EF.sets.parse(ta.value), name = e.target.name.value.trim();
-      if (!name) { EF.toast('Give your set a name', 'fa-circle-exclamation'); e.target.name.focus(); return; }
-      if (cards.length < 2) { EF.toast('Add at least 2 cards', 'fa-circle-exclamation'); ta.focus(); return; }
+      const name = e.target.name.value.trim();
+      // a card that wasn't changed keeps its wrong answers and "why"
+      const keep = new Map((existing ? existing.cards : []).map((c) => [c[0] + '\n' + c[1], c]));
+      const cards = EF.sets.parse(ta.value).map((c) => keep.get(c[0] + '\n' + c[1]) || c);
+      if (!name) { EF.toast('Give your deck a name', 'fa-circle-exclamation'); e.target.name.focus(); return; }
+      if (cards.length < (existing ? 1 : 2)) { EF.toast(existing ? 'Add at least 1 card' : 'Add at least 2 cards', 'fa-circle-exclamation'); ta.focus(); return; }
       const saved = EF.sets.save({ id: existing && existing.id, name, color, cards });
       EF.store.addXP(existing ? 0 : 10);
       EF.toast(existing ? 'Saved' : `Created “${saved.name}” with ${saved.cards.length} cards`, 'fa-layer-group');
-      location.hash = '#/set/' + saved.id;
+      location.hash = '#/deck/' + saved.id;
     };
     el.addEventListener('input', onInput); el.addEventListener('click', onClick); el.addEventListener('submit', onSubmit);
     preview();
@@ -360,15 +480,15 @@
         <h2>${esc(set.name)}</h2>
         <p class="muted">A friend shared ${set.cards.length} cards with you.</p>
         <ol class="make-cards">${set.cards.slice(0, 5).map((c) => `<li><strong>${esc(c[0])}</strong><span>${esc(c[1])}</span></li>`).join('')}${set.cards.length > 5 ? `<li class="muted">+ ${set.cards.length - 5} more</li>` : ''}</ol>
-        <div class="btn-row center"><button type="button" class="btn btn-primary" data-iadd>${icon('fa-plus')} Add to my sets</button><a class="btn" href="#/">No thanks</a></div>
+        <div class="btn-row center"><button type="button" class="btn btn-primary" data-iadd>${icon('fa-plus')} Add to my decks</button><a class="btn" href="#/">No thanks</a></div>
       </div>`;
-    }).catch(() => { if (alive) el.innerHTML = `<div class="learn-card is-in"><h2>That link didn’t work</h2><p class="muted">It may have been cut off when it was copied. Ask your friend to send it again.</p><a class="btn" href="#/sets">${icon('fa-layer-group')} My sets</a></div>`; });
+    }).catch(() => { if (alive) el.innerHTML = `<div class="learn-card is-in"><h2>That link didn’t work</h2><p class="muted">It may have been cut off when it was copied. Ask your friend to send it again.</p><a class="btn" href="#/decks">${icon('fa-layer-group')} My decks</a></div>`; });
     const onClick = (e) => {
       if (!e.target.closest('[data-iadd]') || !set) return;
       const dupe = EF.sets.list().find((x) => x.name === set.name && x.cards.length === set.cards.length);
       const saved = dupe || EF.sets.save(set);
-      EF.toast(dupe ? 'You already have this set' : 'Added to your sets', 'fa-layer-group');
-      location.hash = '#/set/' + saved.id;
+      EF.toast(dupe ? 'You already have this deck' : 'Added to your decks', 'fa-layer-group');
+      location.hash = '#/deck/' + saved.id;
     };
     el.addEventListener('click', onClick);
     return () => { alive = false; el.removeEventListener('click', onClick); };

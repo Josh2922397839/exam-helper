@@ -1,5 +1,5 @@
--- Zing cloud: schools, weekly leagues, friends, cloud saves, each school's shared study sets, onboarding,
--- Live challenges and study groups.
+-- Zing cloud: schools, weekly leagues, friends, cloud saves, each school's shared study sets, onboarding, shared decks,
+-- Live challenges, study groups and the AI limits for Magic import.
 -- Run this once in the Supabase SQL editor (safe to run again).
 --
 -- Security model: every table has row-level security turned ON with NO policies, so the browser can't read or
@@ -82,6 +82,8 @@ create table if not exists public.shared_sets (
   updated_at timestamptz not null default now()
 );
 create index if not exists shared_sets_school on public.shared_sets (school_id, saves desc, created_at desc);
+-- v7: decks shared by link only (listed = false) never show in the school library
+alter table public.shared_sets add column if not exists listed boolean not null default true;
 
 create table if not exists public.set_saves (
   user_id uuid not null references auth.users (id) on delete cascade,
@@ -421,7 +423,7 @@ as $$
   select coalesce(jsonb_agg(to_jsonb(x)), '[]'::jsonb) from (
     select ss.id, ss.name, ss.color, ss.card_count, ss.saves, p.username as author, ss.created_at, ss.owner = auth.uid() as mine
     from shared_sets ss left join profiles p on p.id = ss.owner
-    where ss.school_id = p_school
+    where ss.school_id = p_school and ss.listed
     order by ss.saves desc, ss.created_at desc limit 60) x
 $$;
 
@@ -429,18 +431,25 @@ create or replace function public.ef_set_get(p_id uuid) returns jsonb language s
 security definer set search_path = public
 as $$
   select jsonb_build_object('id', ss.id, 'name', ss.name, 'color', ss.color, 'cards', ss.cards, 'saves', ss.saves,
-    'author', p.username, 'school', s.name, 'mine', ss.owner = auth.uid())
+    'author', p.username, 'school', s.name, 'mine', ss.owner = auth.uid(), 'listed', ss.listed, 'card_count', ss.card_count)
   from shared_sets ss left join profiles p on p.id = ss.owner left join schools s on s.id = ss.school_id where ss.id = p_id
 $$;
 
+-- someone added a shared deck to their decks: count it once per student, and credit the owner (v7: coins in the app)
 create or replace function public.ef_set_saved(p_id uuid) returns jsonb language plpgsql
 security definer set search_path = public
 as $$
-declare u uuid := ef_uid(); added integer;
+declare u uuid := ef_uid(); added integer; o uuid;
 begin
-  insert into set_saves (user_id, set_id) values (u, p_id) on conflict do nothing;
+  insert into set_saves (user_id, set_id) select u, p_id where exists (select 1 from shared_sets where id = p_id) on conflict do nothing;
   get diagnostics added = row_count;
-  if added > 0 then update shared_sets set saves = saves + 1 where id = p_id and owner <> u; end if;
+  if added > 0 then
+    update shared_sets set saves = saves + 1 where id = p_id and owner <> u returning owner into o;
+    -- only real students count towards the owner's coins (a guest who never set up an account doesn't)
+    if o is not null and exists (select 1 from profiles where id = u and onboarded) then
+      update profiles set deck_saves = deck_saves + 1 where id = o;
+    end if;
+  end if;
   return jsonb_build_object('ok', true);
 end $$;
 
@@ -466,6 +475,8 @@ alter table public.profiles add column if not exists onboarded boolean not null 
 alter table public.profiles add column if not exists referred_by uuid references auth.users (id) on delete set null;
 alter table public.profiles add column if not exists last_seen timestamptz;
 alter table public.profiles add column if not exists inbox_seen timestamptz;
+-- v7: how many times other students saved your shared decks (each save earns you coins in the app)
+alter table public.profiles add column if not exists deck_saves integer not null default 0;
 create index if not exists profiles_seen on public.profiles (last_seen desc);
 create index if not exists follows_followee on public.follows (followee, created_at desc);
 
@@ -612,7 +623,7 @@ security definer set search_path = public
 as $$
   select jsonb_build_object('first_name', p.first_name, 'last_name', p.last_name, 'age', ef_age(p), 'purpose', p.purpose,
     'findable', p.findable, 'reminders', p.reminders, 'onboarded', p.onboarded, 'name', ef_display(p),
-    'referrals', (select count(*) from profiles r where r.referred_by = p.id))
+    'referrals', (select count(*) from profiles r where r.referred_by = p.id), 'deck_saves', p.deck_saves)
   from profiles p where p.id = p_id
 $$;
 
@@ -1071,6 +1082,7 @@ begin
   update study_groups set owner = u where owner = old;
   update group_members set user_id = u where user_id = old;
   update group_messages set sender = u where sender = old;
+  update deck_xp set user_id = u where user_id = old;
   delete from secrets where user_id = old; -- codes work once; make a new one any time
   return ef_me_json(u);
 end $$;
@@ -1088,6 +1100,7 @@ begin
   update study_groups set owner = null where owner = u;
   delete from live_invites where sender = u or recipient = u;
   delete from xp_days where user_id = u;
+  delete from deck_xp where user_id = u;
   update profiles set referred_by = null where referred_by = u;
   delete from follows where follower = u or followee = u;
   delete from shared_sets where owner = u;
@@ -1096,6 +1109,263 @@ begin
   delete from secrets where user_id = u;
   delete from profiles where id = u;
   return jsonb_build_object('deleted', true);
+end $$;
+
+-- ---------------------------------------------------------------- v6.1: the AI pilot (sample notes only)
+-- The zing-ai-sample Edge Function checks the student's sign-in, then calls this with the service key.
+-- Students must be set up, 13 or older (a birth year alone can't prove the 13th birthday has passed, so 14 by year),
+-- signed in with a confirmed email (not a guest). Two tries a day each, 30 a day in all (Cloudflare's day, UTC).
+create schema if not exists ef_ai_private;
+revoke all on schema ef_ai_private from public, anon, authenticated;
+create table if not exists ef_ai_private.sample_quota (
+  singleton boolean primary key default true check (singleton),
+  day date not null,
+  used smallint not null check (used between 1 and 30),
+  user_counts jsonb not null
+);
+alter table ef_ai_private.sample_quota enable row level security;
+revoke all on ef_ai_private.sample_quota from public, anon, authenticated;
+
+create or replace function public.ef_ai_sample_quota(p_user_id uuid) returns text language plpgsql
+security definer set search_path to ''
+as $function$
+declare
+  quota_day date := (statement_timestamp() at time zone 'UTC')::date;
+  latest_birth_year integer := extract(year from statement_timestamp() at time zone 'America/Jamaica')::integer - 14;
+begin
+  -- The Edge Function verifies the caller's JWT before supplying this ID.
+  if auth.role() is distinct from 'service_role' then
+    raise exception 'Permission denied' using errcode = '42501';
+  end if;
+
+  if not exists (
+    select 1
+    from public.profiles p
+    join auth.users u on u.id = p.id
+    where p.id = p_user_id
+      and p.onboarded
+      and u.is_anonymous is false
+      and u.email_confirmed_at is not null
+      -- A birth year alone cannot establish that a 13th birthday has passed this year.
+      and p.birth_year <= latest_birth_year
+  ) then
+    return 'not_eligible';
+  end if;
+
+  -- The conflicting row is locked and both caps are checked in the same write.
+  insert into ef_ai_private.sample_quota as quota (day, used, user_counts)
+  values (quota_day, 1, jsonb_build_object(p_user_id::text, 1))
+  on conflict (singleton) do update
+    set day = excluded.day,
+        used = case when quota.day < excluded.day then 1 else quota.used + 1 end,
+        user_counts = case when quota.day < excluded.day then excluded.user_counts
+          else jsonb_set(quota.user_counts, array[p_user_id::text],
+            to_jsonb(coalesce((quota.user_counts ->> p_user_id::text)::integer, 0) + 1)) end
+  where quota.day < excluded.day
+     or (quota.day = excluded.day and quota.used < 30
+         and coalesce((quota.user_counts ->> p_user_id::text)::integer, 0) < 2);
+
+  if found then
+    return 'allowed';
+  end if;
+  return 'quota_exceeded';
+end;
+$function$;
+
+-- ---------------------------------------------------------------- v7: My decks and Magic import
+-- A shared deck's cards: [question, answer] or [question, answer, [wrong, wrong, wrong], why].
+-- XP each student earned studying a shared deck, for that deck's leaderboard
+create table if not exists public.deck_xp (
+  set_id uuid not null references public.shared_sets (id) on delete cascade,
+  user_id uuid not null references auth.users (id) on delete cascade,
+  xp integer not null default 0 check (xp >= 0),
+  day date not null,
+  xp_day integer not null default 0,
+  updated_at timestamptz not null default now(),
+  primary key (set_id, user_id)
+);
+create index if not exists deck_xp_board on public.deck_xp (set_id, xp desc);
+alter table public.deck_xp enable row level security;
+
+-- Magic import's daily limits, kept where only the Edge Function (service key) can reach them
+create table if not exists ef_ai_private.import_quota (
+  singleton boolean primary key default true check (singleton),
+  day date not null,
+  used smallint not null check (used between 0 and 60),
+  user_counts jsonb not null default '{}'::jsonb
+);
+alter table ef_ai_private.import_quota enable row level security;
+revoke all on ef_ai_private.import_quota from public, anon, authenticated;
+
+-- deck names: short, plain, polite (helper)
+create or replace function public.ef_deck_name(p_name text) returns text language plpgsql immutable
+as $$
+declare n text := btrim(regexp_replace(regexp_replace(coalesce(p_name, ''), '[[:cntrl:]<>]', ' ', 'g'), '[[:space:]]+', ' ', 'g'));
+begin
+  if char_length(n) < 1 or char_length(n) > 60 then raise exception 'Deck names are 1–60 characters.' using errcode = '22023'; end if;
+  if lower(n) ~ '(fuck|shit|bitch|cunt|pussy|nigg|whore|slut|porn|bomboclaat|bumbo|raas|pussyclaat|\mfag|\msex\M)' then
+    raise exception 'Please choose a different name.' using errcode = '22023';
+  end if;
+  return n;
+end $$;
+
+-- cards sent by the website, cleaned (helper): 1–400 cards, each [q, a] or [q, a, [3 wrong answers], why]
+create or replace function public.ef_clean_cards(p_cards jsonb, p_min integer default 1) returns jsonb language plpgsql immutable
+as $$
+declare out jsonb := '[]'::jsonb; e jsonb; q text; a text; w jsonb; why text; ww jsonb;
+begin
+  if jsonb_typeof(p_cards) is distinct from 'array' or jsonb_array_length(p_cards) < p_min or jsonb_array_length(p_cards) > 400 then
+    raise exception 'A deck needs % to 400 cards.', p_min using errcode = '22023';
+  end if;
+  for e in select value from jsonb_array_elements(p_cards) loop
+    if jsonb_typeof(e) <> 'array' or jsonb_array_length(e) < 2 or jsonb_typeof(e -> 0) <> 'string' or jsonb_typeof(e -> 1) <> 'string' then
+      raise exception 'Some cards are broken.' using errcode = '22023';
+    end if;
+    q := btrim(e ->> 0); a := btrim(e ->> 1);
+    if char_length(q) not between 1 and 300 or char_length(a) not between 1 and 300 then
+      raise exception 'Some cards are empty or too long.' using errcode = '22023';
+    end if;
+    w := e -> 2;
+    why := case when jsonb_typeof(e -> 3) = 'string' then left(btrim(e ->> 3), 300) else '' end;
+    if jsonb_typeof(w) = 'array' and jsonb_array_length(w) = 3
+       and not exists (select 1 from jsonb_array_elements(w) x
+                       where jsonb_typeof(x) <> 'string' or char_length(btrim(x #>> '{}')) not between 1 and 200) then
+      select jsonb_agg(btrim(x #>> '{}')) into ww from jsonb_array_elements(w) x;
+      out := out || jsonb_build_array(jsonb_build_array(q, a, ww, why));
+    else
+      out := out || jsonb_build_array(jsonb_build_array(q, a));
+    end if;
+  end loop;
+  return out;
+end $$;
+
+-- share a deck by link (p_listed: also show it in your school's library). Sharing again updates the same link.
+create or replace function public.ef_deck_share(p_id uuid, p_name text, p_color text, p_cards jsonb, p_listed boolean default false)
+returns jsonb language plpgsql
+security definer set search_path = public
+as $$
+declare u uuid := ef_uid(); sch bigint; nm text; clean jsonb; col text; existing uuid;
+begin
+  if not exists (select 1 from profiles where id = u) then raise exception 'Please join first.' using errcode = '28000'; end if;
+  select school_id into sch from profiles where id = u;
+  nm := ef_deck_name(p_name);
+  clean := ef_clean_cards(p_cards, 1);
+  col := case when p_color ~ '^#[0-9a-fA-F]{6}$' then p_color else '#0b8a5e' end;
+  if p_id is not null then
+    update shared_sets set name = nm, color = col, cards = clean, card_count = jsonb_array_length(clean),
+      listed = coalesce(p_listed, false) and school_id is not null, updated_at = now()
+    where id = p_id and owner = u returning id into existing;
+    if existing is not null then return jsonb_build_object('id', existing, 'updated', true); end if;
+  end if;
+  perform ef_rate('publish', 20);
+  insert into shared_sets (owner, school_id, name, color, cards, card_count, listed)
+  values (u, sch, nm, col, clean, jsonb_array_length(clean), coalesce(p_listed, false) and sch is not null)
+  returning id into existing;
+  return jsonb_build_object('id', existing, 'updated', false);
+end $$;
+
+-- XP from studying a shared deck (up to 600 a day per deck) for its leaderboard
+create or replace function public.ef_deck_xp(p_id uuid, p_xp integer) returns jsonb language plpgsql
+security definer set search_path = public
+as $$
+declare u uuid := ef_uid(); n integer := greatest(0, least(coalesce(p_xp, 0), 200)); t date := ef_today(); total integer;
+begin
+  if n = 0 or not exists (select 1 from profiles where id = u) or not exists (select 1 from shared_sets where id = p_id) then
+    return jsonb_build_object('ok', false);
+  end if;
+  insert into deck_xp as d (set_id, user_id, xp, day, xp_day) values (p_id, u, n, t, n)
+  on conflict (set_id, user_id) do update set
+    xp = d.xp + least(excluded.xp, greatest(0, 600 - case when d.day = t then d.xp_day else 0 end)),
+    xp_day = case when d.day = t then d.xp_day else 0 end + least(excluded.xp, greatest(0, 600 - case when d.day = t then d.xp_day else 0 end)),
+    day = t, updated_at = now()
+  returning xp into total;
+  return jsonb_build_object('ok', true, 'xp', total);
+end $$;
+
+-- a shared deck's leaderboard: top 20 by XP on that deck, plus where you are
+create or replace function public.ef_deck_board(p_id uuid) returns jsonb language plpgsql stable
+security definer set search_path = public
+as $$
+declare u uuid := auth.uid(); ss shared_sets;
+begin
+  select * into ss from shared_sets where id = p_id;
+  if ss.id is null then return null; end if;
+  return jsonb_build_object('name', ss.name, 'saves', ss.saves, 'mine', ss.owner = u,
+    'rows', coalesce((select jsonb_agg(to_jsonb(x) order by x.rank) from (
+        select (row_number() over (order by d.xp desc, d.updated_at))::int as rank, d.xp, p.username, p.avatar,
+               ef_display(p) as name, d.user_id = u as me
+        from deck_xp d join profiles p on p.id = d.user_id
+        where d.set_id = p_id and d.xp > 0 order by d.xp desc, d.updated_at limit 20) x), '[]'::jsonb),
+    'me', (select jsonb_build_object('rank', t.rank, 'xp', t.xp) from (
+        select d.user_id, d.xp, (row_number() over (order by d.xp desc, d.updated_at))::int as rank
+        from deck_xp d where d.set_id = p_id and d.xp > 0) t where t.user_id = u));
+end $$;
+
+-- Magic import limits. The zing-ai Edge Function checks the student's sign-in, then calls this with the service key.
+-- Same students as the pilot (set up, 14+ by birth year, signed in with a confirmed email, not a guest).
+-- Each student gets 6 units a day and everyone shares 60 (a text import costs 1, photos or a recording cost 2).
+-- p_take = false only reads what's left.
+create or replace function public.ef_ai_import_quota(p_user_id uuid, p_cost integer default 1, p_take boolean default true)
+returns jsonb language plpgsql
+security definer set search_path to ''
+as $$
+declare
+  quota_day date := (statement_timestamp() at time zone 'UTC')::date;
+  latest_birth_year integer := extract(year from statement_timestamp() at time zone 'America/Jamaica')::integer - 14;
+  cost integer := greatest(1, least(coalesce(p_cost, 1), 3));
+  per_user constant integer := 6;
+  shared constant integer := 60;
+  mine integer := 0; used_now integer := 0;
+begin
+  if auth.role() is distinct from 'service_role' then
+    raise exception 'Permission denied' using errcode = '42501';
+  end if;
+  if not exists (
+    select 1 from public.profiles p join auth.users u on u.id = p.id
+    where p.id = p_user_id and p.onboarded and u.is_anonymous is false and u.email_confirmed_at is not null
+      and p.birth_year <= latest_birth_year
+  ) then
+    return jsonb_build_object('status', 'not_eligible', 'left', 0);
+  end if;
+  select case when q.day = quota_day then coalesce((q.user_counts ->> p_user_id::text)::integer, 0) else 0 end,
+         case when q.day = quota_day then q.used else 0 end
+    into mine, used_now from ef_ai_private.import_quota q;
+  mine := coalesce(mine, 0); used_now := coalesce(used_now, 0);
+  if not coalesce(p_take, true) then
+    return jsonb_build_object('status', case when mine + 1 > per_user or used_now + 1 > shared then 'quota_exceeded' else 'allowed' end,
+      'left', greatest(0, least(per_user - mine, shared - used_now)));
+  end if;
+  -- The single row is locked and both limits are checked in the same write.
+  insert into ef_ai_private.import_quota as q (singleton, day, used, user_counts)
+  values (true, quota_day, cost, jsonb_build_object(p_user_id::text, cost))
+  on conflict (singleton) do update
+    set day = excluded.day,
+        used = case when q.day < excluded.day then excluded.used else q.used + cost end,
+        user_counts = case when q.day < excluded.day then excluded.user_counts
+          else jsonb_set(q.user_counts, array[p_user_id::text], to_jsonb(coalesce((q.user_counts ->> p_user_id::text)::integer, 0) + cost)) end
+  where q.day < excluded.day
+     or (q.day = excluded.day and q.used + cost <= shared
+         and coalesce((q.user_counts ->> p_user_id::text)::integer, 0) + cost <= per_user);
+  if found then
+    return jsonb_build_object('status', 'allowed', 'left', greatest(0, least(per_user - mine - cost, shared - used_now - cost)));
+  end if;
+  return jsonb_build_object('status', 'quota_exceeded', 'left', 0);
+end $$;
+
+-- give a turn back when the AI service fails (so a Cloudflare hiccup doesn't use up a student's day)
+create or replace function public.ef_ai_import_refund(p_user_id uuid, p_cost integer default 1) returns void language plpgsql
+security definer set search_path to ''
+as $$
+declare cost integer := greatest(1, least(coalesce(p_cost, 1), 3)); quota_day date := (statement_timestamp() at time zone 'UTC')::date;
+begin
+  if auth.role() is distinct from 'service_role' then
+    raise exception 'Permission denied' using errcode = '42501';
+  end if;
+  update ef_ai_private.import_quota q
+     set used = greatest(0, q.used - cost),
+         user_counts = jsonb_set(q.user_counts, array[p_user_id::text],
+           to_jsonb(greatest(0, coalesce((q.user_counts ->> p_user_id::text)::integer, 0) - cost)))
+   where q.day = quota_day and (q.user_counts ? p_user_id::text);
 end $$;
 
 -- ---------------------------------------------------------------- permissions
@@ -1109,8 +1379,18 @@ begin
     execute format('revoke all on function %s from public, anon, authenticated', f.sig);
     if f.proname not in ('ef_today', 'ef_week', 'ef_uid', 'ef_rate', 'ef_check_name', 'ef_close_weeks', 'ef_profile_json', 'ef_kind_group', 'ef_school_json',
                            'ef_age', 'ef_visible', 'ef_display', 'ef_person_name', 'ef_group_name', 'ef_can_reach', 'ef_person_json',
-                           'ef_private_json', 'ef_me_json', 'ef_group_msg_json', 'ef_group_note') then
+                           'ef_private_json', 'ef_me_json', 'ef_group_msg_json', 'ef_group_note',
+                           'ef_deck_name', 'ef_clean_cards', 'ef_ai_sample_quota', 'ef_ai_import_quota', 'ef_ai_import_refund') then
       execute format('grant execute on function %s to anon, authenticated', f.sig);
     end if;
   end loop;
+end $$;
+-- the AI limits are only for the Edge Functions (service key)
+do $$
+begin
+  if exists (select 1 from pg_roles where rolname = 'service_role') then
+    grant execute on function public.ef_ai_sample_quota(uuid) to service_role;
+    grant execute on function public.ef_ai_import_quota(uuid, integer, boolean) to service_role;
+    grant execute on function public.ef_ai_import_refund(uuid, integer) to service_role;
+  end if;
 end $$;

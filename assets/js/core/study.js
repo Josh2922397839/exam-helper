@@ -126,9 +126,9 @@
       const subj = EF.subject(id) || (wrong[0] && EF.subject(wrong[0].sid));
       const cards = wrong.map((q) => [(q.ctx ? '(Passage) ' : '') + EF.htmlText(q.q), EF.htmlText(q.options[q.answer])]).filter((c) => c[0] && c[1]);
       if (!cards.length) return;
-      const set = EF.sets.save({ name: `${meta.title.replace(/ Quiz$/, '')}: my mistakes`, color: subj && EF.sets.colors.includes(subj.color) ? subj.color : undefined, cards });
+      const set = EF.sets.save({ name: `${meta.title.replace(/ Quiz$/, '')}: my mistakes`, color: subj ? subj.color : undefined, cards });
       EF.toast(`Saved ${cards.length} card${cards.length === 1 ? '' : 's'} to “${set.name}”`, 'fa-clone');
-      location.hash = '#/set/' + set.id;
+      location.hash = '#/deck/' + set.id;
     }
     function choose(oi) {
       if (phase !== 'q' || picked != null) return;

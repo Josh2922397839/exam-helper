@@ -8,7 +8,9 @@
   const esc = EF.esc, icon = EF.icon;
   const cfg = window.EF_CONFIG || {};
   const LIB = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.js';
-  const JOINED = 'ef2:cloud', XPQ = 'ef2:xpq', PUB = 'ef2:published', SEEN = 'ef2:lastResultSeen', RESTORE = 'ef2:restore-pending';
+  const JOINED = 'ef2:cloud', XPQ = 'ef2:xpq', PUB = 'ef2:published', LISTED = 'ef2:listed', SEEN = 'ef2:lastResultSeen', RESTORE = 'ef2:restore-pending';
+  const readMap = (k) => { try { const m = JSON.parse(EF.ls.get(k) || '{}'); return m && typeof m === 'object' && !Array.isArray(m) ? m : {}; } catch (e) { return {}; } };
+  const pubMap = () => readMap(PUB), listedMap = () => readMap(LISTED);
   const enabled = !!(cfg.supabaseUrl && cfg.supabaseKey);
 
   // Nine weekly leagues: the top 20% move up every Monday, the bottom 20% move down
@@ -91,7 +93,7 @@
   async function pushSave() {
     clearTimeout(saveTimer);
     if (!joined() || ls.get(RESTORE)) return;
-    try { await rpc('ef_save_put', { p_data: { v: 1, at: Date.now(), state: EF.store.state(), sets: EF.sets.list() } }); } catch (e) { /* next time */ }
+    try { await rpc('ef_save_put', { p_data: { v: 1, at: Date.now(), state: EF.store.state(), sets: EF.sets.backup ? EF.sets.backup() : EF.sets.list() } }); } catch (e) { /* next time */ }
   }
   EF.on('progress', saveSoon);
   EF.on('sets', saveSoon);
@@ -194,7 +196,7 @@
     async deleteMe() {
       await rpc('ef_delete_me');
       try { const c = await load(); await c.auth.signOut(); } catch (e) { /* ignore */ }
-      ls.del(JOINED); ls.del(PUB); ls.del(RESTORE); ls.del('ef2:onboarded'); me = null;
+      ls.del(JOINED); ls.del(PUB); ls.del(LISTED); ls.del(RESTORE); ls.del('ef2:onboarded'); me = null;
       EF.emit('cloud', { kind: 'left' });
       if (EF.onboarding) setTimeout(() => EF.onboarding.start(), 400);
     },
@@ -202,25 +204,47 @@
     getShared: (id) => rpc('ef_set_get', { p_id: id }),
     async saveShared(id) {
       const s = await rpc('ef_set_get', { p_id: id });
-      if (!s) throw new Error('That set was removed.');
+      if (!s) throw new Error('That deck was removed.');
       const local = EF.sets.list().find((x) => x.from === id) || EF.sets.save({ name: s.name, color: s.color, cards: s.cards, from: id });
       if (joined()) rpc('ef_set_saved', { p_id: id }).catch(() => {});
       return local;
     },
-    published: (localId) => { try { return JSON.parse(ls.get(PUB) || '{}')[localId] || null; } catch (e) { return null; } },
-    async publish(localId) {
+    published: (localId) => pubMap()[localId] || null,
+    // which of your decks a shared link belongs to
+    localFor: (cloudId) => { const m = pubMap(); return Object.keys(m).find((k) => m[k] === cloudId && EF.sets.raw(k)) || null; },
+    listed: (localId) => !!listedMap()[localId],
+    // share a deck by link (listed: also in your school's library). Sharing again updates the same link.
+    async shareDeck(localId, listed) {
       const set = EF.sets.raw(localId);
-      if (!set) throw new Error('Set not found.');
-      const r = await rpc('ef_set_publish', { p_name: set.name, p_color: set.color, p_cards: set.cards });
-      let map = {}; try { map = JSON.parse(ls.get(PUB) || '{}'); } catch (e) { map = {}; }
-      map[localId] = r.id; ls.set(PUB, JSON.stringify(map));
-      return r;
+      if (!set) throw new Error('Deck not found.');
+      if (!set.cards.length) throw new Error('Add some cards first.');
+      const r = await rpc('ef_deck_share', { p_id: EF.cloud.published(localId), p_name: set.name, p_color: set.color, p_cards: set.cards, p_listed: !!listed });
+      const map = pubMap(); map[localId] = r.id; ls.set(PUB, JSON.stringify(map));
+      const lm = listedMap(); if (listed) lm[localId] = 1; else delete lm[localId]; ls.set(LISTED, JSON.stringify(lm));
+      return Object.assign({ url: location.origin + location.pathname + '#/shared/' + r.id }, r);
     },
+    async publish(localId) { const r = await EF.cloud.shareDeck(localId, true); return r; },
     async unpublish(localId) {
       const id = EF.cloud.published(localId);
       if (id) await rpc('ef_set_delete', { p_id: id });
-      let map = {}; try { map = JSON.parse(ls.get(PUB) || '{}'); } catch (e) { map = {}; }
-      delete map[localId]; ls.set(PUB, JSON.stringify(map));
+      const map = pubMap(); delete map[localId]; ls.set(PUB, JSON.stringify(map));
+      const lm = listedMap(); delete lm[localId]; ls.set(LISTED, JSON.stringify(lm));
+    },
+    deckBoard: (cloudId) => rpc('ef_deck_board', { p_id: cloudId }),
+    deckXp: (cloudId, n) => rpc('ef_deck_xp', { p_id: cloudId, p_xp: n }),
+    // the signed-in account (guest or not, email confirmed or not), for Magic import's AI
+    async sessionUser() { if (!enabled) return null; try { const c = await load(); const { data } = await c.auth.getSession(); return data && data.session ? data.session.user : null; } catch (e) { return null; } },
+    // Zing AI (the zing-ai Edge Function). Errors carry a code: not_eligible, quota_exceeded, ai_daily_limit, …
+    async ai(body, fn) {
+      const c = await load();
+      let res;
+      try { res = await c.functions.invoke(fn || 'zing-ai', { body }); } catch (e) { const er = new Error('offline'); er.code = 'offline'; throw er; }
+      if (!res.error) return res.data;
+      let j = null;
+      try { const ctx = res.error.context; j = ctx && typeof ctx.json === 'function' ? await ctx.json() : null; } catch (e) { j = null; }
+      const code = (j && typeof j.error === 'string' && j.error) || (res.error.name === 'FunctionsFetchError' || res.error.name === 'FunctionsRelayError' ? 'offline' : 'ai_unavailable');
+      const er = new Error(code); er.code = code; er.status = res.error.context && res.error.context.status; er.data = j;
+      throw er;
     },
     flushXP, pushSave
   };
@@ -791,7 +815,7 @@
       if (tab === 'stats') return statTiles([['star', fmtXP(p.xp_total), 'XP all time'], ['bolt', fmtXP(p.xp_week), 'XP this week'], ['fire', EF.store.streak(), 'day streak'], ['trophy', lname, 'league'], ['gem', EF.subjects.reduce((n, s) => n + EF.store.mastered(s.id), 0), 'cards mastered'], ['target', st.answered, 'questions answered']]);
       if (tab === 'sets') {
         const mine = EF.sets.list();
-        return mine.length ? `<div class="deck-grid">${mine.map((x) => `<a class="deck-tile tint" href="#/set/${esc(x.id)}" style="--c:${esc(x.color)}"><span class="deck-band"><span class="deck-3d">${EF.img3d('cards', 56)}</span></span><span class="deck-body"><strong>${esc(x.name)}</strong><small>${x.cards.length} cards${EF.cloud.published(x.id) ? ' · shared with school' : ''}</small></span></a>`).join('')}</div>`
+        return mine.length ? `<div class="deck-grid">${mine.map((x) => `<a class="deck-tile tint" href="#/deck/${esc(x.id)}" style="--c:${esc(x.color)}"><span class="deck-band"><span class="deck-3d">${EF.img3d('cards', 56)}</span></span><span class="deck-body"><strong>${esc(x.name)}</strong><small>${x.cards.length} cards${EF.cloud.listed(x.id) ? ' · in your school library' : EF.cloud.published(x.id) ? ' · shared' : ''}</small></span></a>`).join('')}</div>`
           : `<div class="profile-empty">${EF.img3d('memo', 64)}<h3>Your next study set starts here</h3><p>Turn your notes into flashcards, then learn at your own pace.</p><a class="btn btn-primary" href="#/make">${icon('fa-plus')} Create a study set</a></div>`;
       }
       return `<div class="lb-links">
@@ -802,8 +826,8 @@
     }
     function draw() {
       el.innerHTML = profileHead(p, `<a class="btn btn-ink" href="#/account">${icon('fa-pen')} Edit profile</a><a class="btn" href="#/league" data-goto-friends>${icon('fa-user-plus')} Find friends</a><button type="button" class="icon-btn" data-share-profile="${esc(p.username)}" aria-label="Share your profile">${icon('fa-arrow-up-from-bracket')}</button>`, true)
-        + `<div class="profile-highlights" aria-label="Your study highlights"><div>${EF.img3d('bolt', 30)}<span><strong>${fmtXP(p.xp_week)}</strong><small>XP this week</small></span></div><div>${EF.img3d('fire', 30)}<span><strong>${EF.store.streak()}</strong><small>day streak</small></span></div><div>${EF.img3d('cards', 30)}<span><strong>${EF.sets.list().length}</strong><small>study sets</small></span></div></div>
-        <div class="pill-tabs profile-tabs" role="tablist" aria-label="Profile sections">${[['overview', 'Leaderboards'], ['stats', 'Stats'], ['sets', 'Sets']].map(([k, l]) => `<button type="button" role="tab" id="profile-tab-${k}" data-ptab="${k}" aria-controls="profile-content" tabindex="${tab === k ? 0 : -1}" aria-selected="${tab === k}">${l}</button>`).join('')}</div>
+        + `<div class="profile-highlights" aria-label="Your study highlights"><div>${EF.img3d('bolt', 30)}<span><strong>${fmtXP(p.xp_week)}</strong><small>XP this week</small></span></div><div>${EF.img3d('fire', 30)}<span><strong>${EF.store.streak()}</strong><small>day streak</small></span></div><div>${EF.img3d('cards', 30)}<span><strong>${EF.sets.list().length}</strong><small>my decks</small></span></div></div>
+        <div class="pill-tabs profile-tabs" role="tablist" aria-label="Profile sections">${[['overview', 'Leaderboards'], ['stats', 'Stats'], ['sets', 'Decks']].map(([k, l]) => `<button type="button" role="tab" id="profile-tab-${k}" data-ptab="${k}" aria-controls="profile-content" tabindex="${tab === k ? 0 : -1}" aria-selected="${tab === k}">${l}</button>`).join('')}</div>
         <section class="profile-body" id="profile-content" role="tabpanel" aria-labelledby="profile-tab-${tab}">${body()}</section>${authPanel()}`;
       paintAuthPanel(el);
     }
@@ -896,18 +920,23 @@
     el.innerHTML = loadingRows(4);
     EF.cloud.getShared(id).then((s) => {
       if (!alive) return;
-      if (!s) { el.innerHTML = `<div class="cloud-msg">${icon('fa-circle-xmark')} That set was removed.</div>`; return; }
+      if (!s) { el.innerHTML = `<div class="cloud-msg">${icon('fa-circle-xmark')} That deck was removed.</div>`; return; }
+      const mineLocal = s.mine && EF.cloud.localFor(id);
+      const have = EF.sets.list().find((x) => x.from === id);
       el.innerHTML = `<div class="learn-card import-card is-in tint" style="--c:${esc(s.color)}">
-        <span class="learn-done-ic">${icon('fa-book-bookmark')}</span>
+        <span class="learn-done-ic">${EF.img3d ? EF.img3d('cards', 44) : icon('fa-book-bookmark')}</span>
         <h2>${esc(s.name)}</h2>
-        <p class="muted">${s.cards.length} cards · shared by ${esc(s.author || 'someone')}${s.school ? ' at ' + esc(s.school) : ''}${s.saves ? ` · saved ${s.saves} time${s.saves === 1 ? '' : 's'}` : ''}</p>
+        <p class="muted">${s.cards.length} cards · shared by ${s.mine ? 'you' : esc(s.author || 'someone')}${s.school && s.listed ? ' at ' + esc(s.school) : ''}${s.saves ? ` · saved ${s.saves} time${s.saves === 1 ? '' : 's'}` : ''}</p>
         <ol class="make-cards">${s.cards.slice(0, 6).map((c) => `<li><strong>${esc(c[0])}</strong><span>${esc(c[1])}</span></li>`).join('')}${s.cards.length > 6 ? `<li class="muted">+ ${s.cards.length - 6} more</li>` : ''}</ol>
-        <div class="btn-row center"><button type="button" class="btn btn-primary" data-save-shared>${icon('fa-plus')} Add to my sets</button></div>
+        <div class="btn-row center">${s.mine
+          ? (mineLocal ? `<a class="btn btn-primary" href="#/deck/${esc(mineLocal)}">${icon('fa-layer-group')} Open your deck</a>` : `<span class="muted">${icon('fa-circle-check')} This is your deck</span>`)
+          : have ? `<a class="btn btn-primary" href="#/deck/${esc(have.id)}">${icon('fa-layer-group')} Open it in my decks</a>`
+          : `<button type="button" class="btn btn-primary" data-save-shared>${icon('fa-plus')} Save to my decks</button>`}</div>
       </div>`;
     }).catch((e) => { if (alive) el.innerHTML = errBox(e); });
     const onClick = async (e) => {
       if (!e.target.closest('[data-save-shared]')) return;
-      try { const local = await EF.cloud.saveShared(id); EF.toast('Added to your sets', 'fa-layer-group'); location.hash = '#/set/' + local.id; } catch (er) { EF.toast(er.message, 'fa-circle-exclamation'); }
+      try { const local = await EF.cloud.saveShared(id); EF.toast('Saved to your decks', 'fa-layer-group'); location.hash = '#/deck/' + local.id; } catch (er) { EF.toast(er.message, 'fa-circle-exclamation'); }
     };
     el.addEventListener('click', onClick);
     return () => { alive = false; el.removeEventListener('click', onClick); };

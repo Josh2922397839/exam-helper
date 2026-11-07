@@ -150,7 +150,7 @@
     if (list.some((x) => x[0] === c[0] && x[1] === c[1])) { EF.toast('Already in “Saved cards”', 'fa-bookmark'); return; }
     list.push([c[0], c[1]]);
     EF.sets.save({ id: raw ? raw.id : undefined, name: NAME, color: raw ? raw.color : EF.sets.colors[3], cards: list });
-    EF.toast(`Saved to “${NAME}” · find it in My sets`, 'fa-bookmark');
+    EF.toast(`Saved to “${NAME}” · find it in My decks`, 'fa-bookmark');
     EF.haptic && EF.haptic('success');
   }
 

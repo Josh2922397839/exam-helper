@@ -39,6 +39,15 @@ Students join with just a nickname. There's no email or password, so they need "
 
 > The **anon** key is meant to be public; the database only lets it call the safe `ef_*` functions. **Never** put the `service_role` key in the website.
 
+## 5. Zing AI for Magic import (optional)
+
+1. Make a free [Cloudflare](https://dash.cloudflare.com) account (an adult should own it). Open **Workers AI** → **Use REST API** → **Create a Workers AI API Token** → **Create API Token** → **Copy API Token**, and copy the **Account ID** on the same page.
+2. In Supabase, open **Edge Functions** → **Secrets** and add `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN`. Never put them in the website or paste them in a chat.
+3. Deploy the functions from this repo: `supabase functions deploy zing-ai` and `supabase functions deploy zing-ai-sample` (or paste each `index.ts` into **Edge Functions → Deploy a new function**). Keep **Verify JWT** on.
+4. Make sure the latest [`supabase/schema.sql`](../supabase/schema.sql) has been run (it adds the AI limits, shared decks and deck leaderboards).
+
+The functions only accept requests from the site's address (`https://exam-helper.edgeone.app`, plus `localhost` for testing). If the site moves, change `ORIGINS` at the top of `zing-ai/index.ts` and `SITE_ORIGIN` in `zing-ai-sample/index.ts`, then deploy again.
+
 ## How it works
 
 - **Joining:** a student picks a username, grade and school. Their device gets a private guest account; only the username, school, grade and XP are visible to others.
@@ -46,6 +55,6 @@ Students join with just a nickname. There's no email or password, so they need "
 - **School crests:** 76 schools show their real crest, shipped with the site in `assets/img/schools/` (sources in [SOURCES.md](../assets/img/schools/SOURCES.md)). Every other school gets a generated crest from its name. To add a real crest, see [Adding a school's crest](../supabase/import/README.md#adding-a-schools-crest).
 - **Leagues:** 9 leagues (Spark → Ember → Flame → Blaze → Torch → Forge → Inferno → Phoenix → Supernova). Weeks end Monday 00:00 Jamaica time. The top 20% of active players move up (at least 30 XP needed), the bottom 20% move down (in leagues with 5+ active players), and anyone who earned nothing drops one league. This runs automatically the first time anyone opens the site in a new week, so no scheduled job is needed.
 - **XP limits:** at most 400 XP per update and 5,000 XP per day, so nobody can fake their way to the top.
-- **School library:** students can share their own sets with their school. Classmates can browse them, add them to their sets, and the most-saved sets rise to the top.
+- **Shared decks and the school library:** students share decks by link, and can list them in their school's library. Classmates can save them, the most-saved rise to the top, owners get coins for every save (`profiles.deck_saves`), and each shared deck has a leaderboard (`deck_xp`, at most 600 XP a day per deck per student).
 - **New phone:** Account → **Move to another device** gives a one-time code (XXXX-XXXX-XXXX). Typing it on the new device moves the whole account. Wrong guesses are limited to 10 a day.
 - **Removing things:** in the Supabase dashboard's **Table Editor** you can delete any rude username (`profiles`), school (`schools`) or shared set (`shared_sets`).

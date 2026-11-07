@@ -1,6 +1,6 @@
 # Zing
 
-Grade 9 and Grade 10 exam prep that you do with your friends: study guides, worked examples, interactive tools, Learn mode, Match, spaced-repetition flashcards, quizzes that explain every answer, study sets you make and share, Live games, challenges, study groups and school leaderboards. Your study buddy is **Zing, the Doctor Bird** (Jamaica's national bird).
+Grade 9 and Grade 10 exam prep that you do with your friends: study guides, worked examples, interactive tools, Learn mode, Match, spaced-repetition flashcards, quizzes that explain every answer, your own decks with **Magic import** (notes, PDFs, slides, photos, recordings and links become cards), Live games, challenges, study groups and school leaderboards. Your study buddy is **Zing, the Doctor Bird** (Jamaica's national bird).
 
 It's a plain static site: no build step, no installs. Open `index.html` in a browser, or deploy the folder to Vercel as-is. Progress is saved in each person's browser (and backed up to their account when the online features are on), so any number of people can use it at once.
 
@@ -25,7 +25,7 @@ Students **under 13** are never findable, never show their name, skip the follow
 
 ## Study modes
 
-Every subject (and every set a student makes) is a **study set** with:
+Every subject (and every deck a student makes) is a **study set** with:
 
 - **Study guide**: the full notes, worked examples that reveal one step at a time, and interactive tools
 - **Learn**: multiple choice, then type the answer, with 3 lives per round; a card is learned once it's right in both rounds
@@ -35,9 +35,33 @@ Every subject (and every set a student makes) is a **study set** with:
 
 Studying earns **XP** (quiz answers, cards, topics, Learn, Match). Today's XP fills the daily-goal ring next to the streak, and total XP sets your level.
 
-### Make and share sets
+## My decks and Magic import
 
-`#/make` turns pasted notes into a set (one card per line: `term - meaning`, `term: meaning`, a tab, or `Q:` / `A:` lines). **Share** puts the whole set, compressed, inside the link (`#/import/…`), so a friend can open it and add it to their own sets with no server or account. Everything typed into a set is shown as plain text, never as HTML.
+Students make their own **decks** (`assets/js/core/decks.js`):
+
+- **New deck** (the **+** next to *My decks* in the sidebar, or **New deck**): pick where it goes (*In: My decks* or inside another deck, which makes a **subdeck**), type a name (**+ Add another** makes several at once) and a colour (9 swatches or any colour). Decks are listed under *My decks* in the sidebar, with subdecks nested under the open deck, and on `#/decks`.
+- **A deck** (`#/deck/<id>`) has three tabs. **Materials**: when it's empty, four tiles (Magic import, Add notes, Add a subdeck, Add cards); then a *Share deck → earn coins* card, its subdecks, notes and cards (search, ⋮ to edit, read aloud or delete). **Path**: the cards split into levels of about 6, played one after another with Learn, then a final test. **Leaderboard**: everyone who studied the shared deck, by XP on it. The top bar has Share, Search, ⋯ (rename, colour, move, edit as text, copy as text, all study modes, delete), **+ Add** and **Study deck** (it floats above the dock on phones).
+- **Cards** are `[question, answer]` or `[question, answer, [3 wrong answers], why]`. Studying a deck includes its subdecks' cards.
+- **Notes** (`#/note/<deck>/<note>`) save as you type, and **Make cards** turns a note into cards.
+- **Share**: when signed in, sharing uploads the deck's cards (not its notes) to a link (`#/shared/<id>`); listing it in the school library is optional. Every time another student saves it, the owner gets **25 coins**, and the deck gets a leaderboard. Sharing again updates the same link. A deck saved from someone else shares their original link. Without an account, the whole deck travels inside the link (`#/import/…`) instead.
+
+**Magic import** (`assets/js/core/magic.js`) works like Gizmo's: drop a file (PDF, PowerPoint, Word, photos or audio) or choose **Paste notes**, **YouTube** (paste the transcript), **Quizlet**, and under **More**: **Lecture recording**, **Anki**, **Sheets**, **Photograph your notes** and **Website link**.
+
+- Files are read in the browser: PDFs with PDF.js (with `isEvalSupported: false`; a scanned PDF's first 4 pages go to the AI as pictures), Word and PowerPoint by unzipping them, CSV and text as they are. Quizlet, Anki and spreadsheet exports become cards straight away (columns: question, answer, then optionally 3 wrong answers and a "why").
+- Everything else goes to **Zing AI** (below). The deck shows **Crafting questions** while it works, then a toast says how many cards were made with **Start quiz**. New AI cards are marked with a *Looks good / Undo* bar so students check them. The text (notes, transcript or page) is kept as a note in the deck.
+- Without Zing AI (offline, guests, under 14s, or the day's limit used), Zing makes **quick cards** on the device: `term - meaning` lines, "What is …?" from definitions, "What controls …?" from simple sentences, and fill-the-gap cards for years, numbers, names and places.
+
+Everything students type, import or share is shown as plain text, never as HTML.
+
+## Zing AI
+
+Zing AI is the `zing-ai` Supabase Edge Function ([`supabase/functions/zing-ai/index.ts`](supabase/functions/zing-ai/index.ts)). It sends the study material to **Gemma 4** on **Cloudflare Workers AI** (`@cf/google/gemma-4-26b-a4b-it`, and Whisper for recordings) and gets back cards with 3 wrong answers and a short "why" each.
+
+- **Who can use it:** students who are set up, **14 or older by birth year**, signed in with **Google or a confirmed email** (not guests). Limits: **6 a day each** (text or a link costs 1; photos or a recording cost 2) and **60 a day for everyone**, in Cloudflare's day (UTC). The limits live in a private schema only the function can reach (`public.ef_ai_import_quota`, `ef_ai_private.import_quota`); a turn is given back if Cloudflare fails.
+- **What's sent:** only the study material (text up to 24,000 characters, up to 4 photos shrunk to 1,400 px, a recording up to about 5 minutes, or a web page that the function fetches safely: https only, no private addresses, at most 2 MB). Never the student's name, email, school or sign-in token. Nothing is stored or logged by the function.
+- **Secrets** (Supabase → Edge Functions → Secrets): `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` (a Workers AI token). They're already set on Zing's project.
+- **The pilot:** `zing-ai-sample` ([`supabase/functions/zing-ai-sample/index.ts`](supabase/functions/zing-ai-sample/index.ts)) makes 4 cards from two built-in sample texts (2 tries a day each, 30 for everyone). Magic import offers it as *Try Zing AI on sample notes*.
+- **Free allowance:** Cloudflare's free plan gives 10,000 "neurons" a day; a normal import uses roughly 50 to 120. When it runs out, the function answers `ai_daily_limit` and the app makes quick cards instead.
 
 ## Leagues, schools and cloud saves (optional)
 
@@ -46,7 +70,7 @@ With a free Supabase database connected (see [`docs/cloud-setup.md`](docs/cloud-
 - **Make an account in the setup** with Google, an email link or as a guest (no email or password), and pick their school.
 - **Find any school:** first from Zing's own list, then from **OpenStreetMap** (searched from the student's browser, so schools all over the world work), or by adding it by hand.
 - **Compete in 9 weekly leagues** (Spark → Supernova). Every Monday the top 20% move up and the bottom 20% move down. There are also leaderboards for **my school**, **all schools** and **friends** (add by username).
-- **Share sets with their school's library**: the most-saved sets rise to the top, and anyone can add them to their own sets.
+- **Share decks** by link or in their school's library: the most-saved rise to the top, owners earn coins for every save, and each shared deck has its own leaderboard.
 - **Back up automatically and move to a new phone** with a one-time transfer code.
 
 The v6 part of the schema adds the setup answers (stored privately; others only ever see a first name and last initial, and only for findable students aged 13+), XP per day for monthly boards, Live challenges, study groups and the Social page's functions. Email sign-in uses Supabase's email provider: Supabase's built-in mailer only delivers to the project's own team, so add a custom SMTP sender in Supabase (Authentication → Emails) before relying on email links for students. Rename the Google sign-in app to "Zing" in Google Cloud (OAuth consent screen) so the Google screen matches.
@@ -93,7 +117,10 @@ To add a subject, create a new file, add a `<script>` tag for it in `index.html`
 - `assets/js/core/ui.js`: helpers, subject icons, the progress store (streak, XP, levels, review dates)
 - `assets/js/core/app.js`: routing and page rendering
 - `assets/js/core/study.js`: quiz runner and flashcards
-- `assets/js/core/learn.js`: Learn, Match, make / share sets, the XP ring
+- `assets/js/core/learn.js`: the deck store (`EF.sets`: cards, notes, subdecks, Path levels, backup), Learn, Match, make / share by link, the XP ring
+- `assets/js/core/decks.js` + `assets/css/decks.css`: My decks: the sidebar list, New deck, the deck page (Path / Materials / Leaderboard), add and edit cards, notes, sharing, deck XP
+- `assets/js/core/magic.js`: Magic import (reading files in the browser, Quizlet / Anki / Sheets, photos, recordings, links, quick cards, Zing AI calls, "Crafting questions" and the cards-created toast)
+- `supabase/functions/zing-ai/` and `supabase/functions/zing-ai-sample/`: Zing AI's server functions (Supabase Edge Functions, Deno)
 - `assets/js/core/cloud.js` + `assets/js/config.js`: leagues, schools, friends, cloud saves and school libraries (Supabase; loads only when switched on)
 - `supabase/schema.sql`: the database (tables, security rules and the `ef_*` functions); run it in the Supabase SQL editor
 - `assets/js/core/widgets.js`: interactive tools (French drills, atom, skeleton, cell cycle, cash book, Vernier caliper, moments see-saw, grid method, mini-spreadsheet)

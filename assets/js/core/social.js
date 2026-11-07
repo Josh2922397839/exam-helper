@@ -103,7 +103,14 @@
   // +50 coins for every friend who joins with your invite link (checked whenever your profile is fetched)
   function checkRefs() {
     const me = EF.cloud && EF.cloud.cachedMe && EF.cloud.cachedMe();
-    if (!me || !(me.referrals > (wallet.refs || 0))) return;
+    if (!me) return;
+    // +25 coins every time another student saves one of your shared decks
+    if (me.deck_saves > (wallet.deckSaves || 0)) {
+      const s = me.deck_saves - (wallet.deckSaves || 0);
+      wallet.deckSaves = me.deck_saves; wallet.earned += 25 * s; saveWallet(); paintCoins(true);
+      EF.toast(`Your deck${s > 1 ? 's were' : ' was'} saved ${s} time${s > 1 ? 's' : ''}! +${25 * s} coins`, 'fa-coins');
+    }
+    if (!(me.referrals > (wallet.refs || 0))) return;
     const k = me.referrals - (wallet.refs || 0);
     wallet.refs = me.referrals; wallet.earned += 50 * k; saveWallet(); paintCoins(true);
     EF.toast(`${k} friend${k > 1 ? 's' : ''} joined with your invite! +${50 * k} coins`, 'fa-coins');

@@ -1,7 +1,7 @@
 /* Zing service worker — lets the site open and work offline.
    Our own files: network first (so updates show up straight away), cache as the offline fallback.
    Images (school crests, 3D icons), fonts, icons and Three.js: cache first (their URLs never change). */
-const VERSION = 'zing-v1';
+const VERSION = 'zing-v2';
 const SHELL = [
   './',
   './index.html',
@@ -13,6 +13,7 @@ const SHELL = [
   './assets/css/profile.css',
   './assets/css/zing.css',
   './assets/css/social.css',
+  './assets/css/decks.css',
   './assets/img/zing-mark.svg',
   './assets/js/content/religion.js',
   './assets/js/content/french.js',
@@ -77,6 +78,8 @@ const SHELL = [
   './assets/js/core/motion.js',
   './assets/js/core/social.js',
   './assets/js/core/groups.js',
+  './assets/js/core/decks.js',
+  './assets/js/core/magic.js',
   './assets/js/core/onboard.js',
   './assets/js/core/app.js',
   './assets/icons/icon-192.png'

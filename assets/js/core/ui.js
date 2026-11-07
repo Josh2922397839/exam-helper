@@ -80,6 +80,7 @@
   /* ---------- events ---------- */
   const listeners = {};
   EF.on = (evt, fn) => { (listeners[evt] = listeners[evt] || []).push(fn); };
+  EF.off = (evt, fn) => { listeners[evt] = (listeners[evt] || []).filter((f) => f !== fn); };
   EF.emit = (evt, data) => { (listeners[evt] || []).forEach((fn) => { try { fn(data); } catch (e) { console.error(e); } }); };
 
   /* ---------- safe localStorage ---------- */
