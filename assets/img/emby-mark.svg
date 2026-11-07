@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="12 6 176 194" role="img" aria-label="ExamForge">
+  <title>ExamForge</title>
+  <defs>
+    <radialGradient id="b" cx="38%" cy="32%" r="75%"><stop offset="0" stop-color="#ffc27a"/><stop offset=".55" stop-color="#ff8a3d"/><stop offset="1" stop-color="#ef5443"/></radialGradient>
+    <linearGradient id="f" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#ff7a2f"/><stop offset=".6" stop-color="#ffb02e"/><stop offset="1" stop-color="#ffe066"/></linearGradient>
+    <radialGradient id="t" cx="50%" cy="40%" r="70%"><stop offset="0" stop-color="#fff4e3"/><stop offset="1" stop-color="#ffd2a6"/></radialGradient>
+  </defs>
+  <path d="M100 14 C92 32 78 36 83 56 C70 50 68 38 72 28 C58 42 58 62 74 72 L126 72 C142 62 142 42 128 28 C132 38 130 50 117 56 C122 36 108 32 100 14 Z" fill="url(#f)"/>
+  <path d="M100 40 C96 50 90 54 93 66 L107 66 C110 54 104 50 100 40 Z" fill="#fff3b0" opacity=".85"/>
+  <path d="M100 52 C150 52 174 94 171 136 C168 176 138 196 100 196 C62 196 32 176 29 136 C26 94 50 52 100 52 Z" fill="url(#b)"/>
+  <path d="M70 70 C58 78 50 92 48 104" stroke="#ffd9a8" stroke-width="7" stroke-linecap="round" fill="none" opacity=".55"/>
+  <ellipse cx="100" cy="160" rx="44" ry="30" fill="url(#t)"/>
+  <ellipse cx="80" cy="112" rx="14" ry="17" fill="#fff"/>
+  <ellipse cx="120" cy="112" rx="14" ry="17" fill="#fff"/>
+  <circle cx="82" cy="115" r="8.5" fill="#2a2140"/>
+  <circle cx="122" cy="115" r="8.5" fill="#2a2140"/>
+  <circle cx="85" cy="111" r="3" fill="#fff"/>
+  <circle cx="125" cy="111" r="3" fill="#fff"/>
+  <ellipse cx="64" cy="133" rx="10" ry="6" fill="#ff6f8f" opacity=".5"/>
+  <ellipse cx="136" cy="133" rx="10" ry="6" fill="#ff6f8f" opacity=".5"/>
+  <path d="M87 132 Q100 146 113 132" stroke="#2a2140" stroke-width="5" stroke-linecap="round" fill="none"/>
+</svg>
