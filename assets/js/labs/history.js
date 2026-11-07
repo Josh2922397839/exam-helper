@@ -1,4 +1,4 @@
-/* ExamForge interactive tools — History: the Haitian Revolution (see assets/js/core/interactive.js for the tool kinds) */
+/* Zing interactive tools — History: the Haitian Revolution (see assets/js/core/interactive.js for the tool kinds) */
 window.EF = window.EF || {};
 (EF.labs = EF.labs || {}).history = [
   { id: 'revolution-timeline', kind: 'order', topic: 'hist-timeline', title: 'Revolution timeline', desc: 'Put the big events of the Haitian Revolution in order, 1789 to 1804.',

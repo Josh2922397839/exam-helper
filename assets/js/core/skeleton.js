@@ -1,4 +1,4 @@
-/* ExamForge — anatomical 3D skeleton.
+/* Zing — anatomical 3D skeleton.
    Built from simple shapes placed on real landmarks (1 unit ≈ 10 cm, standing in the anatomical position:
    facing forward, palms forward). Every bone's pieces are merged into one mesh per bone name, so it renders
    fast and highlighting a bone is just changing one material. Bone names must match assets/js/content/pe.js. */

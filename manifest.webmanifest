@@ -1,13 +1,13 @@
 {
-  "name": "ExamForge — Grade 9 & 10 Exam Prep",
-  "short_name": "ExamForge",
-  "description": "Study guides, Learn mode, Match, smart flashcards, quizzes and shareable study sets for Grade 9 and Grade 10.",
+  "name": "Zing — Grade 9 & 10 Exam Prep",
+  "short_name": "Zing",
+  "description": "Study guides, Learn mode, Match, smart flashcards, quizzes, Live games with friends and school leaderboards for Grade 9 and Grade 10.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "any",
-  "background_color": "#0c0d11",
-  "theme_color": "#0c0d11",
+  "background_color": "#f4f1e8",
+  "theme_color": "#0b8a5e",
   "categories": ["education"],
   "icons": [
     { "src": "assets/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },

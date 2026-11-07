@@ -1,4 +1,4 @@
-/* ExamForge interactive tools — English Language (see assets/js/core/interactive.js for the tool kinds) */
+/* Zing interactive tools — English Language (see assets/js/core/interactive.js for the tool kinds) */
 window.EF = window.EF || {};
 (EF.labs = EF.labs || {}).english = [
   { id: 'sentence-purpose', kind: 'sort', topic: 'sentence-types', title: 'What is this sentence doing?', desc: 'Statement, question, command or strong feeling? Sort the sentences by purpose.',

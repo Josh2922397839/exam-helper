@@ -1,4 +1,4 @@
-/* ExamForge content — Religious Education
+/* Zing content — Religious Education
    Edit the text here and the whole site updates. HTML tags like <strong> are allowed. */
 window.EF = window.EF || {};
 EF.subjects = EF.subjects || [];

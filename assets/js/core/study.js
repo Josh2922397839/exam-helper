@@ -1,4 +1,4 @@
-/* ExamForge core — quiz runner and spaced-repetition flashcards */
+/* Zing core — quiz runner and spaced-repetition flashcards */
 (function () {
   'use strict';
   const EF = window.EF;
@@ -9,7 +9,7 @@
   /* ================= QUIZ ================= */
   EF.quizMeta = (id) => {
     const ex = /^exam(\d*)$/.exec(id);
-    if (ex) return { id, title: ex[1] ? `Grade ${ex[1]} Exam Mode` : 'Exam Mode', sub: `20 mixed questions from every${ex[1] ? ' Grade ' + ex[1] : ''} subject`, color: '#ff6a2b', icon: 'fa-fire-flame-curved' };
+    if (ex) return { id, title: ex[1] ? `Grade ${ex[1]} Exam Mode` : 'Exam Mode', sub: `20 mixed questions from every${ex[1] ? ' Grade ' + ex[1] : ''} subject`, color: '#ff5e4d', icon: 'fa-fire-flame-curved' };
     if (id === 'mistakes') return { id, title: 'Fix My Mistakes', sub: 'Questions you got wrong before', color: '#f0506e', icon: 'fa-bandage' };
     const s = EF.subject(id);
     return s ? { id, title: s.name + ' Quiz', sub: s.quiz.length > TEST_N && !s.custom ? `${TEST_N} questions picked from ${s.quiz.length}` : s.quiz.length + ' questions', color: s.color, icon: s.icon } : null;
@@ -102,7 +102,7 @@
       const msg = pct === 100 ? 'Perfect score. You’re cooking! 🔥' : pct >= 80 ? 'Great work — exam ready.' : pct >= 50 ? 'Solid start. Review the misses below.' : 'Keep going — every attempt makes it stick.';
       el.innerHTML = `
         <div class="quiz-done">
-          ${EF.mascot ? `<span class="quiz-done-emby">${EF.mascot(pct >= 80 ? 'cheer' : pct >= 50 ? 'read' : 'sad', 110)}</span>` : ''}
+          ${EF.mascot ? `<span class="quiz-done-zing">${EF.mascot(pct >= 80 ? 'cheer' : pct >= 50 ? 'read' : 'sad', 110)}</span>` : ''}
           ${EF.ring(pct, 120, 10)}
           <div>
             <h3>${esc(msg)}</h3>
@@ -126,9 +126,9 @@
       const subj = EF.subject(id) || (wrong[0] && EF.subject(wrong[0].sid));
       const cards = wrong.map((q) => [(q.ctx ? '(Passage) ' : '') + EF.htmlText(q.q), EF.htmlText(q.options[q.answer])]).filter((c) => c[0] && c[1]);
       if (!cards.length) return;
-      const set = EF.sets.save({ name: `${meta.title.replace(/ Quiz$/, '')}: my mistakes`, color: subj && EF.sets.colors.includes(subj.color) ? subj.color : undefined, cards });
+      const set = EF.sets.save({ name: `${meta.title.replace(/ Quiz$/, '')}: my mistakes`, color: subj ? subj.color : undefined, cards });
       EF.toast(`Saved ${cards.length} card${cards.length === 1 ? '' : 's'} to “${set.name}”`, 'fa-clone');
-      location.hash = '#/set/' + set.id;
+      location.hash = '#/deck/' + set.id;
     }
     function choose(oi) {
       if (phase !== 'q' || picked != null) return;

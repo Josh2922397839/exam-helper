@@ -1,9 +1,11 @@
-# Adding AI to ExamForge: how Gizmo does it, and the plan
+# Adding AI to Zing: how Gizmo does it, and the plan
+
+> **Update, 7 November 2026: Zing AI is live.** Magic import uses **Gemma 4 on Cloudflare Workers AI** through the `zing-ai` Supabase Edge Function (free daily allowance, no card on file), not the Claude API this plan first suggested. See **Zing AI** in the [README](../README.md#zing-ai) for how it works, who can use it and the limits. The rest of this page is the original research and plan.
 
 ## The short version
 
 - **Gizmo's AI does three main jobs.** It turns your notes into cards, it writes believable wrong answers for multiple choice, and it explains answers when you're stuck. It also has an AI tutor and marks written answers in practice tests.
-- **ExamForge is already set up for this.** Every subject is now a deck of cards, and each card has a question, an answer, three wrong answers, a "why" and a topic. That is exactly the shape an AI would hand back.
+- **Zing is already set up for this.** Every subject is now a deck of cards, and each card has a question, an answer, three wrong answers, a "why" and a topic. That is exactly the shape an AI would hand back.
 - **The one rule that matters:** the AI key must **never** go in the website's code, because anyone could copy it and spend your money. It goes in a small server function on Supabase, which you already use.
 - **What you'll need when you're ready:** an Anthropic API key (from console.anthropic.com, which needs a card on file) and about an hour to set up the server function. Steps are at the bottom.
 
@@ -44,7 +46,7 @@ The AI can generate every type except picture cards. ([card formats](https://hel
 
 **5. Which AI does Gizmo use?** Gizmo does not say publicly. Reviews only describe the AI reading your material and making question-and-answer pairs ([TechCrunch](https://techcrunch.com/2023/09/21/ai-startup-gizmo-funding-gamified-quizzes-flashcards-make-learning-fun/), [Save My Exams review](https://www.savemyexams.com/learning-hub/useful-resources/best-ai-flashcard-generator/)). Any claim about the exact model would be a guess.
 
-## What ExamForge already has ready
+## What Zing already has ready
 
 - **One card format everywhere.** Look at `assets/js/core/deck.js`: `EF.cardsIn()` accepts plain card objects `{ q, a, wrong: [3], why, tag }`. Those cards appear in:
   - the flip-card deck view

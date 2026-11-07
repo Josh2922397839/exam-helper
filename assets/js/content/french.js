@@ -1,4 +1,4 @@
-/* ExamForge content — French */
+/* Zing content — French */
 window.EF = window.EF || {};
 EF.subjects = EF.subjects || [];
 

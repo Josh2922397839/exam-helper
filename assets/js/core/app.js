@@ -1,4 +1,4 @@
-/* ExamForge core — app shell, router, pages, search and keyboard shortcuts */
+/* Zing core — app shell, router, pages, search and keyboard shortcuts */
 (function () {
   'use strict';
   const EF = window.EF;
@@ -80,23 +80,26 @@
     const mistakes = EF.store.state().mistakes.length;
     const me = EF.cloud.joined() ? EF.cloud.cachedMe() : null;
     const st = EF.store.state(), lastS = st.last && EF.subject(st.last.s);
-    const mine = EF.sets.list();
     const html = `
-      <a class="side-brand" href="#/" aria-label="ExamForge home"><span class="brand-mark" aria-hidden="true"><img src="assets/img/emby-mark.svg" alt="" width="44" height="48"></span><span class="brand-name">Exam<b>Forge</b></span></a>
+      <a class="side-brand" href="#/" aria-label="Zing home"><span class="brand-mark" aria-hidden="true"><img src="assets/img/zing-mark.svg" alt="" width="44" height="48"></span><span class="brand-name">Zing</span></a>
       <nav class="side-nav" aria-label="Main">
         ${navItem('#/', 'home', 'Home', 'home')}
+        ${EF.cloud.enabled ? navItem('#/social', 'wave', 'Social', 'social', socialBadge()) : ''}
+        ${EF.cloud.enabled ? navItem('#/live', 'game', 'Live', 'live') : ''}
+        ${EF.cloud.enabled ? navItem('#/groups', 'speech', 'Study groups', 'groups') : ''}
         ${navItem('#/league', 'trophy', 'Leagues', 'league')}
         ${navItem('#/cards', 'cards', 'Study sets', 'cards')}
         ${navItem('#/lab', 'rocket', 'Interactive', 'lab')}
         ${navItem('#/quiz', 'bolt', 'Quiz Arena', 'quiz', mistakes ? `<span class="side-badge" title="Saved mistakes">${mistakes}</span>` : '')}
-        ${navItem('#/sets', 'memo', 'My sets', 'sets')}
+        ${navItem('#/decks', 'memo', 'My decks', 'decks')}
         ${navItem('#/progress', 'chart', 'Progress', 'progress')}
-        ${me ? link('#/me', EF.myAvatar(me, 30), esc(me.username), 'me') : navItem('#/me', 'wave', 'Profile', 'me')}
+        ${me ? link('#/me', EF.myAvatar(me, 30), esc(me.first_name || me.username), 'me') : navItem('#/me', 'star', 'Profile', 'me')}
+        ${navItem('#/settings', 'gear', 'Settings', 'settings')}
         <button type="button" class="side-link side-theme" data-theme-toggle data-label aria-label="${EF.theme.get() === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}">${themeFace(EF.theme.get(), true)}</button>
       </nav>
       <div class="side-cta">
         <a class="btn btn-ink btn-block side-study" href="${lastS ? '#/learn/' + lastS.id : '#/cards'}">${EF.img3d('game', 26)} Study</a>
-        <a class="btn btn-block side-add" href="#/make">${icon('fa-plus')} Make a set</a>
+        <button type="button" class="btn btn-block side-add" data-add-deck>${icon('fa-plus')} New deck</button>
       </div>
       ${(EF.multiGrade() ? EF.grades().map((g) => [g, EF.inGrade(g)]) : [[null, EF.subjects]]).map(([g, list]) => `
       <div class="side-head"><span>${g ? 'Grade ' + g : 'My subjects'}</span></div>
@@ -114,8 +117,7 @@
           </li>`;
         }).join('')}
       </ul>`).join('')}
-      ${mine.length ? `<div class="side-head"><span>My sets</span><a class="side-head-add" href="#/make" aria-label="Make a set">${icon('fa-plus')}</a></div>
-      <ul class="side-subjects">${mine.slice(0, 8).map((x) => `<li class="side-subject tint" style="--c:${esc(x.color)}"><a class="side-link side-deck" href="#/set/${esc(x.id)}"><span class="side-sq" aria-hidden="true"></span><span>${esc(x.name)}</span></a></li>`).join('')}</ul>` : ''}
+      ${EF.deckSide ? EF.deckSide(deckHere()) : ''}
       <div class="side-foot">
         ${installEvt ? `<button type="button" class="btn btn-sm side-install" data-install>${icon('fa-download')} Install app</button>` : ''}
         <span><kbd>/</kbd> search</span><span><kbd>D</kbd> theme</span><button type="button" class="link" data-keys><kbd>?</kbd></button>
@@ -128,9 +130,11 @@
     if (here && spy && spy.active) markTopic(spy.active);
   }
   let lastOpen = null;
+  function deckHere() { const m = /^(?:deck|note|set|learn|match|speed|gap|cards|quiz|make):(my-[a-z0-9]{4,24})/.exec(viewKey); return m ? m[1] : null; }
+  const socialBadge = () => { const n = EF.socialCount ? EF.socialCount() : 0; return n ? `<span class="side-badge is-green" title="New">${n > 9 ? '9+' : n}</span>` : ''; };
   function current(key) {
     const k = viewKey.split(':')[0];
-    return viewKey === key || k === key || (key === 'cards' && ['set', 'learn', 'match'].includes(k)) || (key === 'sets' && ['make', 'import'].includes(k)) || (key === 'league' && ['join', 'school', 'shared'].includes(k)) || (key === 'me' && ['account', 'u'].includes(k));
+    return viewKey === key || k === key || (key === 'cards' && ['set', 'learn', 'match'].includes(k)) || (key === 'decks' && ['sets', 'make', 'import', 'deck', 'note'].includes(k)) || (key === 'league' && ['join', 'school', 'shared'].includes(k)) || (key === 'me' && ['account', 'u'].includes(k)) || (key === 'settings' && k === 'help');
   }
 
   /* ================= PAGES ================= */
@@ -151,7 +155,7 @@
     if (last) { const p = EF.store.progress(last.id); items.push({ href: '#/s/' + last.id + (lastTopic ? '/' + lastTopic.id : ''), title: lastTopic ? topicLabel(lastTopic) : last.name, sub: (lastTopic ? 'Topic · ' : 'Subject · ') + last.short, pct: p.pct, c: last.color, id: last.id }); }
     subs.map((s) => [s, EF.store.progress(s.id)]).filter(([s, p]) => p.pct > 0 && p.pct < 100 && (!last || s.id !== last.id)).sort((x, y) => y[1].pct - x[1].pct).slice(0, Math.max(0, 3 - items.length))
       .forEach(([s, p]) => items.push({ href: '#/s/' + s.id, title: s.name, sub: `Subject · ${p.visited}/${p.total} topics`, pct: p.pct, c: s.color, id: s.id }));
-    EF.sets.list().forEach((x) => { if (items.length < 4) { const s = EF.sets.get(x.id); items.push({ href: '#/set/' + s.id, title: s.name, sub: `My set · ${s.flashcards.length} cards`, pct: Math.round((EF.store.mastered(s.id) / Math.max(1, s.flashcards.length)) * 100), c: s.color, id: s.id }); } });
+    EF.sets.list().forEach((x) => { if (items.length < 4 && !x.parent) { const s = EF.sets.get(x.id); items.push({ href: '#/deck/' + s.id, title: s.name, sub: `My deck · ${s.flashcards.length} cards`, pct: Math.round((EF.store.mastered(s.id) / Math.max(1, s.flashcards.length)) * 100), c: s.color, id: s.id }); } });
     if (!items.length) subs.slice().sort((x, y) => EF.gradeOf(y) - EF.gradeOf(x)).slice(0, 4).forEach((s) => items.push({ href: '#/s/' + s.id, title: s.name, sub: `Start here · ${s.topics.length} topics`, pct: 0, c: s.color, id: s.id }));
     return `<section class="home-section"><div class="section-head"><h2>${last ? 'Jump back in' : 'Start here'}</h2><a class="link" href="#/progress">View all</a></div>
       <div class="jump-row">${items.map((it) => `<a class="jump-card tint" href="${it.href}" style="--c:${esc(it.c)}">${EF.ring(it.pct, 50, 5)}<span class="jump-text"><strong>${esc(it.title)}</strong><small>${esc(it.sub)}</small></span><span class="jump-3d">${EF.subject3d(it.id, 36)}</span></a>`).join('')}</div></section>`;
@@ -161,12 +165,7 @@
   function rail() {
     const streak = EF.store.streak(), lv = EF.store.level(), today = EF.store.xpToday(), goal = EF.store.goal();
     const me = EF.cloud.joined() ? EF.cloud.cachedMe() : null;
-    return `${EF.dailyCard ? EF.dailyCard() : ''}<div class="invite-card">
-        <div class="invite-art" aria-hidden="true">${EF.img3d('star', 44)}${EF.img3d('sparkles', 34)}${EF.img3d('rocket', 46)}</div>
-        <strong>Study with your friends</strong>
-        <span>Share ExamForge and race your crew up the leagues</span>
-        <button type="button" class="btn btn-block invite-btn" data-invite>${icon('fa-user-plus')} Invite friends</button>
-      </div>
+    return `${EF.dailyCard ? EF.dailyCard() : ''}${EF.inviteCard ? EF.inviteCard() : ''}
       <div class="stats-card">
         <a class="stats-head" href="#/progress">${EF.img3d('star', 32)}<strong>${EF.store.xp().toLocaleString()}</strong><span>XP · level ${lv.lvl}</span></a>
         <span class="lvl-bar" aria-hidden="true"><span style="width:${lv.pct}%"></span></span>
@@ -176,7 +175,7 @@
           <a href="#/cards" title="Cards mastered">${EF.img3d('gem', 40)}<b>${EF.subjects.reduce((n, s) => n + EF.store.mastered(s.id), 0)}</b><small>mastered</small></a>
           <a href="#/league" title="Your league">${EF.img3d('trophy', 40)}<b>${me ? esc(EF.cloud.league(me.league)[0]) : '–'}</b><small>league</small></a>
         </div>
-      </div>`;
+      </div>${EF.powerupsCard ? EF.powerupsCard() : ''}`;
   }
   EF.rail = rail;
 
@@ -198,7 +197,8 @@
     const g = EF.grade();
     const me = EF.cloud.joined() ? EF.cloud.cachedMe() : null;
     const h = new Date().getHours();
-    const hello = (h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening') + (me ? ', ' + esc(me.username) : '');
+    const local = EF.localMe ? EF.localMe() : null, first = (me && me.first_name) || (local && local.first) || (me && me.username) || '';
+    const hello = (h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening') + (first ? ', ' + esc(first) : '');
     return `
       <div class="page has-rail home">
         <div class="page-main">
@@ -213,7 +213,7 @@
           <div class="ask">
             <button type="button" class="ask-input" data-search-open><span>I want to study…</span>${EF.img3d('search', 28)}</button>
             <div class="ask-row">
-              <a class="ask-btn" href="#/make">${EF.img3d('clipboard', 26)} Paste notes</a>
+              <button type="button" class="ask-btn" data-magic>${EF.img3d('sparkles', 26)} Magic import</button>
               <a class="ask-btn" href="${last ? '#/learn/' + last.id : '#/learn/' + subs[0].id}">${EF.img3d('grad', 26)} Learn</a>
               <a class="ask-btn" href="#/quiz/exam${g === 'all' ? '' : g}">${EF.img3d('bolt', 26)} Exam mode</a>
               <a class="ask-btn" href="#/cards">${EF.img3d('cards', 26)} Study sets</a>
@@ -275,6 +275,7 @@
               <span class="topic-seen${seen.includes(t.id) ? ' is-on' : ''}" title="Read">${icon('fa-circle-check')}<span class="sr-only">Read</span></span>
             </header>
             ${EF.renderBlocks(t.blocks, s)}
+            ${EF.qcheckHost ? EF.qcheckHost(s, t) : ''}
             ${topicLabs(s, t)}
           </section>`).join('')}
 
@@ -345,7 +346,7 @@
   pages.quiz = (id) => {
     const meta = EF.quizMeta(id);
     return `<div class="page narrow">
-      <a class="crumb" href="${EF.subject(id) && EF.subject(id).custom ? '#/set/' + esc(id) : '#/quiz'}">${icon('fa-arrow-left')} ${EF.subject(id) && EF.subject(id).custom ? esc(EF.subject(id).name) : 'Quiz Arena'}</a>
+      <a class="crumb" href="${EF.subject(id) && EF.subject(id).custom ? esc(EF.subject(id).home || '#/set/' + id) : '#/quiz'}">${icon('fa-arrow-left')} ${EF.subject(id) && EF.subject(id).custom ? esc(EF.subject(id).name) : 'Quiz Arena'}</a>
       <header class="page-head page-head-sm tint quiz-page-head" style="--c:${meta.color}"><span class="quiz-page-ic" ${vt(EF.subject(id) ? 'icon-' + id : /^exam/.test(id) ? 'icon-exam' : 'icon-fix')}>${EF.subject(id) ? EF.subjectIcon(id) : icon(meta.icon)}</span><div><span class="eyebrow">${esc(meta.sub)}</span><h1>${esc(meta.title)}</h1></div></header>
       <div class="quiz-host" data-quiz="${esc(id)}" data-autostart></div>
     </div>`;
@@ -361,7 +362,7 @@
   // one card per study set (subject or your own), with a due badge
   function deckCard(s) {
     const n = (s.flashcards || []).length, m = EF.store.mastered(s.id), due = EF.store.due(s.id).length;
-    return `<a class="subject-card tint" href="#/set/${esc(s.id)}" style="--c:${s.color}">
+    return `<a class="subject-card tint" href="${s.custom ? '#/deck/' : '#/set/'}${esc(s.id)}" style="--c:${esc(s.color)}">
       <div class="subject-card-top"><span class="subject-emoji" ${vt('icon-' + s.id)}>${EF.subjectIcon(s.id)}</span>${due ? `<span class="due-badge" title="Cards due for review">${icon('fa-clock-rotate-left')} ${due} due</span>` : EF.ring(n ? (m / n) * 100 : 0, 48, 5)}</div>
       <h3>${esc(s.name)}</h3>
       <p>${m} of ${n} cards mastered</p>
@@ -369,11 +370,11 @@
     </a>`;
   }
   function mySetsStrip() {
-    const mine = EF.sets.list();
+    const mine = EF.sets.list().filter((x) => !x.parent);
     return `<section class="home-section my-sets">
-      <div class="section-head"><h2>My sets</h2><a class="link" href="#/sets">Manage ${icon('fa-arrow-right')}</a></div>
+      <div class="section-head"><h2>My decks</h2><a class="link" href="#/decks">See all ${icon('fa-arrow-right')}</a></div>
       <div class="grid cols-3">
-        <a class="cta-card make-cta" href="#/make"><span class="cta-ic">${icon('fa-plus')}</span><div><strong>Make a set</strong><span>Paste your notes; share it with friends by link</span></div></a>
+        <button type="button" class="cta-card make-cta" data-magic><span class="cta-ic">${icon('fa-wand-magic-sparkles')}</span><div><strong>Magic import</strong><span>Notes, PDFs, slides, photos or a link become cards</span></div></button>
         ${mine.slice(0, 5).map((x) => deckCard(EF.sets.get(x.id))).join('')}
       </div>
     </section>`;
@@ -389,8 +390,8 @@
     const PIC = { 'fa-graduation-cap': 'grad', 'fa-clone': 'cards', 'fa-shapes': 'puzzle', 'fa-bolt': 'bolt', 'fa-book-open': 'book', 'fa-pen': 'pencil', 'fa-stopwatch': 'stopwatch', 'fa-tower-broadcast': 'people', 'fa-flask': 'rocket' };
     const mode = (href, ic, title, sub, extra) => `<a class="mode-card" href="${href}"><span class="mode-ic">${EF.img3d(PIC[ic] || 'star', 34)}</span><div><strong>${title}</strong><span>${sub}</span></div>${extra ? `<span class="mode-extra">${extra}</span>` : ''}${icon('fa-chevron-right', 'mode-go')}</a>`;
     return `<div class="page narrow tint" style="--c:${s.color}">
-      <a class="crumb" href="#/cards">${icon('fa-arrow-left')} Study sets</a>
-      <header class="page-head page-head-sm quiz-page-head"><span class="quiz-page-ic" ${vt('icon-' + s.id)}>${EF.subjectIcon(s.id)}</span><div><span class="eyebrow">${s.custom ? 'My set' : 'Grade ' + EF.gradeOf(s) + ' subject'} · ${n} cards</span><h1>${esc(s.name)}</h1></div></header>
+      <a class="crumb" href="${s.custom ? esc(s.home) : '#/cards'}">${icon('fa-arrow-left')} ${s.custom ? esc(s.name) : 'Study sets'}</a>
+      <header class="page-head page-head-sm quiz-page-head"><span class="quiz-page-ic" ${vt('icon-' + s.id)}>${EF.subjectIcon(s.id)}</span><div><span class="eyebrow">${s.custom ? 'My deck' : 'Grade ' + EF.gradeOf(s) + ' subject'} · ${n} cards</span><h1>${esc(s.name)}</h1></div></header>
       <div class="set-stats"><span>${icon('fa-medal')} <strong>${m}/${n}</strong> mastered</span><span>${icon('fa-clock-rotate-left')} <strong>${due}</strong> due today</span>${best ? `<span>${icon('fa-stopwatch')} best match <strong>${(best / 1000).toFixed(1)}s</strong></span>` : ''}${q ? `<span>${icon('fa-trophy')} best test <strong>${q.best}%</strong></span>` : ''}</div>
       <div class="modes">
         ${mode('#/learn/' + s.id, 'fa-graduation-cap', 'Learn', 'Choose, then type the answers. 3 lives per round.', '+6 XP each')}
@@ -403,48 +404,13 @@
         ${!s.custom && EF.labList(s.id).length ? mode('#/lab/' + s.id, 'fa-flask', 'Interactive', `${EF.labList(s.id).length} hands-on tools: sort, simulate, label`, EF.labDoneCount(s.id) ? EF.labDoneCount(s.id) + ' done' : '') : ''}
         ${s.custom ? '' : mode('#/s/' + s.id, 'fa-book-open', 'Study guide', 'Full notes, worked examples and tools', '')}
       </div>
-      ${s.custom ? `<div class="btn-row"><button type="button" class="btn btn-primary" data-share="${esc(s.id)}">${icon('fa-link')} Share by link</button>${EF.cloud.joined() ? `<button type="button" class="btn" data-publish="${esc(s.id)}">${icon(EF.cloud.published(s.id) ? 'fa-rotate' : 'fa-school')} ${EF.cloud.published(s.id) ? 'Update in school library' : 'Share with my school'}</button>${EF.cloud.published(s.id) ? `<button type="button" class="btn btn-ghost" data-unpublish="${esc(s.id)}">${icon('fa-eye-slash')} Remove from library</button>` : ''}` : ''}<a class="btn" href="#/make/${esc(s.id)}">${icon('fa-pen')} Edit</a></div>` : ''}
+      ${s.custom && !s.base ? `<div class="btn-row"><button type="button" class="btn btn-primary" data-share-deck="${esc(s.id)}">${icon('fa-arrow-up-from-bracket')} Share deck</button><a class="btn" href="#/deck/${esc(s.id)}">${icon('fa-folder-open')} Open the deck</a></div>` : ''}
       ${deckView(s)}
     </div>`;
   };
 
-  /* every card in the deck, Gizmo style: tap a card to flip it; filter by topic */
-  const DECK_FIRST = 12;
-  function deckView(s) {
-    const tags = EF.deckTags ? EF.deckTags(s) : [];
-    const card = (c, k) => `<li class="dcard-wrap"${c[2] ? ` data-tag="${esc(c[2])}"` : ''}${k >= DECK_FIRST ? ' data-more' : ''}>
-        <button type="button" class="dcard" aria-pressed="false" data-dcard>
-          <span class="dcard-face dcard-front">${c[2] ? `<small class="dcard-tag">${esc(c[2])}</small>` : ''}<strong>${esc(c[0])}</strong><span class="dcard-hint">${icon('fa-rotate')} Tap to flip</span></span>
-          <span class="dcard-face dcard-back" aria-hidden="true"><small class="dcard-tag">Answer</small><strong>${esc(c[1])}</strong>${c[4] ? `<span class="dcard-why">${esc(c[4])}</span>` : ''}</span>
-        </button></li>`;
-    return `<section class="deck-view" data-deck-view aria-labelledby="deck-h">
-        <div class="deck-view-head"><h2 id="deck-h">${icon('fa-clone')} All ${s.flashcards.length} cards</h2><p class="muted">Tap a card to see the answer${s.flashcards.some((c) => c[4]) ? ' and why' : ''}.</p></div>
-        ${tags.length > 1 ? `<div class="seg seg-sm seg-scroll deck-tags" role="toolbar" aria-label="Show cards on one topic"><button type="button" data-dtag="" aria-pressed="true">All</button>${tags.map((t) => `<button type="button" data-dtag="${esc(t)}" aria-pressed="false">${esc(t)}</button>`).join('')}</div>` : ''}
-        <ul class="dcard-grid">${s.flashcards.map(card).join('')}</ul>
-        ${s.flashcards.length > DECK_FIRST ? `<div class="center"><button type="button" class="btn" data-deck-all>${icon('fa-layer-group')} Show all ${s.flashcards.length} cards</button></div>` : ''}
-      </section>`;
-  }
-  document.addEventListener('click', (e) => {
-    const flip = e.target.closest('[data-dcard]');
-    if (flip) {
-      const on = flip.getAttribute('aria-pressed') !== 'true';
-      flip.setAttribute('aria-pressed', String(on));
-      flip.querySelector('.dcard-front').setAttribute('aria-hidden', String(on));
-      flip.querySelector('.dcard-back').setAttribute('aria-hidden', String(!on));
-      return;
-    }
-    const view = e.target.closest('[data-deck-view]');
-    if (!view) return;
-    const more = e.target.closest('[data-deck-all]');
-    if (more) { view.classList.add('is-all'); more.parentElement.remove(); return; }
-    const tagBtn = e.target.closest('[data-dtag]');
-    if (tagBtn) {
-      const t = tagBtn.dataset.dtag;
-      view.querySelectorAll('[data-dtag]').forEach((b) => b.setAttribute('aria-pressed', String(b === tagBtn)));
-      view.classList.toggle('is-filtered', !!t);
-      view.querySelectorAll('.dcard-wrap').forEach((li) => { li.hidden = !!t && li.dataset.tag !== t; });
-    }
-  });
+  /* every card in the deck, Gizmo style (core/cards.js) */
+  function deckView(s) { return EF.cardList(s); }
   /* ================= INTERACTIVE: hands-on tools (assets/js/core/interactive.js) ================= */
   const topicName = (s, id) => { const t = s.topics.find((x) => x.id === id); return t ? (t.nav || t.title) : ''; };
   const labCard = (s, t) => {
@@ -510,25 +476,18 @@
     </div>`;
   };
   pages.live = () => `<div class="page narrow live-home">
-      <header class="page-head"><span class="eyebrow">${icon('fa-tower-broadcast')} Live</span><h1>Play live with friends</h1><p>Same questions, same time, one winner. Share a code and race your friends or your whole class.</p></header>
+      <header class="page-head"><span class="eyebrow">${icon('fa-tower-broadcast')} Live</span><h1>Play live with friends</h1><p>Same questions, same time, one winner. Share a code and race your friends or your whole class.</p>
+        ${EF.cloud.enabled && EF.cloud.joined() ? `<button type="button" class="btn btn-coral btn-lg live-friend-btn" data-live-friend>${EF.img3d('bolt', 24)} Challenge a friend</button>` : ''}</header>
       <div data-live-home></div>
     </div>`;
   pages.liveGame = (code) => `<div class="page narrow live-page" data-live="${esc(code)}"></div>`;
   pages.badChallenge = () => `<div class="page narrow center not-found">${EF.mascot ? EF.mascot('think', 140) : ''}<h1>That challenge link didn’t work</h1><p class="muted">It may have been cut off when it was copied. Ask your friend to send it again.</p><a class="btn btn-primary" href="#/">${icon('fa-house')} Go home</a></div>`;
-  pages.sets = () => {
-    const mine = EF.sets.list();
-    return `<div class="page">
-      <header class="page-head"><span class="eyebrow">${icon('fa-layer-group')} Saved on this device</span><h1>My sets</h1><p>Turn any notes into a study set: paste them in, then study with Learn, Flashcards, Match and Test. Tap <strong>Share</strong> to send a set to friends: the whole set travels inside the link, so no account is needed.</p></header>
-      <div class="grid cols-3">
-        <a class="cta-card make-cta" href="#/make"><span class="cta-ic">${icon('fa-plus')}</span><div><strong>Make a set</strong><span>Paste notes, one card per line</span></div></a>
-        ${mine.map((x) => deckCard(EF.sets.get(x.id))).join('')}
-      </div>
-      ${mine.length ? '' : `<p class="muted center" style="margin-top:24px">No sets yet. Make one from your class notes, or open a link a friend shared.</p>`}
-    </div>`;
-  };
+  pages.decks = () => `<div class="page decks-page" data-decks></div>`;
+  pages.deck = (id, tab) => `<div class="page narrow deck-page tint" data-deck="${esc(id)}"${tab ? ` data-tab="${esc(tab)}"` : ''}></div>`;
+  pages.note = (deck, nid) => `<div class="page narrow note-page" data-note="${esc(deck)}" data-nid="${esc(nid)}"></div>`;
   pages.make = (id) => `<div class="page narrow">
-      <a class="crumb" href="${id ? '#/set/' + esc(id) : '#/sets'}">${icon('fa-arrow-left')} ${id ? 'Back to set' : 'My sets'}</a>
-      <header class="page-head page-head-sm"><span class="eyebrow">${icon('fa-wand-magic-sparkles')} ${id ? 'Edit set' : 'New set'}</span><h1>${id ? 'Edit your set' : 'Make a study set'}</h1></header>
+      <a class="crumb" href="${id ? '#/deck/' + esc(id) : '#/decks'}">${icon('fa-arrow-left')} ${id ? 'Back to the deck' : 'My decks'}</a>
+      <header class="page-head page-head-sm"><span class="eyebrow">${icon('fa-align-left')} ${id ? 'Edit as text' : 'New deck'}</span><h1>${id ? 'Edit your cards' : 'Make a deck from notes'}</h1></header>
       <div data-make="${id ? esc(id) : ''}"></div>
     </div>`;
   /* League pages (content comes from cloud.js) */
@@ -537,6 +496,10 @@
   pages.join = (mode) => cloudPage('join', mode || '', `<a class="crumb" href="#/league">${icon('fa-arrow-left')} Leagues</a><header class="page-head page-head-sm"><span class="eyebrow">${icon('fa-fire')} Join</span><h1>${mode === 'code' ? 'Welcome back' : 'Join the league'}</h1></header>`);
   pages.account = () => cloudPage('account', null, `<a class="crumb" href="#/league">${icon('fa-arrow-left')} Leagues</a><header class="page-head page-head-sm"><span class="eyebrow">${icon('fa-user')} Account</span><h1>Your account</h1></header>`);
   pages.me = () => cloudPage('me', null, '');
+  pages.social = () => `<div class="page social-page"><div data-cloud="social"></div></div>`;
+  pages.groups = (id) => `<div class="page narrow${id ? ' chat-page' : ''}"><div data-cloud="groups"${id ? ` data-arg="${esc(id)}"` : ''}></div></div>`;
+  pages.settings = () => `<div class="page narrow settings-page"><div data-cloud="settings"></div></div>`;
+  pages.help = () => EF.helpPage();
   pages.user = (name) => cloudPage('user', name, `<a class="crumb" href="javascript:history.back()">${icon('fa-arrow-left')} Back</a>`);
   pages.school = (id) => cloudPage('school', id, `<a class="crumb" href="#/league">${icon('fa-arrow-left')} Leagues</a>`);
   pages.shared = (id) => cloudPage('shared', id, `<a class="crumb" href="javascript:history.back()">${icon('fa-arrow-left')} Back</a>`);
@@ -601,10 +564,14 @@
   function show(key, html, title, after) {
     const from = viewKey ? depth(viewKey) : 0, to = depth(key);
     document.documentElement.dataset.navdir = to > from ? 'forward' : to < from ? 'back' : 'fade';
+    // the same page drawn again (grade switch, a refresh) stays where you were and doesn't replay its entrance
+    const same = key === viewKey;
+    if (same && !after) { const y = window.scrollY; after = () => window.scrollTo(0, y); }
     let viaVT = false;
-    const swap = () => { render(key, html, title, after); if (viaVT) $$(':scope > .page', main).forEach((pg) => pg.classList.add('no-enter')); };
-    // Cross-fade between pages where the browser supports it (not on first load or with reduced motion)
-    if (document.startViewTransition && !firstShow && !EF.reducedMotion() && !document.documentElement.classList.contains('vt-theme')) {
+    const swap = () => { render(key, html, title, after); if (viaVT || same) $$(':scope > .page', main).forEach((pg) => pg.classList.add('no-enter')); };
+    // Cross-fade between pages where the browser supports it (not on first load, a redraw, phones or with reduced motion).
+    // On phones the snapshot morph ghosted the two pages and hid the tab bar, so they get a quick CSS fade instead.
+    if (document.startViewTransition && !firstShow && !same && !(EF.touchUI && EF.touchUI()) && !EF.reducedMotion() && !document.documentElement.classList.contains('vt-theme')) {
       document.documentElement.classList.add('vt-page');
       viaVT = true;
       const t = document.startViewTransition(swap);
@@ -618,7 +585,7 @@
     teardown();
     viewKey = key;
     main.innerHTML = html;
-    document.title = title ? title + ' · ExamForge' : 'ExamForge — Exam Prep';
+    document.title = title ? title + ' · Zing' : 'Zing — Exam Prep';
     cleanup.push(EF.mountWidgets(main));
     $$('[data-quiz]', main).forEach((el) => cleanup.push(EF.mountQuiz(el, el.dataset.quiz, { inline: !el.hasAttribute('data-autostart') && !el.dataset.vs, autostart: el.hasAttribute('data-autostart'), vs: el.dataset.vs })));
     $$('[data-cards]', main).forEach((el) => cleanup.push(EF.mountCards(el, el.dataset.cards)));
@@ -627,17 +594,21 @@
     $$('[data-speed]', main).forEach((el) => cleanup.push(EF.mountSpeed(el, el.dataset.speed, { vs: el.dataset.vs })));
     $$('[data-gap]', main).forEach((el) => cleanup.push(EF.mountGap(el, el.dataset.gap)));
     $$('[data-lab]', main).forEach((el) => cleanup.push(EF.mountLab(el, el.dataset.subject, el.dataset.lab)));
+    $$('[data-qcheck]', main).forEach((el) => cleanup.push(EF.mountQuickCheck(el)));
     $$('[data-live-home]', main).forEach((el) => cleanup.push(EF.mountLiveHome(el)));
     $$('[data-live]', main).forEach((el) => cleanup.push(EF.mountLive(el, el.dataset.live)));
     $$('[data-make]', main).forEach((el) => cleanup.push(EF.mountMake(el, el.dataset.make || null)));
     $$('[data-import]', main).forEach((el) => cleanup.push(EF.mountImport(el, el.dataset.import)));
-    const CLOUD = { league: EF.mountLeague, join: EF.mountJoin, account: EF.mountAccount, school: EF.mountSchool, shared: EF.mountShared, me: EF.mountMe, user: EF.mountUser };
+    $$('[data-decks]', main).forEach((el) => cleanup.push(EF.mountDecks(el)));
+    $$('[data-deck]', main).forEach((el) => cleanup.push(EF.mountDeck(el, el.dataset.deck, el.dataset.tab)));
+    $$('[data-note]', main).forEach((el) => cleanup.push(EF.mountNote(el, el.dataset.note, el.dataset.nid)));
+    const CLOUD = { league: EF.mountLeague, join: EF.mountJoin, account: EF.mountAccount, school: EF.mountSchool, shared: EF.mountShared, me: EF.mountMe, user: EF.mountUser, social: EF.mountSocial, groups: EF.mountGroups, settings: EF.mountSettings };
     $$('[data-cloud]', main).forEach((el) => { const fn = CLOUD[el.dataset.cloud]; if (fn) cleanup.push(fn(el, el.dataset.arg)); });
     const lc = $('[data-league-cta]', main); if (lc) EF.paintLeagueCta(lc);
     const hs = $('[data-home-social]', main); if (hs) EF.paintHomeSocial(hs);
     renderSidebar();
     closeDrawer();
-    const tab = { set: 'cards', learn: 'cards', match: 'cards', sets: 'cards', make: 'cards', import: 'cards', lab: 'cards', join: 'league', account: 'league', school: 'league', shared: 'league', me: 'league', u: 'league' }[key.split(':')[0]] || key.split(':')[0];
+    const tab = { set: 'cards', learn: 'cards', match: 'cards', sets: 'cards', decks: 'cards', deck: 'cards', note: 'cards', make: 'cards', import: 'cards', lab: 'cards', join: 'social', account: 'me', school: 'league', shared: 'league', u: 'social', groups: 'social', live: 'social', vs: 'social', settings: 'me', help: 'me' }[key.split(':')[0]] || key.split(':')[0];
     document.body.dataset.view = tab;
     if (after) after(); else window.scrollTo(0, 0);
     EF.countUp(main);
@@ -703,18 +674,36 @@
       const t = EF.labTool(s.id, c);
       return t ? show('lab:' + s.id + ':' + t.id, pages.labTool(s, t), t.title) : show('404', pages.notFound(), 'Not found');
     }
-    if (a === 'sets') return show('sets', pages.sets(), 'My sets');
+    if (a === 'sets' || a === 'decks') return show('decks', pages.decks(), 'My decks');
+    if (a === 'deck') {
+      const d = /^my-[a-z0-9]{4,24}$/.test(b || '') && EF.sets.raw(b);
+      if (!d) return show('404', pages.notFound(), 'Not found');
+      const tab = ['path', 'materials', 'board'].includes(c) ? c : '';
+      return show('deck:' + d.id, pages.deck(d.id, tab), d.name);
+    }
+    if (a === 'note') {
+      const d = /^my-[a-z0-9]{4,24}$/.test(b || '') && EF.sets.raw(b);
+      if (!d || !/^(new|n[a-z0-9]{3,20})$/.test(c || '')) return show('404', pages.notFound(), 'Not found');
+      return show('note:' + d.id + '/' + c, pages.note(d.id, c), 'Notes · ' + d.name);
+    }
     if (a === 'league') return show('league', pages.league(), 'Leagues');
     if (a === 'join') return show('join' + (b ? ':' + b : ''), pages.join(b), 'Join the league');
     if (a === 'account') return show('account', pages.account(), 'Account');
     if (a === 'me') return show('me', pages.me(), 'Profile');
+    if (a === 'social') return show('social', pages.social(), 'Social');
+    if (a === 'groups') { if (b && !/^[0-9a-f-]{36}$/.test(b)) return show('404', pages.notFound(), 'Not found'); return show(b ? 'groups:' + b : 'groups', pages.groups(b), b ? 'Study group' : 'Study groups'); }
+    if (a === 'settings') return show('settings', pages.settings(), 'Settings');
+    if (a === 'help') return show('help', pages.help(), 'Help');
     if (a === 'u' && b) return show('u:' + b.toLowerCase(), pages.user(b), b);
     if (a === 'school' && /^\d+$/.test(b || '')) return show('school:' + b, pages.school(b), 'School');
     if (a === 'shared' && /^[0-9a-f-]{36}$/.test(b || '')) return show('shared:' + b, pages.shared(b), 'Shared set');
-    if (a === 'make') { if (b && !EF.sets.raw(b)) return show('404', pages.notFound(), 'Not found'); return show('make' + (b ? ':' + b : ''), pages.make(b), b ? 'Edit set' : 'Make a set'); }
+    if (a === 'make') { if (b && !EF.sets.raw(b)) return show('404', pages.notFound(), 'Not found'); return show('make' + (b ? ':' + b : ''), pages.make(b), b ? 'Edit cards' : 'New deck'); }
     if (a === 'import' && b) return show('import:x', pages.importSet(p.slice(1).join('/')), 'Shared set');
     return show('404', pages.notFound(), 'Not found');
   }
+
+  EF.on('rerender', () => route());
+  EF.on('social', () => renderSidebar());
 
   /* Scroll-spy: highlights the topic you're reading, marks it as read, keeps the URL in sync */
   function startSpy(s) {
@@ -908,13 +897,16 @@
     const upb = t.closest('[data-unpublish]');
     if (upb) { EF.cloud.unpublish(upb.dataset.unpublish).then(() => { EF.toast('Removed from your school library', 'fa-eye-slash'); route(); }).catch((er) => EF.toast(er.message, 'fa-circle-exclamation')); return; }
     if (t.closest('[data-invite]')) {
+      if (EF.inviteFriends) return; // social.js handles invites (with your invite code)
       const url = location.href.split('#')[0];
       const done = (how) => EF.toast(how === 'copied' ? 'Link copied: send it to your friends!' : 'Thanks for sharing!', 'fa-user-plus');
-      if (navigator.share) navigator.share({ title: 'ExamForge', text: 'Study with me on ExamForge: notes, quizzes, flashcards and school leagues', url }).then(() => done('shared')).catch(() => {});
+      if (navigator.share) navigator.share({ title: 'Zing', text: 'Study with me on Zing: notes, quizzes, flashcards and school leagues', url }).then(() => done('shared')).catch(() => {});
       else if (navigator.clipboard) navigator.clipboard.writeText(url).then(() => done('copied')).catch(() => window.prompt('Copy this link:', url));
       else window.prompt('Copy this link:', url);
       return;
     }
+    const sd = t.closest('[data-share-deck]');
+    if (sd && EF.shareDeck) { EF.shareDeck(sd.dataset.shareDeck); return; }
     const sh = t.closest('[data-share]');
     if (sh) { const set = EF.sets.raw(sh.dataset.share); if (set) EF.sets.share(set).then((r) => { if (r === 'copied') EF.toast('Link copied: send it to your friends!', 'fa-link'); else if (r === 'shared') EF.toast('Shared!', 'fa-share-nodes'); }); return; }
     const tv = t.closest('[data-toc-view]');
@@ -927,6 +919,7 @@
     const gs = t.closest('[data-set-grade]');
     if (gs) { EF.setGrade(gs.dataset.setGrade); route(); return; }
     if (t.closest('[data-keys]')) { openKeys(); return; }
+    if (t.closest('[data-live-friend]')) { EF.pickFriends({ title: 'Challenge a friend', multi: false, cta: 'Next' }).then((f) => { if (f && f[0]) EF.openChallenge(f[0]); }); return; }
     if (t.closest('[data-install]') && installEvt) { installEvt.prompt(); installEvt.userChoice.finally(() => { installEvt = null; renderSidebar(); }); return; }
     if (t.closest('.menu-btn')) { document.body.classList.contains('nav-open') ? closeDrawer() : openDrawer(); return; }
     if (t.closest('.scrim')) { closeDrawer(); return; }
@@ -937,7 +930,11 @@
     }
     // Clicking a link to the URL we're already on (e.g. same topic) should still scroll there
     const a = t.closest('a[href^="#/"]');
-    if (a && !e.metaKey && !e.ctrlKey && !e.shiftKey && a.getAttribute('href') === location.hash) { e.preventDefault(); route(); closeDrawer(); }
+    // tapping the page you're already on scrolls back to the top, like a phone app (and redraws it if you're already there)
+    if (a && !e.metaKey && !e.ctrlKey && !e.shiftKey && a.getAttribute('href') === location.hash) {
+      e.preventDefault(); closeDrawer();
+      if (window.scrollY > 8) window.scrollTo({ top: 0, behavior: EF.reducedMotion() ? 'auto' : 'smooth' }); else route();
+    }
   });
   document.addEventListener('keydown', (e) => {
     const flip = e.target.closest && e.target.closest('[data-action="flip"]');
@@ -988,11 +985,17 @@
   /* Installable + offline (only over http/https — service workers don't run from a local file) */
   let installEvt = null;
   window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installEvt = e; renderSidebar(); });
-  window.addEventListener('appinstalled', () => { installEvt = null; renderSidebar(); EF.toast('ExamForge installed — study anywhere, even offline', 'fa-download'); });
+  window.addEventListener('appinstalled', () => { installEvt = null; renderSidebar(); EF.toast('Zing installed — study anywhere, even offline', 'fa-download'); });
   if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
     window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
   }
 
+  // without the online features there's no Social page: the phone dock gets the Quiz tab back, and no bell or Live button
+  if (!EF.cloud.enabled) {
+    const st = $('.tabbar [data-tab="social"]');
+    if (st) st.outerHTML = `<a href="#/quiz" data-tab="quiz"><img class="i3d" src="assets/img/3d/bolt.webp" width="26" height="26" alt="" aria-hidden="true"><span>Quiz</span></a>`;
+    $$('.live-btn').forEach((x) => { x.hidden = true; });
+  }
   window.addEventListener('hashchange', () => { closeSearch(); route(); });
 
   /* ================= BOOT ================= */

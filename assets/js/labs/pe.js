@@ -1,4 +1,4 @@
-/* ExamForge interactive tools — Physical Education (see assets/js/core/interactive.js for the tool kinds) */
+/* Zing interactive tools — Physical Education (see assets/js/core/interactive.js for the tool kinds) */
 window.EF = window.EF || {};
 (EF.labs = EF.labs || {}).pe = [
   { id: 'skeleton', kind: 'widget', name: 'skeleton', topic: 'pe-skeleton', title: '3D skeleton', desc: 'Spin a full 3D skeleton, tap any bone to learn about it, and play find-the-bone.' },

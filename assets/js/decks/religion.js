@@ -1,4 +1,4 @@
-/* ExamForge deck — Religious Education (Grade 9): extra cards.
+/* Zing deck — Religious Education (Grade 9): extra cards.
    Each card: [question, answer, [three wrong answers], why]. Cards are grouped by topic.
    assets/js/core/deck.js merges them with the subject's flashcards and quiz. */
 window.EF = window.EF || {};

@@ -1,4 +1,4 @@
-/* ExamForge content — Biology */
+/* Zing content — Biology */
 window.EF = window.EF || {};
 EF.subjects = EF.subjects || [];
 

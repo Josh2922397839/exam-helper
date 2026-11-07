@@ -1,4 +1,4 @@
-/* ExamForge settings.
+/* Zing settings.
    Leagues, schools, friends and cloud saves use the Supabase project below. The key is the PUBLIC
    publishable key (Supabase dashboard → Project Settings → API Keys): it's meant to be public, and the
    database only lets it call the safe ef_* functions in supabase/schema.sql.

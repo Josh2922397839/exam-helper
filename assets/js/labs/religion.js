@@ -1,4 +1,4 @@
-/* ExamForge interactive tools — Religious Education (see assets/js/core/interactive.js for the tool kinds) */
+/* Zing interactive tools — Religious Education (see assets/js/core/interactive.js for the tool kinds) */
 window.EF = window.EF || {};
 (EF.labs = EF.labs || {}).religion = [
   { id: 'which-religion', kind: 'sort', topic: 'world-religions', title: 'Which religion?', desc: 'Sort holy books, beliefs, practices and people into the five world religions.',

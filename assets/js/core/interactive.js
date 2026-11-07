@@ -1,4 +1,4 @@
-/* ExamForge core — Interactive: hands-on tools for every subject, like the 3D skeleton.
+/* Zing core — Interactive: hands-on tools for every subject, like the 3D skeleton.
    Each subject's tools live in assets/js/labs/<subject>.js as EF.labs['<subject id>'] = [tool, ...].
    Every tool has: id, title, topic (a topic id in the study guide), desc (one line), kind, and:
      sort   buckets: ['A', 'B'], items: [['text', bucketIndex, 'why (optional)'], ...]

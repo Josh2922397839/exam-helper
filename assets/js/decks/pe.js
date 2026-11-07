@@ -1,4 +1,4 @@
-/* ExamForge deck — Physical Education (Grade 9): extra cards.
+/* Zing deck — Physical Education (Grade 9): extra cards.
    Each card: [question, answer, [three wrong answers], why]. Cards are grouped by topic. */
 window.EF = window.EF || {};
 (EF.decks = EF.decks || {}).pe = [

@@ -1,4 +1,4 @@
-/* ExamForge content — Grade 10 Physics.
+/* Zing content — Grade 10 Physics.
    Scope = the teacher's test-topic list from the study inventory: Vernier caliper; density; mass, weight, gravity;
    forces; moments and the principle of moments; stability; centre of gravity; vectors (right-angle and parallelogram).
    Explanations use standard physics facts; nothing here is claimed as the teacher's exact wording. */
