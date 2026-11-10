@@ -42,6 +42,8 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -347,7 +349,11 @@ fun AppearanceScreen(onBack: () -> Unit) {
                 Choice("Animation", Motion.entries, a.motion, { it.label }) { vm.setAppearance(a.copy(motion = it)) }
                 Column {
                     Text("Text size: ${(a.fontScale * 100).toInt()}% of your phone's setting", style = MaterialTheme.typography.titleSmall)
-                    Slider(a.fontScale, { vm.setAppearance(a.copy(fontScale = (it * 20).toInt() / 20f)) }, valueRange = Appearance.MIN_FONT..Appearance.MAX_FONT, steps = 8, modifier = Modifier.semantics { contentDescription = "Text size" })
+                    var size by remember(a.fontScale) { mutableFloatStateOf(a.fontScale) }
+                    Slider(
+                        size, { size = it }, valueRange = Appearance.MIN_FONT..Appearance.MAX_FONT, steps = 8, modifier = Modifier.semantics { contentDescription = "Text size" },
+                        onValueChangeFinished = { val snapped = Math.round(size * 20) / 20f; if (kotlin.math.abs(snapped - a.fontScale) > 0.001f) vm.setAppearance(a.copy(fontScale = snapped)) },
+                    )
                 }
                 ListItem(headlineContent = { Text("Show progress details") }, supportingContent = { Text("Progress bars and counts on notebooks.") }, trailingContent = { Switch(a.showProgress, { vm.setAppearance(a.copy(showProgress = it)) }) })
                 OutlinedButton(onClick = { vm.setAppearance(a.reset()) }, modifier = Modifier.testTag("resetAppearance")) { Text("Reset ${a.preset.label} to how it came") }
@@ -402,7 +408,17 @@ fun AccountScreen(onBack: () -> Unit) {
                 SectionTitle("Leave", Modifier.padding(top = 10.dp))
                 OutlinedButton(onClick = { confirmSignOut = true }, enabled = !busy, modifier = Modifier.testTag("signOut")) { Text("Sign out") }
                 TextButton(onClick = { vm.signOut(true, context) { err -> app.notify(err ?: "Signed out on every device.") } }, enabled = !busy) { Text("Sign out on every device") }
-                Button(onClick = { confirmDelete = true; typed = "" }, enabled = !busy, colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error, contentColor = MaterialTheme.colorScheme.onError), modifier = Modifier.testTag("deleteAccount")) { Text("Delete my account") }
+                if (!confirmDelete) Button(onClick = { confirmDelete = true; typed = "" }, enabled = !busy, colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error, contentColor = MaterialTheme.colorScheme.onError), modifier = Modifier.testTag("deleteAccount")) { Text("Delete my account") }
+                else Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
+                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Delete your account for good?", style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() })
+                        Text("This deletes your profile, cloud backup, shared decks, friends list and sign-in, and clears this phone. It can't be undone.")
+                        OutlinedTextField(typed, { typed = it.take(10) }, label = { Text("Type DELETE to confirm") }, singleLine = true, modifier = Modifier.fillMaxWidth().testTag("deleteConfirmField"))
+                        Button(onClick = { confirmDelete = false; vm.deleteAccount(context) { err -> app.notify(err ?: "Your account was deleted.") } }, enabled = !busy && typed.trim() == "DELETE",
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error, contentColor = MaterialTheme.colorScheme.onError), modifier = Modifier.testTag("deleteConfirm")) { Text("Delete everything") }
+                        OutlinedButton(onClick = { confirmDelete = false }) { Text("Keep my account") }
+                    }
+                }
                 Text("Deleting removes your profile, cloud backup, shared decks, friends and your sign-in, and clears this phone. It can't be undone. Decks other students already saved stay with them.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
@@ -412,20 +428,6 @@ fun AccountScreen(onBack: () -> Unit) {
         (if (session?.anonymous == true) "This is a guest account. If you sign out without adding Google or an email (or saving a transfer code), you can't get back into it. " else "") +
             (if (unsynced) "Some changes haven't been backed up yet. Zing will try to back them up first. " else "") + "Your notebooks stay on this phone for when you sign back in.",
         "Sign out", onDismiss = { confirmSignOut = false }, onConfirm = { confirmSignOut = false; vm.signOut(false, context) { err -> err?.let(app::notify) } },
-    )
-    if (confirmDelete) androidx.compose.material3.AlertDialog(
-        onDismissRequest = { confirmDelete = false }, title = { Text("Delete your account for good?") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("This deletes your profile, cloud backup, shared decks, friends list and sign-in, and clears this phone. It can't be undone.")
-                OutlinedTextField(typed, { typed = it.take(10) }, label = { Text("Type DELETE to confirm") }, singleLine = true, modifier = Modifier.testTag("deleteConfirmField"))
-            }
-        },
-        confirmButton = {
-            Button(onClick = { confirmDelete = false; vm.deleteAccount(context) { err -> app.notify(err ?: "Your account was deleted.") } }, enabled = typed.trim() == "DELETE",
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error, contentColor = MaterialTheme.colorScheme.onError), modifier = Modifier.testTag("deleteConfirm")) { Text("Delete everything") }
-        },
-        dismissButton = { OutlinedButton(onClick = { confirmDelete = false }) { Text("Keep my account") } },
     )
 }
 

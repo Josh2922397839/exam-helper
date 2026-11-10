@@ -189,5 +189,5 @@ class TestEnv(val fake: FakeZing = FakeZing().start(), var clock: Long = 1_780_0
     private val client = okhttp3.OkHttpClient.Builder().addInterceptor { chain -> if (fake.offline) throw java.io.IOException("no network") else chain.proceed(chain.request()) }.build()
     val c = AppContainer(context, db = db, box = PlainBox(), http = com.josh.zing.data.remote.Http(client), baseUrl = fake.url, publishableKey = "sb_publishable_test", now = { clock }, settingsOverride = settings)
 
-    fun close() { runCatching { db.close() }; scope.cancel(); fake.stop(); dir.deleteRecursively() }
+    fun close(closeDatabase: Boolean = true) { if (closeDatabase) runCatching { db.close() }; scope.cancel(); fake.stop(); dir.deleteRecursively() }
 }

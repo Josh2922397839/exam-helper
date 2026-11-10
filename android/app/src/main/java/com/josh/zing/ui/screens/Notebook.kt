@@ -30,7 +30,6 @@ import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.PushPin
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Share
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -83,6 +82,7 @@ import com.josh.zing.data.repo.NotebookSummary
 import com.josh.zing.data.repo.Notebooks
 import com.josh.zing.ui.components.ConfirmDialog
 import com.josh.zing.ui.components.EmptyState
+import com.josh.zing.ui.components.FormSheet
 import com.josh.zing.ui.components.LocalApp
 import com.josh.zing.ui.components.MessageCard
 import com.josh.zing.ui.components.Page
@@ -189,17 +189,14 @@ fun shareText(context: Context, title: String, link: String) {
 private fun CardDialog(card: Card?, onDismiss: () -> Unit, onSave: (String, String) -> Unit) {
     var q by rememberSaveable { mutableStateOf(card?.q.orEmpty()) }
     var a by rememberSaveable { mutableStateOf(card?.a.orEmpty()) }
-    AlertDialog(
-        onDismissRequest = onDismiss, title = { Text(if (card == null) "New card" else "Edit card") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(q, { q = it.take(Limits.CARD_SIDE) }, label = { Text("Question") }, modifier = Modifier.fillMaxWidth().testTag("cardQ"))
-                OutlinedTextField(a, { a = it.take(Limits.CARD_SIDE) }, label = { Text("Answer") }, modifier = Modifier.fillMaxWidth().testTag("cardA"))
-            }
-        },
-        confirmButton = { Button(onClick = { onSave(q.trim(), a.trim()) }, enabled = q.isNotBlank() && a.isNotBlank(), modifier = Modifier.testTag("cardSave")) { Text("Save") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
-    )
+    FormSheet(if (card == null) "New card" else "Edit card", onDismiss) {
+        OutlinedTextField(q, { q = it.take(Limits.CARD_SIDE) }, label = { Text("Question") }, modifier = Modifier.fillMaxWidth().testTag("cardQ"))
+        OutlinedTextField(a, { a = it.take(Limits.CARD_SIDE) }, label = { Text("Answer") }, modifier = Modifier.fillMaxWidth().testTag("cardA"))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+            Button(onClick = { onSave(q.trim(), a.trim()) }, enabled = q.isNotBlank() && a.isNotBlank(), modifier = Modifier.testTag("cardSave")) { Text("Save") }
+        }
+    }
 }
 
 @Composable
@@ -487,16 +484,15 @@ fun NoteEditorScreen(deckId: String, noteId: String?, onBack: () -> Unit, onMake
     if (details) {
         var subject by rememberSaveable { mutableStateOf(meta.subject) }
         var topic by rememberSaveable { mutableStateOf(meta.topic) }
-        AlertDialog(onDismissRequest = { details = false }, title = { Text("Subject and topic") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("These help topic search find this note.", style = MaterialTheme.typography.bodySmall)
-                    OutlinedTextField(subject, { subject = it.take(40) }, label = { Text("Subject") }, singleLine = true)
-                    OutlinedTextField(topic, { topic = it.take(60) }, label = { Text("Topic") }, singleLine = true)
-                }
-            },
-            confirmButton = { Button(onClick = { details = false; vm.setMeta { it.copy(subject = subject.trim(), topic = topic.trim()) } }) { Text("Save") } },
-            dismissButton = { TextButton(onClick = { details = false }) { Text("Cancel") } })
+        FormSheet("Subject and topic", { details = false }) {
+            Text("These help topic search find this note.", style = MaterialTheme.typography.bodySmall)
+            OutlinedTextField(subject, { subject = it.take(40) }, label = { Text("Subject") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(topic, { topic = it.take(60) }, label = { Text("Topic") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                TextButton(onClick = { details = false }) { Text("Cancel") }
+                Button(onClick = { details = false; vm.setMeta { it.copy(subject = subject.trim(), topic = topic.trim()) } }) { Text("Save") }
+            }
+        }
     }
     if (confirmDelete) ConfirmDialog("Delete this note?", "You can undo straight afterwards.", "Delete", destructive = true, onDismiss = { confirmDelete = false },
         onConfirm = { confirmDelete = false; vm.delete { undo -> if (undo != null) app.notify("Note deleted", "Undo", undo) else app.notify("Draft discarded"); onBack() } })
