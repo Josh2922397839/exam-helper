@@ -139,6 +139,9 @@ class ImportViewModel(private val c: AppContainer, private val targetDeck: Strin
         s.copy(editing = null, cards = s.cards.mapIndexed { j, r -> if (i == j && q.isNotBlank() && a.isNotBlank()) r.copy(card = r.card.copy(q = q.trim().take(Limits.CARD_SIDE), a = a.trim().take(Limits.CARD_SIDE))) else r })
     }
 
+    /** Flags AI-made cards. Only a reason code is sent, never the cards or the notes they came from. */
+    fun report(reason: String, done: (Boolean) -> Unit) = viewModelScope.launch { done(runCatching { c.api.report("ai_answer", "import-cards", reason) }.isSuccess) }
+
     /** Saves the cards the student kept (and the imported text as a note). Returns through [done] how to undo it. */
     fun save(done: (count: Int, undo: suspend () -> Unit) -> Unit) = viewModelScope.launch {
         val s = _s.value
@@ -169,6 +172,11 @@ fun ImportScreen(deckId: String?, initialText: String, onBack: () -> Unit, onSta
     val s by vm.state.collectAsStateWithLifecycle()
     val pickFile = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let(vm::file) }
     val pickPhoto = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri -> uri?.let(vm::file) }
+    var reporting by rememberSaveable { mutableStateOf(false) }
+    if (reporting) ReportDialog({ reporting = false }) { reason ->
+        reporting = false
+        vm.report(reason) { ok -> app.notify(if (ok) "Thanks. Your report was sent." else "Couldn't send the report right now. You can also use the contact on the Privacy page.") }
+    }
 
     Page {
         ZScaffold(title = "Magic import", onBack = { if (s.step == ImportStep.WORKING) vm.cancel() else onBack() }) { pad ->
@@ -225,6 +233,7 @@ fun ImportScreen(deckId: String?, initialText: String, onBack: () -> Unit, onSta
                                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                     Text("Check these ${plural(s.cards.size, "card")}", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.semantics { heading() }.testTag("reviewTitle"))
                                     Text(if (draft?.usedAi == true) "Zing AI wrote these from your material. AI can make mistakes, so fix or untick anything that's wrong." else "Made on your phone from your own words. Fix or untick anything you don't want.")
+                                    if (draft?.usedAi == true) TextButton(onClick = { reporting = true }, modifier = Modifier.testTag("reportCards")) { Text("Report a problem with these cards") }
                                     draft?.fallback?.let { MessageCard(AiErrors.message(it) + " These are quick cards instead.") }
                                     s.error?.let { MessageCard(it, error = true) }
                                 }

@@ -243,6 +243,8 @@ class SyncThemeBillingTest {
         assertTrue(FeatureGate.gated.isEmpty())
         Feature.entries.forEach { assertTrue(FeatureGate.allowed(it, Entitlement.NONE, t0, online = true)) }
         val id = PlayAccount.obfuscatedId("5b1f0c1e-0000-4000-8000-000000000001")
+        // the Edge Functions compute the same value (tools/android/test-play-shared.mjs checks the same vector)
+        assertEquals("2fcacabf28ba82e514d88ac8d54ede843c124961552858783d564095488e71a8", id)
         assertEquals(64, id.length); assertFalse(id.contains("5b1f0c1e")); assertEquals(id, PlayAccount.obfuscatedId("5b1f0c1e-0000-4000-8000-000000000001"))
     }
 
