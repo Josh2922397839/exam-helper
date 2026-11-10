@@ -202,7 +202,7 @@ fun ConfirmDialog(title: String, body: String, confirm: String, onConfirm: () ->
 
 @Composable
 fun ProgressRing(fraction: Float, size: Dp, modifier: Modifier = Modifier, label: String? = null, stroke: Dp = 6.dp, color: Color = MaterialTheme.colorScheme.primary) {
-    val track = MaterialTheme.colorScheme.surfaceVariant
+    val track = MaterialTheme.colorScheme.outlineVariant   // visible on the page and on cards alike
     val f = fraction.coerceIn(0f, 1f)
     Box(modifier.size(size).semantics { stateDescription = "${(f * 100).toInt()} percent" }, contentAlignment = Alignment.Center) {
         Canvas(Modifier.fillMaxSize()) {
