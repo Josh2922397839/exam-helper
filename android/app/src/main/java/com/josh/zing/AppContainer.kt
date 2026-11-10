@@ -33,6 +33,8 @@ class AppContainer(
     publishableKey: String = BuildConfig.SUPABASE_KEY,
     val now: () -> Long = System::currentTimeMillis,
 ) {
+    /** For work that must finish even if the screen that started it has gone (saving a note on the way out). */
+    val appScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Default)
     val settings = Settings(context, box)
     val auth = SupabaseAuth(http, baseUrl, publishableKey)
     val sessions = SessionManager(settings, auth)
@@ -45,6 +47,7 @@ class AppContainer(
     val search = SearchRepo(db, library, now)
     val ai = Ai(api, sessions)
     val importer = Importer(context, ai)
+    val billing = com.josh.zing.billing.Billing(context, api, sync, sessions, appScope, BuildConfig.PLUS_PRODUCT_ID)
 }
 
 class ZingApp : Application() {

@@ -83,6 +83,10 @@ android {
         localeFilters += listOf("en")
     }
 
+    // The website's pictures (3D icons, avatars, school crests) are bundled straight from its own folder, so the two
+    // apps always show the same ones and nothing is copied into the repository twice.
+    sourceSets["main"].assets.srcDirs("src/main/assets", "../../assets/img")
+
     packaging {
         resources.excludes += setOf("/META-INF/{AL2.0,LGPL2.1}", "/META-INF/versions/9/OSGI-INF/MANIFEST.MF")
     }

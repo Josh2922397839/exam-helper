@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Zing</string>
+    <string name="reminder_channel">Study reminders</string>
+    <string name="reminder_channel_description">A daily nudge to keep your streak going.</string>
+    <string name="reminder_title">Keep your streak going</string>
+    <string name="reminder_text">A few minutes of cards today keeps it alive.</string>
+</resources>
