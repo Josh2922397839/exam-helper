@@ -30,7 +30,8 @@ class SearchAndGroundingTest {
     @Test fun queryParsingDropsFillerAndCannotInjectIntoMatch() {
         val q = Search.parse("  What is the Photosynthésis equation? ")
         assertEquals(listOf("photosynthesis", "equation"), q.terms)
-        assertEquals("photosynthesis* OR equation*", Search.ftsExpression(q))
+        assertEquals("photosynthesi* OR equation*", Search.ftsExpression(q))
+        assertEquals("divid* OR bod*", Search.ftsExpression(Search.parse("dividing bodies")))
         // quotes, operators and column filters typed by a student are just dropped
         val nasty = Search.parse("\"cell\" OR title:* NEAR/2 ) -secret")
         assertTrue(Search.ftsExpression(nasty).all { it.isLetterOrDigit() || it == '*' || it == ' ' })

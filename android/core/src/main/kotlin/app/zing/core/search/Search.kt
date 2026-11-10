@@ -97,7 +97,14 @@ object Search {
      * The MATCH expression for SQLite FTS: each term as a prefix, joined with OR. Terms are letters and digits only
      * (see [tokens]), so nothing a student types can change the meaning of the expression.
      */
-    fun ftsExpression(q: Query): String = q.terms.joinToString(" OR ") { "$it*" }
+    fun ftsExpression(q: Query): String = q.terms.map(::ftsPrefix).distinct().joinToString(" OR ") { "$it*" }
+
+    /** The prefix to look up for a term: its stem, so "dividing" also finds "divide" and "bodies" finds "body". */
+    private fun ftsPrefix(term: String): String {
+        val s = stem(term)
+        val common = term.commonPrefixWith(s)
+        return if (common.length >= 3) common else term
+    }
 
     private fun matches(token: String, term: String): Boolean = token.startsWith(term) || (term.length >= 5 && stem(token) == stem(term))
 
