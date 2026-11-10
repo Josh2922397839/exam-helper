@@ -1,0 +1,18 @@
+.gradle/
+build/
+local.properties
+.idea/
+*.iml
+.kotlin/
+captures/
+.externalNativeBuild/
+.cxx/
+# Signing material never belongs in the repository
+*.jks
+*.keystore
+keystore.properties
+*.p12
+*.pem
+# Play / Google service credentials
+play-service-account*.json
+google-services.json
