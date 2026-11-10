@@ -44,7 +44,8 @@ import java.util.concurrent.TimeUnit
 
 enum class SyncState { IDLE, RUNNING, OFFLINE, ERROR }
 
-data class SyncReport(val ok: Boolean, val offline: Boolean = false, val skipped: Boolean = false, val conflicts: Int = 0, val coins: Int = 0)
+/** [retry]: it failed for a reason that should pass (no connection, or the server is busy), so try again later. */
+data class SyncReport(val ok: Boolean, val offline: Boolean = false, val skipped: Boolean = false, val conflicts: Int = 0, val coins: Int = 0, val retry: Boolean = offline)
 
 /**
  * Keeps this device and the student's account in step. One sync at a time; every step can be repeated safely:
@@ -115,7 +116,7 @@ class SyncEngine(
             // the code only (never a body) is kept, to show "couldn't back up" with something to report
             kv.put(KvEntity(Keys.LAST_SYNC_ERROR, e.code.take(40)))
             _state.value = if (sessions.session.value == null) SyncState.IDLE else SyncState.ERROR
-            SyncReport(ok = false)
+            SyncReport(ok = false, retry = e.status >= 500 || e.status == 429)
         }
     }
 
@@ -179,7 +180,7 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
     override suspend fun doWork(): Result {
         val container = (applicationContext as? ZingApp)?.container ?: return Result.success()
         val report = container.sync.sync()
-        return if (report.offline && runAttemptCount < 5) Result.retry() else Result.success()
+        return if (report.retry && runAttemptCount < 5) Result.retry() else Result.success()
     }
 }
 

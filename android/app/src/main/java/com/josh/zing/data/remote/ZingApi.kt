@@ -129,7 +129,14 @@ class ZingApi(private val http: Http, baseUrl: String, private val publishableKe
         }
     }
 
-    private fun <T> decode(s: KSerializer<T>, e: JsonElement): T = http.json.decodeFromJsonElement(s, e)
+    /** A reply that isn't the expected shape is reported as a server problem, never allowed to crash the caller. */
+    private fun <T> decode(s: KSerializer<T>, e: JsonElement): T = try {
+        http.json.decodeFromJsonElement(s, e)
+    } catch (x: kotlinx.serialization.SerializationException) {
+        throw ApiException("bad_response", 502, "Something went wrong. Try again.")
+    } catch (x: IllegalArgumentException) {
+        throw ApiException("bad_response", 502, "Something went wrong. Try again.")
+    }
     private fun <T> decodeOrNull(s: KSerializer<T>, e: JsonElement): T? = if (e is JsonNull) null else decode(s, e)
 
     /** Calls an Edge Function with the student's own sign-in. Errors carry the function's code (quota_exceeded…). */
@@ -203,11 +210,11 @@ class ZingApi(private val http: Http, baseUrl: String, private val publishableKe
     suspend fun blocked(): List<String> = (rpc("ef_blocked") as? JsonArray).orEmpty().mapNotNull { (it as? JsonPrimitive)?.content }
 
     // ---------------------------------------------------------------- Zing AI, purchases, deleting the account
-    suspend fun aiStatus(): AiStatusDto = http.json.decodeFromJsonElement(AiStatusDto.serializer(), function("zing-ai", buildJsonObject { put("action", "status") }, retry = true))
-    suspend fun aiCards(body: JsonObject): AiCardsDto = http.json.decodeFromJsonElement(AiCardsDto.serializer(), function("zing-ai", body))
-    suspend fun aiAnswer(body: JsonObject): AiAnswerDto = http.json.decodeFromJsonElement(AiAnswerDto.serializer(), function("zing-ai", body))
+    suspend fun aiStatus(): AiStatusDto = decode(AiStatusDto.serializer(), function("zing-ai", buildJsonObject { put("action", "status") }, retry = true))
+    suspend fun aiCards(body: JsonObject): AiCardsDto = decode(AiCardsDto.serializer(), function("zing-ai", body))
+    suspend fun aiAnswer(body: JsonObject): AiAnswerDto = decode(AiAnswerDto.serializer(), function("zing-ai", body))
     suspend fun verifyPurchase(productId: String, purchaseToken: String): EntitlementDto =
-        http.json.decodeFromJsonElement(EntitlementDto.serializer(), function("play-verify", buildJsonObject { put("product_id", productId); put("purchase_token", purchaseToken) }, retry = true))
+        decode(EntitlementDto.serializer(), function("play-verify", buildJsonObject { put("product_id", productId); put("purchase_token", purchaseToken) }, retry = true))
     suspend fun deleteAccount() { function("delete-account", buildJsonObject { put("confirm", true) }) }
 
     companion object {

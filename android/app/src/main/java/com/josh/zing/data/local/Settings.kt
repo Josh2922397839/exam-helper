@@ -66,7 +66,10 @@ data class Prefs(
 )
 
 /** Settings kept on the device. The sign-in session lives in its own file, sealed, and is never backed up. */
-class Settings(private val context: Context, private val box: SecretBox) {
+class Settings(private val settingsStore: DataStore<Preferences>, private val sessionStore: DataStore<Preferences>, private val box: SecretBox) {
+    /** The app's own stores: one file for settings, one (sealed, never backed up) for the sign-in session. */
+    constructor(context: Context, box: SecretBox) : this(context.settingsStore, context.sessionStore, box)
+
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
 
     private object K {
@@ -84,15 +87,15 @@ class Settings(private val context: Context, private val box: SecretBox) {
         val pendingLink = stringPreferencesKey("pending_link")
     }
 
-    val appearance: Flow<Appearance> = context.settingsStore.data.map { p ->
+    val appearance: Flow<Appearance> = settingsStore.data.map { p ->
         p[K.appearance]?.let { runCatching { json.decodeFromString(Appearance.serializer(), it) }.getOrNull() }?.sane() ?: Appearance()
     }
 
     suspend fun setAppearance(a: Appearance) {
-        context.settingsStore.edit { it[K.appearance] = json.encodeToString(Appearance.serializer(), a.sane()) }
+        settingsStore.edit { it[K.appearance] = json.encodeToString(Appearance.serializer(), a.sane()) }
     }
 
-    val prefs: Flow<Prefs> = context.settingsStore.data.map { p ->
+    val prefs: Flow<Prefs> = settingsStore.data.map { p ->
         Prefs(
             goal = (p[K.goal] ?: 50).coerceIn(10, 500), haptics = p[K.haptics] ?: true, sounds = p[K.sounds] ?: true,
             studyReminders = p[K.reminders] ?: false, setupDone = p[K.setupDone] ?: false, setupLater = p[K.setupLater] ?: false,
@@ -101,24 +104,24 @@ class Settings(private val context: Context, private val box: SecretBox) {
     }
 
     suspend fun update(change: (Prefs) -> Prefs) {
-        context.settingsStore.edit { p ->
+        settingsStore.edit { p ->
             val next = change(prefs.first())
             p[K.goal] = next.goal; p[K.haptics] = next.haptics; p[K.sounds] = next.sounds; p[K.reminders] = next.studyReminders
             p[K.setupDone] = next.setupDone; p[K.setupLater] = next.setupLater; p[K.aiNotice] = next.aiNoticeSeen
         }
     }
 
-    suspend fun setupDraft(): String? = context.settingsStore.data.first()[K.setupDraft]
-    suspend fun setSetupDraft(value: String?) { context.settingsStore.edit { if (value == null) it.remove(K.setupDraft) else it[K.setupDraft] = value } }
+    suspend fun setupDraft(): String? = settingsStore.data.first()[K.setupDraft]
+    suspend fun setSetupDraft(value: String?) { settingsStore.edit { if (value == null) it.remove(K.setupDraft) else it[K.setupDraft] = value } }
 
     /** A link opened before the app was ready (fresh install, not signed in yet). Handled once setup is done. */
-    suspend fun pendingLink(): String? = context.settingsStore.data.first()[K.pendingLink]
-    suspend fun setPendingLink(value: String?) { context.settingsStore.edit { if (value == null) it.remove(K.pendingLink) else it[K.pendingLink] = value } }
+    suspend fun pendingLink(): String? = settingsStore.data.first()[K.pendingLink]
+    suspend fun setPendingLink(value: String?) { settingsStore.edit { if (value == null) it.remove(K.pendingLink) else it[K.pendingLink] = value } }
 
     // ---- sealed values (the sign-in session and the half-finished email sign-in)
-    private suspend fun sealed(key: Preferences.Key<String>): String? = context.sessionStore.data.first()[key]?.let(box::open)
+    private suspend fun sealed(key: Preferences.Key<String>): String? = sessionStore.data.first()[key]?.let(box::open)
     private suspend fun seal(key: Preferences.Key<String>, value: String?) {
-        context.sessionStore.edit { if (value == null) it.remove(key) else it[key] = box.seal(value) }
+        sessionStore.edit { if (value == null) it.remove(key) else it[key] = box.seal(value) }
     }
 
     suspend fun session(): String? = sealed(K.session)
@@ -128,7 +131,7 @@ class Settings(private val context: Context, private val box: SecretBox) {
 
     /** Used when the account is deleted: forget everything this app stored about the student. */
     suspend fun clearAll() {
-        context.settingsStore.edit { it.clear() }
-        context.sessionStore.edit { it.clear() }
+        settingsStore.edit { it.clear() }
+        sessionStore.edit { it.clear() }
     }
 }

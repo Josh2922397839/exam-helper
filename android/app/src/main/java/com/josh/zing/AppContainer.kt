@@ -32,10 +32,11 @@ class AppContainer(
     baseUrl: String = BuildConfig.SUPABASE_URL,
     publishableKey: String = BuildConfig.SUPABASE_KEY,
     val now: () -> Long = System::currentTimeMillis,
+    settingsOverride: Settings? = null,
 ) {
     /** For work that must finish even if the screen that started it has gone (saving a note on the way out). */
     val appScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Default)
-    val settings = Settings(context, box)
+    val settings = settingsOverride ?: Settings(context, box)
     val auth = SupabaseAuth(http, baseUrl, publishableKey)
     val sessions = SessionManager(settings, auth)
     val api = ZingApi(http, baseUrl, publishableKey, sessions)

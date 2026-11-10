@@ -98,6 +98,9 @@ android {
             all {
                 it.maxHeapSize = "2g"
                 it.systemProperty("robolectric.graphicsMode", "NATIVE")
+                // Optional: where Robolectric downloads its Android runtime from (a mirror, for machines that can't
+                // reach Maven Central directly). Set zing.robolectricRepo in ~/.gradle/gradle.properties.
+                (project.findProperty("zing.robolectricRepo") as String?)?.let { url -> it.systemProperty("robolectric.dependency.repo.url", url) }
             }
         }
     }
@@ -116,6 +119,11 @@ kotlin {
         jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
         freeCompilerArgs.addAll("-opt-in=kotlin.RequiresOptIn")
     }
+}
+
+roborazzi {
+    // reference screenshots live with the tests so a change in how a screen looks shows up in review
+    outputDir.set(file("src/test/screenshots"))
 }
 
 ksp {
