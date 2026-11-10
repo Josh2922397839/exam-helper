@@ -39,8 +39,9 @@ additive table (`app_prefs`, section 5). The web ignores it.
 
 ### Web features that stay web-only in this first Android version
 
-Live multiplayer games, challenges, study groups, the Interactive tab (98 tools), 3D models and widgets, and the
-Learn, Match, Speed run and Fill-the-gap modes. The app links to the website for them. They are listed in the
+The built-in subject study guides (the 15 subjects' notes, quizzes and decks), Live multiplayer games, challenges,
+study groups, the Interactive tab (98 tools), 3D models and widgets, and the Learn, Match, Speed run and
+Fill-the-gap modes. The app's Me screen says so and links to the website for them. They are listed in the
 [risk register](RISKS.md) so nobody assumes they were ported.
 
 ## 2. Project layout
@@ -96,11 +97,14 @@ AndroidX libraries require it), `targetSdk 36` (Play's current requirement; movi
 No analytics SDK, no advertising SDK, no crash-reporting SDK. Crashes and ANRs are read from Play Console's Android
 vitals, which needs no SDK and collects nothing extra.
 
-Permissions: `INTERNET`, `ACCESS_NETWORK_STATE` (wait for a connection before syncing), `POST_NOTIFICATIONS`
-(asked only when a student turns study reminders on), `com.android.vending.BILLING` (added by the Billing library).
-`RECORD_AUDIO` is asked only when a student records a lesson for Magic import. Files, photos and PDFs are chosen
-with the system pickers, which need no storage permission. No location, contacts or camera permission (photos use
-the system photo picker or camera app).
+Permissions the app asks for itself: `INTERNET`, `ACCESS_NETWORK_STATE` (wait for a connection before syncing) and
+`POST_NOTIFICATIONS` (asked only when a student turns study reminders on). Files, photos, PDFs and recordings are
+chosen with the system pickers, which need no storage, camera or microphone permission. No location or contacts
+permission.
+
+Permissions added by libraries, none of which shows a prompt: `com.android.vending.BILLING` (Play Billing);
+`WAKE_LOCK`, `RECEIVE_BOOT_COMPLETED` and `FOREGROUND_SERVICE` (WorkManager, to run the sync and the reminder);
+`USE_BIOMETRIC` and `USE_FINGERPRINT` (Credential Manager).
 
 ## 4. How the hard parts work
 
@@ -179,10 +183,13 @@ policies, `security definer` functions that check `auth.uid()`), and is safe to 
 | `app_prefs` table + `ef_prefs_get`, `ef_prefs_put` | Theme and notebook metadata across devices, with revision checks | None for the web (it never reads it). 64 KB cap per student | Drop the table and two functions |
 | `xp_ops` table + `ef_add_xp2(n, op)` | Idempotent XP | `ef_add_xp` is untouched. Rows older than 7 days are cleaned up on use | Drop both |
 | `reports`, `blocks` tables + `ef_report`, `ef_block`, `ef_unblock`, `ef_blocked` | In-app reporting and blocking (Play's user-generated-content policy) | New rows only | Drop them |
-| `ef_can_reach` replaced | A blocked student can't challenge or add you to a group | **Changes an existing helper.** Behaviour is identical when nobody is blocked | Rollback file restores the current body |
-| `ef_billing_private` schema: `entitlements`, `purchases`, `rtdn_events`; `ef_entitlement()`; service-only `ef_billing_apply`, `ef_billing_rtdn_seen` | Server-side source of truth for Zing Plus | Private schema, reachable only with the service key, like `ef_ai_private` | Drop the schema and functions |
+| `ef_can_reach`, `ef_follow`, `ef_follow_many` replaced | A blocked student can't challenge you, add you to a group, or follow you | **Changes existing functions.** Behaviour is identical when nobody is blocked | Rollback file restores the current bodies |
+| `ef_billing_private` schema: `entitlements`, `purchases`, `rtdn_events`; `ef_entitlement()`; service-only `zing_billing_apply`, `zing_billing_rtdn_seen` | Server-side source of truth for Zing Plus | Private schema, reachable only with the service key, like `ef_ai_private`. The service-only functions are named `zing_*` so `schema.sql`'s "grant every `ef_*` function" loop never opens them | Drop the schema and functions |
 | `ef_delete_me` replaced | Also clears the new tables. Entitlement rows are deleted; purchase tokens are kept only as a hash for fraud and refund handling | **Changes an existing function.** Old deletes keep working | Rollback file restores the current body |
 | `ef_claim` replaced | Moving an account to a new device also moves the new rows | **Changes an existing function** | Rollback file restores the current body |
+
+The migration, its rollback and a re-apply were run against PostgreSQL 16 with `tools/android/test-migration.sh`
+(63 checks as student and service roles).
 
 Edge Functions (deploy by hand when ready): `delete-account` (new), `play-verify` (new), `play-rtdn` (new), and
 `zing-ai` gains one action. Their secrets are listed in [CONFIGURATION.md](CONFIGURATION.md).
