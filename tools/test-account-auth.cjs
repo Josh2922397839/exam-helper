@@ -67,7 +67,9 @@ function app({ session = null, joined = !!session, available = { google: true, a
   assert(!a.calls.some(([kind]) => kind === 'exchange'));
 
   a = app({ href: 'https://exam-helper.edgeone.app/#/', restorePending: true, profile: null }); await a.api.ready;
-  assert.equal(a.calls.at(-1)[1], '/#/join');
+  // Signed in but no profile yet: stay on the home address, where the mandatory setup (onboard.js) takes over
+  assert.equal(a.calls.at(-1)[1], '/#/');
+  assert.equal(a.api.notice(), 'Signed in! Let’s finish setting up your account.');
 
   for (const href of ['https://exam-helper.edgeone.app/#/', 'https://exam-helper.edgeone.app/?code=one-time-code#/']) {
     a = app({ href, restorePending: true, restoreError: new Error('profile RPC offline') }); await a.api.ready;
